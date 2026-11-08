@@ -1,6 +1,6 @@
 import { useRef, useState, type ClipboardEvent } from 'react';
-import { deleteThumbnail, putThumbnail, resizeToThumbnail } from '@/lib/thumbnails';
-import { updateRecord } from '@/lib/storage';
+import { resizeToThumbnail } from '@/lib/thumbnails';
+import { setThumbnail } from '@/lib/storage';
 import {
   captureVisible,
   downloadImage,
@@ -31,8 +31,7 @@ export function ThumbnailPicker({ record, tab, onChange }: Props) {
     try {
       const source = await task();
       if (!source) return;
-      await putThumbnail(record.id, await resizeToThumbnail(source));
-      const next = await updateRecord(record.id, () => ({ hasThumbnail: true }));
+      const next = await setThumbnail(record.id, await resizeToThumbnail(source));
       if (next) onChange?.(next);
     } catch (e) {
       if (e instanceof NeedsPermissionError) setNeedsOrigin(e.origin);
@@ -45,8 +44,7 @@ export function ThumbnailPicker({ record, tab, onChange }: Props) {
   async function remove() {
     setBusy(true);
     try {
-      await deleteThumbnail(record.id);
-      const next = await updateRecord(record.id, () => ({ hasThumbnail: false }));
+      const next = await setThumbnail(record.id, null);
       if (next) onChange?.(next);
     } finally {
       setBusy(false);

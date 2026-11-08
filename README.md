@@ -44,7 +44,7 @@ change.
 
 | Permission | Why |
 | --- | --- |
-| `storage`, `unlimitedStorage` | Save your list locally without the 10 MB cap |
+| `storage`, `unlimitedStorage` | Your list is kept in the browser's IndexedDB with no size cap; `storage` carries a tiny "list changed" signal between the popup, list page and badge |
 | `tabs` | Read the current tab's URL to update the badge |
 | `activeTab` | Screenshot the page when you ask for it from the popup |
 | `scripting` | Read the page's og:image tag |

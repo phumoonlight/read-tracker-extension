@@ -1,6 +1,6 @@
 import { buildBackup, parseBackup, planImport, type ImportPlan } from './backup';
-import { deleteThumbnail, getThumbnail, putThumbnail, blobToDataUrl, dataUrlToBlob } from './thumbnails';
-import { getAllRecords, putRecords } from './storage';
+import { blobToDataUrl, dataUrlToBlob, getThumbnail } from './thumbnails';
+import { applyImport, getAllRecords } from './storage';
 
 /** Collect everything into a backup file and trigger a download. */
 export async function exportToFile(): Promise<number> {
@@ -22,14 +22,13 @@ export async function exportToFile(): Promise<number> {
   return records.length;
 }
 
-/** Validate, merge and apply a backup file. Thumbnails are written before records so cards never point at a missing image. */
+/** Validate, merge and apply a backup file. All writes happen in one transaction. */
 export async function importFromFile(file: File): Promise<ImportPlan> {
   const backup = parseBackup(await file.text());
   const plan = planImport(await getAllRecords(), backup);
-  for (const [id, dataUrl] of Object.entries(plan.putThumbnails)) {
-    await putThumbnail(id, await dataUrlToBlob(dataUrl));
-  }
-  for (const id of plan.deleteThumbnails) await deleteThumbnail(id);
-  await putRecords(plan.write);
+  // Decode blobs first: async work is not allowed inside an IndexedDB transaction.
+  const blobs = new Map<string, Blob>();
+  for (const [id, dataUrl] of Object.entries(plan.putThumbnails)) blobs.set(id, await dataUrlToBlob(dataUrl));
+  await applyImport(plan.write, blobs, plan.deleteThumbnails);
   return plan;
 }

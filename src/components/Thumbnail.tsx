@@ -1,12 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getThumbnail } from '@/lib/thumbnails';
 import type { ReadingRecord } from '@/lib/types';
 
-/** Object URL for a record's thumbnail, refreshed when the record changes. Revoked on cleanup. */
-export function useThumbnailUrl(record: Pick<ReadingRecord, 'id' | 'hasThumbnail' | 'updatedAt'>) {
+/**
+ * Object URL for a record's thumbnail, refreshed when the record changes. Nothing is
+ * read from IndexedDB until `enabled` is true.
+ */
+export function useThumbnailUrl(
+  record: Pick<ReadingRecord, 'id' | 'hasThumbnail' | 'updatedAt'>,
+  enabled = true,
+) {
   const [url, setUrl] = useState<string>();
 
   useEffect(() => {
+    if (!enabled) return;
     if (!record.hasThumbnail) {
       setUrl(undefined);
       return;
@@ -22,7 +29,7 @@ export function useThumbnailUrl(record: Pick<ReadingRecord, 'id' | 'hasThumbnail
     return () => {
       cancelled = true;
     };
-  }, [record.id, record.hasThumbnail, record.updatedAt]);
+  }, [record.id, record.hasThumbnail, record.updatedAt, enabled]);
 
   // Revoke each object URL only once it has been replaced (or on unmount), so the
   // old image stays visible while the new one loads instead of flashing broken.
@@ -36,12 +43,41 @@ export function useThumbnailUrl(record: Pick<ReadingRecord, 'id' | 'hasThumbnail
   return url;
 }
 
+/** True once the element has come within `margin` of the viewport (then stays true). */
+function useNearViewport<T extends Element>(margin = '400px') {
+  const ref = useRef<T>(null);
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (near || !el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setNear(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: margin },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [near, margin]);
+  return [ref, near] as const;
+}
+
+/** Card thumbnail; the image is loaded only when the card scrolls near the viewport. */
 export function Thumbnail({ record }: { record: ReadingRecord }) {
-  const url = useThumbnailUrl(record);
-  if (url) return <img className="thumb" src={url} alt="" loading="lazy" />;
+  const [ref, near] = useNearViewport<HTMLDivElement>();
+  const url = useThumbnailUrl(record, near);
   return (
-    <div className="thumb thumb-empty" aria-hidden="true">
-      {(record.title.trim()[0] ?? '?').toUpperCase()}
+    <div ref={ref}>
+      {url ? (
+        <img className="thumb" src={url} alt="" />
+      ) : (
+        <div className="thumb thumb-empty" aria-hidden="true">
+          {(record.title.trim()[0] ?? '?').toUpperCase()}
+        </div>
+      )}
     </div>
   );
 }

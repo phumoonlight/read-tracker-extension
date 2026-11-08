@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { findMatch, prefixMatches } from '@/lib/match';
+import { candidateKeys, chooseMatch, findMatch, prefixMatches } from '@/lib/match';
+import type { ReadingRecord } from '@/lib/types';
 import { normalizeUrl } from '@/lib/url';
 import { rec } from './fixtures';
 
@@ -57,5 +58,79 @@ describe('findMatch', () => {
   it('works end to end with normalizeUrl', () => {
     const key = normalizeUrl('https://www.SITE.com/novel/abc/ch-2/?utm_source=x#c')!;
     expect(findMatch(all, key)).toBe(series);
+  });
+});
+
+describe('candidateKeys', () => {
+  it('lists the URL and every path / query boundary, longest first', () => {
+    expect(candidateKeys('site.com/a/b?x=1&y=2')).toEqual(['site.com/a/b?x=1&y=2', 'site.com/a/b', 'site.com/a', 'site.com']);
+  });
+  it('handles a bare host and a host with a port', () => {
+    expect(candidateKeys('site.com')).toEqual(['site.com']);
+    expect(candidateKeys('localhost:8080/a')).toEqual(['localhost:8080/a', 'localhost:8080']);
+  });
+  it('covers exactly the prefixes prefixMatches accepts', () => {
+    const url = 'site.com/novel/abc/ch-1?page=2';
+    for (let i = 1; i <= url.length; i++) {
+      const p = url.slice(0, i);
+      expect(candidateKeys(url).includes(p)).toBe(prefixMatches(url, p));
+    }
+  });
+});
+
+/** What the matchKey index returns for each candidate key. */
+function indexHits(records: ReadingRecord[], url: string) {
+  return new Map(candidateKeys(url).map((k) => [k, records.filter((r) => r.matchKey === k)]));
+}
+
+describe('chooseMatch (index lookup) agrees with findMatch (full scan)', () => {
+  const fixed = [
+    rec({ matchMode: 'prefix', matchKey: 'site.com' }),
+    rec({ matchMode: 'prefix', matchKey: 'site.com/novel/abc' }),
+    rec({ matchMode: 'exact', matchKey: 'site.com/novel/abc/ch-5' }),
+    rec({ matchMode: 'prefix', matchKey: 'site.com/novel/abc/ch-5' }),
+    rec({ matchMode: 'exact', matchKey: 'site.com/novel/abc?page=2' }),
+  ];
+
+  it.each([
+    'site.com',
+    'site.com/about',
+    'site.com/novel/abc',
+    'site.com/novel/abc/ch-1',
+    'site.com/novel/abc/ch-5',
+    'site.com/novel/abc/ch-5/comments',
+    'site.com/novel/abc?page=2',
+    'site.com/novel/abc?page=3',
+    'site.com/novel/abcdef',
+    'other.com/x',
+  ])('%s', (url) => {
+    expect(chooseMatch(url, indexHits(fixed, url))).toBe(findMatch(fixed, url));
+  });
+
+  it('on random record sets', () => {
+    // Small deterministic PRNG so failures are reproducible.
+    let seed = 42;
+    const rand = (n: number) => ((seed = (seed * 1103515245 + 12345) % 2 ** 31), seed % n);
+    const segs = ['a', 'b', 'ab', 'c'];
+    const randomKey = () => {
+      let k = ['x.com', 'y.com'][rand(2)]!;
+      for (let d = rand(4); d > 0; d--) k += `/${segs[rand(segs.length)]}`;
+      if (rand(4) === 0) k += `?p=${rand(3)}`;
+      return k;
+    };
+    for (let round = 0; round < 300; round++) {
+      // Distinct matchKeys per mode so the expected winner is unambiguous.
+      const seen = new Set<string>();
+      const records: ReadingRecord[] = [];
+      for (let i = rand(12); i > 0; i--) {
+        const matchMode = rand(2) ? 'exact' : 'prefix';
+        const matchKey = randomKey();
+        if (seen.has(matchMode + matchKey)) continue;
+        seen.add(matchMode + matchKey);
+        records.push(rec({ matchMode, matchKey }));
+      }
+      const url = randomKey();
+      expect(chooseMatch(url, indexHits(records, url))).toBe(findMatch(records, url));
+    }
   });
 });

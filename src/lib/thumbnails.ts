@@ -1,19 +1,16 @@
-import { createKeyValueStore } from './idb';
+import { THUMBNAILS, req, withTx } from './db';
 
 /**
- * Thumbnails live in IndexedDB (database "read-tracker", store "thumbnails"),
- * keyed by record id. The extension origin is shared, so popup, options page and
- * background all see the same store.
+ * Thumbnails are WebP Blobs in the "thumbnails" store of the extension's IndexedDB,
+ * keyed by record id. Writes go through setThumbnail() in storage.ts, which also
+ * updates the record's hasThumbnail flag in the same transaction.
  */
-const store = createKeyValueStore<Blob>('read-tracker', 'thumbnails');
+export const getThumbnail = (id: string) =>
+  withTx(THUMBNAILS, 'readonly', (tx) => req(tx.objectStore(THUMBNAILS).get(id)) as Promise<Blob | undefined>);
 
 export const THUMB_WIDTH = 300;
 const MAX_HEIGHT = 600;
 const QUALITY = 0.85;
-
-export const getThumbnail = (id: string) => store.get(id);
-export const putThumbnail = (id: string, blob: Blob) => store.set(id, blob);
-export const deleteThumbnail = (id: string) => store.del(id);
 
 /**
  * Downscale an image to THUMB_WIDTH wide (never upscales; height capped at MAX_HEIGHT,

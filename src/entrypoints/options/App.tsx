@@ -1,23 +1,32 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ConfirmDialog, Dialog } from '@/components/Dialog';
 import { RecordForm, defaultPrefix, type RecordFormResult } from '@/components/RecordForm';
 import { Thumbnail } from '@/components/Thumbnail';
 import { ThumbnailPicker } from '@/components/ThumbnailPicker';
 import { exportToFile, importFromFile } from '@/lib/backup-io';
 import { createRecord, openUrl } from '@/lib/records';
-import { deleteRecord, getAllRecords, onRecordsChanged, putRecord, statusChange, updateRecord } from '@/lib/storage';
-import { deleteThumbnail } from '@/lib/thumbnails';
+import {
+  countRecords,
+  deleteRecord,
+  getRecord,
+  listTags,
+  onRecordsChanged,
+  putRecord,
+  queryRecords,
+  statusChange,
+  updateRecord,
+  type SortKey,
+} from '@/lib/storage';
 import { STATUSES, STATUS_LABEL, type ReadingRecord, type ReadStatus } from '@/lib/types';
 
-type SortKey = 'updated' | 'created' | 'title' | 'status';
-const SORTS: Record<SortKey, { label: string; cmp: (a: ReadingRecord, b: ReadingRecord) => number }> = {
-  updated: { label: 'Recently updated', cmp: (a, b) => b.updatedAt - a.updatedAt },
-  created: { label: 'Recently added', cmp: (a, b) => b.createdAt - a.createdAt },
-  title: { label: 'Title A–Z', cmp: (a, b) => a.title.localeCompare(b.title) },
-  status: {
-    label: 'Status',
-    cmp: (a, b) => STATUSES.indexOf(a.status) - STATUSES.indexOf(b.status) || b.updatedAt - a.updatedAt,
-  },
+/** Cards loaded per page; more load as the end of the grid scrolls into view. */
+const PAGE = 60;
+
+const SORT_LABEL: Record<SortKey, string> = {
+  updated: 'Recently updated',
+  created: 'Recently added',
+  title: 'Title A–Z',
+  status: 'Status',
 };
 
 type Modal =
@@ -26,52 +35,87 @@ type Modal =
   | { kind: 'delete'; record: ReadingRecord }
   | undefined;
 
+function useDebounced<T>(value: T, ms: number): T {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
+
+/** Bumps whenever any record changes in any context. */
+function useRevision(): number {
+  const [revision, setRevision] = useState(0);
+  useEffect(() => onRecordsChanged(() => setRevision((r) => r + 1)), []);
+  return revision;
+}
+
 export function App() {
-  const [records, setRecords] = useState<ReadingRecord[]>();
+  const revision = useRevision();
   const [query, setQuery] = useState('');
+  const search = useDebounced(query, 200);
   const [status, setStatus] = useState<ReadStatus | 'all'>('all');
   const [tag, setTag] = useState('');
   const [sort, setSort] = useState<SortKey>('updated');
+  const [limit, setLimit] = useState(PAGE);
+  const [page, setPage] = useState<{ records: ReadingRecord[]; hasMore: boolean }>();
+  const [total, setTotal] = useState<number>();
+  const [allTags, setAllTags] = useState<string[]>([]);
   const [modal, setModal] = useState<Modal>();
 
   useEffect(() => {
-    const load = () => getAllRecords().then(setRecords);
-    void load();
-    const off = onRecordsChanged(load);
     // The popup links here with #edit=<id>.
     const m = location.hash.match(/^#edit=(.+)$/);
     if (m?.[1]) {
       setModal({ kind: 'edit', id: decodeURIComponent(m[1]) });
       history.replaceState(null, '', location.pathname);
     }
-    return off;
   }, []);
 
-  const allTags = useMemo(() => [...new Set((records ?? []).flatMap((r) => r.tags))].sort(), [records]);
+  useEffect(() => {
+    void countRecords().then(setTotal);
+    void listTags().then(setAllTags);
+  }, [revision]);
+
   // If the selected tag disappears (last record with it deleted or retagged), stop filtering by it.
   const activeTag = tag && allTags.includes(tag) ? tag : '';
 
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return (records ?? [])
-      .filter((r) => status === 'all' || r.status === status)
-      .filter((r) => !activeTag || r.tags.includes(activeTag))
-      .filter(
-        (r) =>
-          !q ||
-          [r.title, r.url, r.notes ?? '', ...r.tags].some((s) => s.toLowerCase().includes(q)),
-      )
-      .sort(SORTS[sort].cmp);
-  }, [records, query, status, activeTag, sort]);
+  // Load the first `limit` matches. Any change re-runs it; stale responses are dropped.
+  useEffect(() => {
+    let stale = false;
+    void queryRecords({
+      search,
+      status: status === 'all' ? undefined : status,
+      tag: activeTag || undefined,
+      sort,
+      limit,
+    }).then((p) => {
+      if (!stale) setPage(p);
+    });
+    return () => {
+      stale = true;
+    };
+  }, [search, status, activeTag, sort, limit, revision]);
 
-  const editing = modal?.kind === 'edit' ? records?.find((r) => r.id === modal.id) : undefined;
+  // Any filter change starts again from the first page.
+  function resetting<T>(set: (v: T) => void) {
+    return (v: T) => {
+      set(v);
+      setLimit(PAGE);
+    };
+  }
+
+  const loadMore = () => setLimit((l) => l + PAGE);
 
   return (
     <div className="page">
       <header className="page-header">
         <h1>Reading list</h1>
         <div className="row">
-          <span className="muted">{records ? `${visible.length} of ${records.length}` : ''}</span>
+          <span className="muted">
+            {page && total !== undefined ? `${page.records.length}${page.hasMore ? '+' : ''} shown of ${total}` : ''}
+          </span>
           <button type="button" className="btn btn-primary" onClick={() => setModal({ kind: 'new' })}>
             New record
           </button>
@@ -79,8 +123,18 @@ export function App() {
       </header>
 
       <div className="toolbar">
-        <input type="search" placeholder="Search title, URL, tags, notes" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search" />
-        <select value={status} onChange={(e) => setStatus(e.target.value as ReadStatus | 'all')} aria-label="Filter by status">
+        <input
+          type="search"
+          placeholder="Search title, URL, tags, notes"
+          value={query}
+          onChange={(e) => resetting(setQuery)(e.target.value)}
+          aria-label="Search"
+        />
+        <select
+          value={status}
+          onChange={(e) => resetting(setStatus)(e.target.value as ReadStatus | 'all')}
+          aria-label="Filter by status"
+        >
           <option value="all">All statuses</option>
           {STATUSES.map((s) => (
             <option key={s} value={s}>
@@ -88,7 +142,7 @@ export function App() {
             </option>
           ))}
         </select>
-        <select value={activeTag} onChange={(e) => setTag(e.target.value)} aria-label="Filter by tag">
+        <select value={activeTag} onChange={(e) => resetting(setTag)(e.target.value)} aria-label="Filter by tag">
           <option value="">All tags</option>
           {allTags.map((t) => (
             <option key={t} value={t}>
@@ -96,35 +150,38 @@ export function App() {
             </option>
           ))}
         </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Sort">
-          {Object.entries(SORTS).map(([k, s]) => (
+        <select value={sort} onChange={(e) => resetting(setSort)(e.target.value as SortKey)} aria-label="Sort">
+          {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
             <option key={k} value={k}>
-              {s.label}
+              {SORT_LABEL[k]}
             </option>
           ))}
         </select>
       </div>
 
-      {records === undefined ? (
+      {page === undefined ? (
         <p className="muted">Loading…</p>
-      ) : visible.length === 0 ? (
+      ) : page.records.length === 0 ? (
         <div className="empty">
-          {records.length === 0
+          {total === 0
             ? 'Your list is empty. Open a page and use the toolbar button to add it.'
             : 'No records match these filters.'}
         </div>
       ) : (
-        <div className="grid">
-          {visible.map((r) => (
-            <Card
-              key={r.id}
-              record={r}
-              onEdit={() => setModal({ kind: 'edit', id: r.id })}
-              onDelete={() => setModal({ kind: 'delete', record: r })}
-              onTag={setTag}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid">
+            {page.records.map((r) => (
+              <Card
+                key={r.id}
+                record={r}
+                onEdit={() => setModal({ kind: 'edit', id: r.id })}
+                onDelete={() => setModal({ kind: 'delete', record: r })}
+                onTag={resetting(setTag)}
+              />
+            ))}
+          </div>
+          {page.hasMore && <LoadMore onLoad={loadMore} pageKey={page} />}
+        </>
       )}
 
       <Backup />
@@ -146,7 +203,9 @@ export function App() {
         </Dialog>
       )}
 
-      {modal?.kind === 'edit' && editing && <EditDialog key={editing.id} record={editing} onClose={() => setModal(undefined)} />}
+      {modal?.kind === 'edit' && (
+        <EditDialog key={modal.id} id={modal.id} revision={revision} onClose={() => setModal(undefined)} />
+      )}
 
       {modal?.kind === 'delete' && (
         <ConfirmDialog
@@ -159,12 +218,41 @@ export function App() {
           }
           confirmLabel="Delete"
           onClose={() => setModal(undefined)}
-          onConfirm={async () => {
-            await deleteRecord(modal.record.id);
-            await deleteThumbnail(modal.record.id);
-          }}
+          onConfirm={() => deleteRecord(modal.record.id)}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Loads the next page when it scrolls near the viewport. The observer is re-created
+ * for each new page (`pageKey`); its initial observation fires again, so on a tall
+ * screen where the sentinel is still visible after a load, the next page loads too.
+ */
+function LoadMore({ onLoad, pageKey }: { onLoad: () => void; pageKey: unknown }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // Latest callback without re-creating the observer on every render (which would
+  // re-fire the initial observation and load page after page).
+  const onLoadRef = useRef(onLoad);
+  onLoadRef.current = onLoad;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) onLoadRef.current();
+      },
+      { rootMargin: '600px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [pageKey]);
+  return (
+    <div ref={ref} className="row" style={{ justifyContent: 'center' }}>
+      <button type="button" className="btn" onClick={onLoad}>
+        Load more
+      </button>
     </div>
   );
 }
@@ -230,9 +318,31 @@ function Card({
   );
 }
 
-function EditDialog({ record, onClose }: { record: ReadingRecord; onClose: () => void }) {
+function EditDialog({ id, revision, onClose }: { id: string; revision: number; onClose: () => void }) {
+  // Loaded by id (the record may not be on the loaded page) and reloaded on any change,
+  // so the thumbnail preview stays current. The form keeps its own unsaved edits.
+  const [record, setRecord] = useState<ReadingRecord | null>();
+  useEffect(() => {
+    let stale = false;
+    void getRecord(id).then((r) => {
+      if (!stale) setRecord(r ?? null);
+    });
+    return () => {
+      stale = true;
+    };
+  }, [id, revision]);
+
+  if (record === undefined) return null;
+  if (record === null) {
+    return (
+      <Dialog title="Edit record" onClose={onClose}>
+        <p className="muted">This record no longer exists.</p>
+      </Dialog>
+    );
+  }
+
   async function save(v: RecordFormResult) {
-    await updateRecord(record.id, (r) => ({
+    await updateRecord(id, (r) => ({
       ...statusChange(r, v.status),
       title: v.title,
       url: v.url,

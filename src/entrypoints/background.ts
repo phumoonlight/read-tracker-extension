@@ -1,7 +1,6 @@
 import { browser } from 'wxt/browser';
 import { defineBackground } from 'wxt/utils/define-background';
-import { findMatch } from '@/lib/match';
-import { getAllRecords, onRecordsChanged, updateRecord } from '@/lib/storage';
+import { findRecordForUrl, onRecordsChanged, updateRecord } from '@/lib/storage';
 import { normalizeUrl } from '@/lib/url';
 import type { ReadingRecord } from '@/lib/types';
 
@@ -12,14 +11,11 @@ const BADGE: Record<ReadingRecord['status'], { text: string; color: string }> = 
 };
 
 export default defineBackground(() => {
-  // Records are cached in memory and reloaded on any storage change. The worker
-  // may be shut down at any time; the cache is just rebuilt on the next event.
-  let cache: Promise<ReadingRecord[]> | undefined;
-  const records = () => (cache ??= getAllRecords());
-
+  // No in-memory copy of the list: each tab event does a few matchKey index
+  // lookups in IndexedDB (see findRecordForUrl), which stays cheap at any list size.
   async function refreshTab(tabId: number, url: string | undefined, visited = false) {
     const key = url ? normalizeUrl(url) : null;
-    const match = key ? findMatch(await records(), key) : undefined;
+    const match = key ? await findRecordForUrl(key) : undefined;
 
     const badge = match ? BADGE[match.status] : { text: '', color: '#000000' };
     await Promise.all([
@@ -35,7 +31,9 @@ export default defineBackground(() => {
 
     // Series progress: remember the latest chapter visited while reading.
     if (visited && url && match?.matchMode === 'prefix' && match.status === 'reading' && match.lastReadUrl !== url) {
-      await updateRecord(match.id, (r) => (r.status === 'reading' ? { lastReadUrl: url } : {}));
+      await updateRecord(match.id, (r) =>
+        r.status === 'reading' && r.lastReadUrl !== url ? { lastReadUrl: url } : {},
+      );
     }
   }
 
@@ -56,10 +54,7 @@ export default defineBackground(() => {
     if (tab) void refreshTab(tabId, tab.url);
   });
 
-  onRecordsChanged(() => {
-    cache = undefined;
-    void refreshAllTabs();
-  });
+  onRecordsChanged(() => void refreshAllTabs());
 
   browser.runtime.onInstalled.addListener(() => void refreshAllTabs());
   browser.runtime.onStartup.addListener(() => void refreshAllTabs());

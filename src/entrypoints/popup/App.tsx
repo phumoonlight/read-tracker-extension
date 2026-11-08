@@ -4,9 +4,8 @@ import { RecordForm, defaultPrefix } from '@/components/RecordForm';
 import { StatusPicker } from '@/components/StatusPicker';
 import { Thumbnail } from '@/components/Thumbnail';
 import { ThumbnailPicker } from '@/components/ThumbnailPicker';
-import { findMatch } from '@/lib/match';
 import { createRecord } from '@/lib/records';
-import { getAllRecords, putRecord, statusChange, updateRecord } from '@/lib/storage';
+import { findRecordForUrl, putRecord, statusChange, updateRecord } from '@/lib/storage';
 import { getActiveTab } from '@/lib/tab';
 import { STATUS_LABEL, type ReadingRecord, type ReadStatus } from '@/lib/types';
 import { normalizeUrl } from '@/lib/url';
@@ -34,7 +33,7 @@ export function App() {
         setState({ kind: 'untrackable' });
         return;
       }
-      const record = findMatch(await getAllRecords(), key);
+      const record = await findRecordForUrl(key);
       setState({ kind: 'ready', tab: tab as ActiveTab, record });
     })();
   }, []);
