@@ -147,3 +147,9 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# WXT
+.wxt/
+.output/
+stats.html
+web-ext.config.ts
