@@ -7,17 +7,22 @@ import { exportToFile, importFromFile } from '@/lib/backup-io';
 import { createRecord, openUrl } from '@/lib/records';
 import {
   countRecords,
+  createFolder,
+  deleteFolder,
   deleteRecord,
+  folderCounts,
   getRecord,
+  listFolders,
   listTags,
   onRecordsChanged,
   putRecord,
   queryRecords,
+  renameFolder,
   statusChange,
   updateRecord,
   type SortKey,
 } from '@/lib/storage';
-import { STATUSES, STATUS_LABEL, type ReadingRecord, type ReadStatus } from '@/lib/types';
+import { FOLDER_NAME_MAX, STATUSES, STATUS_LABEL, type Folder, type ReadingRecord, type ReadStatus } from '@/lib/types';
 
 /** Cards loaded per page; more load as the end of the grid scrolls into view. */
 const PAGE = 60;
@@ -33,7 +38,19 @@ type Modal =
   | { kind: 'edit'; id: string }
   | { kind: 'new' }
   | { kind: 'delete'; record: ReadingRecord }
+  | { kind: 'folder-new' }
+  | { kind: 'folder-rename'; folder: Folder }
+  | { kind: 'folder-delete'; folder: Folder; count: number }
   | undefined;
+
+/**
+ * undefined = every record, null = records without a folder, string = that folder's id.
+ * (Not sentinel strings: folder ids come from backup files and could be any string.)
+ */
+type FolderFilter = string | null | undefined;
+const ALL = undefined;
+const NONE = null;
+const isFolderId = (f: FolderFilter): f is string => typeof f === 'string';
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
@@ -62,6 +79,9 @@ export function App() {
   const [page, setPage] = useState<{ records: ReadingRecord[]; hasMore: boolean }>();
   const [total, setTotal] = useState<number>();
   const [allTags, setAllTags] = useState<string[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [counts, setCounts] = useState<Map<string, number>>(new Map());
+  const [folder, setFolder] = useState<FolderFilter>(ALL);
   const [modal, setModal] = useState<Modal>();
 
   useEffect(() => {
@@ -76,7 +96,13 @@ export function App() {
   useEffect(() => {
     void countRecords().then(setTotal);
     void listTags().then(setAllTags);
+    void listFolders().then(setFolders);
+    void folderCounts().then(setCounts);
   }, [revision]);
+
+  // If the selected folder was deleted (here or in another window), go back to All.
+  const activeFolder: FolderFilter = !isFolderId(folder) || folders.some((f) => f.id === folder) ? folder : ALL;
+  const folderName = new Map(folders.map((f) => [f.id, f.name]));
 
   // If the selected tag disappears (last record with it deleted or retagged), stop filtering by it.
   const activeTag = tag && allTags.includes(tag) ? tag : '';
@@ -88,6 +114,7 @@ export function App() {
       search,
       status: status === 'all' ? undefined : status,
       tag: activeTag || undefined,
+      folder: activeFolder,
       sort,
       limit,
     }).then((p) => {
@@ -96,7 +123,7 @@ export function App() {
     return () => {
       stale = true;
     };
-  }, [search, status, activeTag, sort, limit, revision]);
+  }, [search, status, activeTag, activeFolder, sort, limit, revision]);
 
   // Any filter change starts again from the first page.
   function resetting<T>(set: (v: T) => void) {
@@ -121,6 +148,17 @@ export function App() {
           </button>
         </div>
       </header>
+
+      <FolderBar
+        folders={folders}
+        counts={counts}
+        total={total}
+        value={activeFolder}
+        onChange={resetting(setFolder)}
+        onNew={() => setModal({ kind: 'folder-new' })}
+        onRename={(f) => setModal({ kind: 'folder-rename', folder: f })}
+        onDelete={(f) => setModal({ kind: 'folder-delete', folder: f, count: counts.get(f.id) ?? 0 })}
+      />
 
       <div className="toolbar">
         <input
@@ -165,7 +203,9 @@ export function App() {
         <div className="empty">
           {total === 0
             ? 'Your list is empty. Open a page and use the toolbar button to add it.'
-            : 'No records match these filters.'}
+            : isFolderId(activeFolder) && !search && status === 'all' && !activeTag
+              ? 'This folder is empty. Move records here from their Edit dialog or the popup.'
+              : 'No records match these filters.'}
         </div>
       ) : (
         <>
@@ -174,6 +214,7 @@ export function App() {
               <Card
                 key={r.id}
                 record={r}
+                folderName={activeFolder === ALL && r.folderId ? folderName.get(r.folderId) : undefined}
                 onEdit={() => setModal({ kind: 'edit', id: r.id })}
                 onDelete={() => setModal({ kind: 'delete', record: r })}
                 onTag={resetting(setTag)}
@@ -190,7 +231,18 @@ export function App() {
         <Dialog title="New record" onClose={() => setModal(undefined)}>
           <RecordForm
             submitLabel="Add"
-            initial={{ title: '', url: '', matchMode: 'exact', prefix: '', status: 'unread', tags: '', notes: '' }}
+            folders={folders}
+            initial={{
+              title: '',
+              url: '',
+              matchMode: 'exact',
+              prefix: '',
+              status: 'unread',
+              tags: '',
+              notes: '',
+              // Adding while a folder is open puts the record in that folder.
+              folderId: isFolderId(activeFolder) ? activeFolder : '',
+            }}
             onCancel={() => setModal(undefined)}
             onSubmit={async (v) => {
               const created = createRecord({ ...v, prefix: v.matchKey });
@@ -204,7 +256,13 @@ export function App() {
       )}
 
       {modal?.kind === 'edit' && (
-        <EditDialog key={modal.id} id={modal.id} revision={revision} onClose={() => setModal(undefined)} />
+        <EditDialog
+          key={modal.id}
+          id={modal.id}
+          revision={revision}
+          folders={folders}
+          onClose={() => setModal(undefined)}
+        />
       )}
 
       {modal?.kind === 'delete' && (
@@ -219,6 +277,51 @@ export function App() {
           confirmLabel="Delete"
           onClose={() => setModal(undefined)}
           onConfirm={() => deleteRecord(modal.record.id)}
+        />
+      )}
+
+      {modal?.kind === 'folder-new' && (
+        <FolderNameDialog
+          title="New folder"
+          submitLabel="Create"
+          initial=""
+          onClose={() => setModal(undefined)}
+          onSubmit={async (name) => {
+            const f = await createFolder(name);
+            resetting(setFolder)(f.id);
+          }}
+        />
+      )}
+
+      {modal?.kind === 'folder-rename' && (
+        <FolderNameDialog
+          title="Rename folder"
+          submitLabel="Rename"
+          initial={modal.folder.name}
+          onClose={() => setModal(undefined)}
+          onSubmit={(name) => renameFolder(modal.folder.id, name)}
+        />
+      )}
+
+      {modal?.kind === 'folder-delete' && (
+        <ConfirmDialog
+          title="Delete folder?"
+          message={
+            modal.count > 0 ? (
+              <>
+                “{modal.folder.name}” will be deleted. Its {modal.count} record{modal.count === 1 ? '' : 's'} will be kept
+                and moved to No folder.
+              </>
+            ) : (
+              <>The empty folder “{modal.folder.name}” will be deleted.</>
+            )
+          }
+          confirmLabel="Delete folder"
+          onClose={() => setModal(undefined)}
+          onConfirm={async () => {
+            await deleteFolder(modal.folder.id);
+            setFolder(ALL);
+          }}
         />
       )}
     </div>
@@ -259,11 +362,14 @@ function LoadMore({ onLoad, pageKey }: { onLoad: () => void; pageKey: unknown })
 
 function Card({
   record,
+  folderName,
   onEdit,
   onDelete,
   onTag,
 }: {
   record: ReadingRecord;
+  /** Shown when the list spans folders (the "All" view). */
+  folderName?: string;
   onEdit: () => void;
   onDelete: () => void;
   onTag: (t: string) => void;
@@ -281,6 +387,7 @@ function Card({
         {record.matchMode === 'prefix' && ' · series'}
         {record.readAt && ` · read ${new Date(record.readAt).toLocaleDateString()}`}
       </div>
+      {folderName && <div className="card-meta">In {folderName}</div>}
       {record.matchMode === 'prefix' && record.lastReadUrl && (
         <div className="card-meta" title={record.lastReadUrl}>
           Last: {record.lastReadUrl.replace(/^https?:\/\/(www\.)?/, '')}
@@ -318,7 +425,17 @@ function Card({
   );
 }
 
-function EditDialog({ id, revision, onClose }: { id: string; revision: number; onClose: () => void }) {
+function EditDialog({
+  id,
+  revision,
+  folders,
+  onClose,
+}: {
+  id: string;
+  revision: number;
+  folders: Folder[];
+  onClose: () => void;
+}) {
   // Loaded by id (the record may not be on the loaded page) and reloaded on any change,
   // so the thumbnail preview stays current. The form keeps its own unsaved edits.
   const [record, setRecord] = useState<ReadingRecord | null>();
@@ -350,6 +467,7 @@ function EditDialog({ id, revision, onClose }: { id: string; revision: number; o
       matchKey: v.matchKey,
       tags: v.tags,
       notes: v.notes,
+      folderId: v.folderId,
       lastReadUrl: v.matchMode === 'prefix' ? r.lastReadUrl : undefined,
     }));
     onClose();
@@ -361,6 +479,7 @@ function EditDialog({ id, revision, onClose }: { id: string; revision: number; o
       <ThumbnailPicker record={record} />
       <RecordForm
         submitLabel="Save"
+        folders={folders}
         initial={{
           title: record.title,
           url: record.url,
@@ -369,6 +488,7 @@ function EditDialog({ id, revision, onClose }: { id: string; revision: number; o
           status: record.status,
           tags: record.tags.join(', '),
           notes: record.notes ?? '',
+          folderId: record.folderId ?? '',
         }}
         onCancel={onClose}
         onSubmit={save}
@@ -423,5 +543,108 @@ function Backup() {
       </div>
       {message && <span className={message.error ? 'error' : 'muted'}>{message.text}</span>}
     </section>
+  );
+}
+
+function FolderBar({
+  folders,
+  counts,
+  total,
+  value,
+  onChange,
+  onNew,
+  onRename,
+  onDelete,
+}: {
+  folders: Folder[];
+  counts: Map<string, number>;
+  total: number | undefined;
+  value: FolderFilter;
+  onChange: (v: FolderFilter) => void;
+  onNew: () => void;
+  onRename: (f: Folder) => void;
+  onDelete: (f: Folder) => void;
+}) {
+  const inFolders = [...counts.values()].reduce((a, b) => a + b, 0);
+  const selected = folders.find((f) => f.id === value);
+  const chip = (v: FolderFilter, label: string, count: number | undefined) => (
+    <button key={v === ALL ? 'all' : v === NONE ? 'none' : `f-${v}`} type="button" className="folder-chip" aria-pressed={value === v} onClick={() => onChange(v)}>
+      {label}
+      {count !== undefined && <span className="folder-count">{count}</span>}
+    </button>
+  );
+  return (
+    <nav className="folder-bar" aria-label="Folders">
+      <div className="folder-chips">
+        {chip(ALL, 'All', total)}
+        {chip(NONE, 'No folder', total === undefined ? undefined : Math.max(0, total - inFolders))}
+        {folders.map((f) => chip(f.id, f.name, counts.get(f.id) ?? 0))}
+        <button type="button" className="btn btn-small btn-ghost" onClick={onNew}>
+          + New folder
+        </button>
+      </div>
+      {selected && (
+        <div className="row">
+          <button type="button" className="btn btn-small" onClick={() => onRename(selected)}>
+            Rename folder
+          </button>
+          <button type="button" className="btn btn-small btn-ghost" onClick={() => onDelete(selected)}>
+            Delete folder
+          </button>
+        </div>
+      )}
+    </nav>
+  );
+}
+
+function FolderNameDialog({
+  title,
+  submitLabel,
+  initial,
+  onSubmit,
+  onClose,
+}: {
+  title: string;
+  submitLabel: string;
+  initial: string;
+  onSubmit: (name: string) => Promise<unknown>;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState(initial);
+  const [error, setError] = useState<string>();
+  const [saving, setSaving] = useState(false);
+  return (
+    <Dialog title={title} onClose={onClose}>
+      <form
+        style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setSaving(true);
+          setError(undefined);
+          try {
+            await onSubmit(name);
+            onClose();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+          } finally {
+            setSaving(false);
+          }
+        }}
+      >
+        <label className="field">
+          <span>Name</span>
+          <input type="text" value={name} maxLength={FOLDER_NAME_MAX} autoFocus onChange={(e) => setName(e.target.value)} />
+        </label>
+        {error && <span className="error">{error}</span>}
+        <div className="dialog-actions">
+          <button type="button" className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={saving || !name.trim()}>
+            {submitLabel}
+          </button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

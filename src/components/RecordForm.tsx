@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { computeMatchKey, parseTags } from '@/lib/records';
 import { normalizeUrl, suggestPrefix } from '@/lib/url';
-import type { MatchMode, ReadStatus } from '@/lib/types';
+import type { Folder, MatchMode, ReadStatus } from '@/lib/types';
 import { StatusPicker } from './StatusPicker';
 
 export interface RecordFormValues {
@@ -12,6 +12,8 @@ export interface RecordFormValues {
   status: ReadStatus;
   tags: string;
   notes: string;
+  /** '' = no folder. */
+  folderId: string;
 }
 
 export interface RecordFormResult {
@@ -22,6 +24,7 @@ export interface RecordFormResult {
   status: ReadStatus;
   tags: string[];
   notes?: string;
+  folderId?: string;
 }
 
 export function defaultPrefix(url: string): string {
@@ -36,9 +39,11 @@ interface Props {
   onCancel?: () => void;
   /** Hide tags and notes to keep the popup compact. */
   compact?: boolean;
+  /** Folders to choose from; the picker is hidden when there are none. */
+  folders: readonly Folder[];
 }
 
-export function RecordForm({ initial, submitLabel, onSubmit, onCancel, compact }: Props) {
+export function RecordForm({ initial, submitLabel, onSubmit, onCancel, compact, folders }: Props) {
   const [v, setV] = useState(initial);
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
@@ -62,6 +67,8 @@ export function RecordForm({ initial, submitLabel, onSubmit, onCancel, compact }
         status: v.status,
         tags: parseTags(v.tags),
         notes: v.notes.trim() || undefined,
+        // A folder deleted while the form was open counts as "no folder".
+        folderId: folders.some((f) => f.id === v.folderId) ? v.folderId : undefined,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -110,6 +117,7 @@ export function RecordForm({ initial, submitLabel, onSubmit, onCancel, compact }
         <span>Status</span>
         <StatusPicker value={v.status} onChange={(s) => set('status', s)} />
       </div>
+      {folders.length > 0 && <FolderSelect folders={folders} value={v.folderId} onChange={(id) => set('folderId', id)} />}
       {!compact && (
         <>
           <label className="field">
@@ -135,5 +143,34 @@ export function RecordForm({ initial, submitLabel, onSubmit, onCancel, compact }
         </button>
       </div>
     </form>
+  );
+}
+
+/** Folder picker; '' = no folder. */
+export function FolderSelect({
+  folders,
+  value,
+  onChange,
+  label = 'Folder',
+}: {
+  folders: readonly Folder[];
+  value: string;
+  onChange: (id: string) => void;
+  label?: string;
+}) {
+  // An id that is no longer in the list (folder deleted) shows as "No folder".
+  const current = folders.some((f) => f.id === value) ? value : '';
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <select value={current} onChange={(e) => onChange(e.target.value)}>
+        <option value="">No folder</option>
+        {folders.map((f) => (
+          <option key={f.id} value={f.id}>
+            {f.name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

@@ -105,3 +105,44 @@
 .backup h2 {
   font-size: 15px;
 }
+
+.folder-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.folder-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.folder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.folder-chip:hover {
+  background: var(--surface-2);
+}
+.folder-chip[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.folder-count {
+  font-size: 12px;
+  opacity: 0.75;
+}

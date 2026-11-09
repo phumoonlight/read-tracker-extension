@@ -2,10 +2,11 @@
  * The extension's IndexedDB database. The extension origin is shared, so the popup,
  * the list page and the background worker all open the same database.
  *
- * Stores (DB version 2):
+ * Stores (DB version 3):
  *   records     keyPath "id"; rows are ReadingRecord plus derived index fields (see records-db.ts)
  *               indexes: matchKey, updatedAt, createdAt, title (_title), status ([_rank, updatedAt]),
- *                        tags (multiEntry)
+ *                        tags (multiEntry), folderId (v3; records without a folder are not in it)
+ *   folders     keyPath "id"; Folder (v3)
  *   thumbnails  out-of-line key = record id, value = WebP Blob
  *   meta        out-of-line key, small values (e.g. "schemaVersion" = record schema version)
  *
@@ -13,11 +14,12 @@
  * SCHEMA_VERSION (types.ts) and is migrated lazily, see records-db.ts.
  */
 export const DB_NAME = 'read-tracker';
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 export const RECORDS = 'records';
 export const THUMBNAILS = 'thumbnails';
 export const META = 'meta';
+export const FOLDERS = 'folders';
 
 export const IDX = {
   matchKey: 'matchKey',
@@ -26,9 +28,10 @@ export const IDX = {
   title: 'title',
   status: 'status',
   tags: 'tags',
+  folderId: 'folderId',
 } as const;
 
-function upgrade(db: IDBDatabase, oldVersion: number) {
+function upgrade(db: IDBDatabase, tx: IDBTransaction, oldVersion: number) {
   // v1 (first release) had only the thumbnails store.
   if (oldVersion < 1) db.createObjectStore(THUMBNAILS);
   if (oldVersion < 2) {
@@ -41,6 +44,10 @@ function upgrade(db: IDBDatabase, oldVersion: number) {
     records.createIndex(IDX.tags, 'tags', { multiEntry: true });
     db.createObjectStore(META);
   }
+  if (oldVersion < 3) {
+    db.createObjectStore(FOLDERS, { keyPath: 'id' });
+    tx.objectStore(RECORDS).createIndex(IDX.folderId, 'folderId');
+  }
 }
 
 let dbPromise: Promise<IDBDatabase> | undefined;
@@ -48,7 +55,7 @@ let dbPromise: Promise<IDBDatabase> | undefined;
 export function openDb(): Promise<IDBDatabase> {
   dbPromise ??= new Promise<IDBDatabase>((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = (e) => upgrade(req.result, e.oldVersion);
+    req.onupgradeneeded = (e) => upgrade(req.result, req.transaction!, e.oldVersion);
     req.onsuccess = () => {
       const db = req.result;
       // Another context (e.g. a newer build after an update) wants to upgrade: let it.

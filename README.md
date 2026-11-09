@@ -7,7 +7,8 @@ stored in the browser.
 - Track a single page, or a whole series with a URL prefix (for example every chapter under
   `site.com/novel/abc/`). While a series is marked "reading", the extension remembers the last chapter you opened.
 - Give each record a thumbnail: upload a file, paste an image, screenshot the tab, or use the page's og:image.
-- Browse everything in a full-page list with search, status and tag filters, and sorting.
+- Group records into folders. New records start in "No folder"; pick a folder when adding or editing.
+- Browse everything in a full-page list with folders, search, status and tag filters, and sorting.
 - Back up to a single JSON file (thumbnails included) and import it again later or on another machine.
 
 ## Install from source
@@ -37,6 +38,9 @@ change.
   status and click **Add current page**.
 - **Change status or thumbnail:** open the popup on a page that is in your list.
 - **Full list:** click **Open full list** in the popup, or right-click the toolbar icon and choose **Options**.
+- **Folders:** in the full list, click **+ New folder**. Click a folder to see only its records; **Rename folder**
+  and **Delete folder** appear while it is selected. Deleting a folder keeps its records (they move to
+  "No folder"). Move a record by choosing a folder in its Edit dialog or in the popup.
 - **Backup:** in the full list, use **Export JSON** and **Import JSON** at the bottom. When the same record exists
   in both places, the copy that was edited most recently is kept.
 

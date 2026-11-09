@@ -10,6 +10,8 @@ export interface NewRecordInput {
   status?: ReadStatus;
   tags?: string[];
   notes?: string;
+  /** Omit for "no folder" (the default). */
+  folderId?: string;
 }
 
 /** True for absolute http(s) URLs: the only kind a record may link to. */
@@ -45,6 +47,7 @@ export function createRecord(input: NewRecordInput): ReadingRecord | { error: st
     status,
     tags: normalizeTags(input.tags ?? []),
     notes: input.notes?.trim() || undefined,
+    ...(input.folderId ? { folderId: input.folderId } : {}),
     hasThumbnail: false,
     createdAt: now,
     updatedAt: now,

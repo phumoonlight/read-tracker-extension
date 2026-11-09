@@ -24,10 +24,11 @@ src/
   entrypoints/
     background.ts        service worker: badge per tab, series progress (lastReadUrl)
     popup/               toolbar popup: current page state, add, status, thumbnail
-    options/             full list page (options_ui, open_in_tab): grid, search, filters, edit, delete, backup
+    options/             full list page (options_ui, open_in_tab): folder bar, grid, search, filters, edit, delete, backup
   components/            shared React UI (RecordForm, ThumbnailPicker, Thumbnail, StatusPicker, Dialog)
   lib/                   framework-free logic (only db.ts / storage.ts / tab.ts / thumbnails.ts touch browser APIs)
-    types.ts             ReadingRecord, SCHEMA_VERSION, BackupFile
+    types.ts             ReadingRecord, Folder, SCHEMA_VERSION, BackupFile
+    folders.ts           folder name rules (folderNameError), newFolder, sortFolders
     url.ts               normalizeUrl, isTrackingParam, suggestPrefix
     match.ts             prefixMatches, candidateKeys, chooseMatch (index lookup), findMatch (reference)
     migrate.ts           migrateRecord + MIGRATIONS table
@@ -49,12 +50,20 @@ public/icon/             extension icons
 
 `ReadingRecord` (src/lib/types.ts): `id` (crypto.randomUUID), `title`, `url` (as entered), `matchKey`,
 `matchMode` ("exact" | "prefix"), `status` ("unread" | "reading" | "read"), `lastReadUrl?`, `tags` (lowercase,
-unique), `notes?`, `hasThumbnail`, `createdAt`, `updatedAt`, `readAt?`. Timestamps are epoch milliseconds.
+unique), `folderId?`, `notes?`, `hasThumbnail`, `createdAt`, `updatedAt`, `readAt?`. Timestamps are epoch
+milliseconds. Current `SCHEMA_VERSION` is 2 (v2 added `folderId`).
+
+`Folder`: `id`, `name`, `createdAt`, `updatedAt`. Folders are flat and a record is in at most one folder;
+`folderId` absent = "No folder" (the default for new records). Names are trimmed, whitespace-collapsed, at most
+`FOLDER_NAME_MAX` characters, and unique case-insensitively (`folderNameError`). Deleting a folder keeps its records
+and moves them to No folder (bumping their `updatedAt`).
 
 Storage: IndexedDB database `read-tracker` (layout in `src/lib/db.ts`, no third-party wrapper):
 - `records` (keyPath `id`): the record plus derived index fields `_title` (lowercased) and `_rank` (status sort).
   `toRow`/`fromRow` in storage.ts add and strip them; they never leave storage.ts.
-  Indexes: `matchKey`, `updatedAt`, `createdAt`, `title`, `status` (`[_rank, updatedAt]`), `tags` (multiEntry).
+  Indexes: `matchKey`, `updatedAt`, `createdAt`, `title`, `status` (`[_rank, updatedAt]`), `tags` (multiEntry),
+  `folderId` (records without a folder are not in it). `toRow` drops an undefined `folderId` so it is never stored.
+- `folders` (keyPath `id`): Folder. Same change signal as records.
 - `thumbnails`: record id -> WebP Blob (≤300px wide, ≤600px tall). `hasThumbnail` mirrors whether a Blob exists;
   change both together with `setThumbnail()`.
 - `meta`: `schemaVersion` (record shape version).
@@ -66,13 +75,16 @@ Storage: IndexedDB database `read-tracker` (layout in `src/lib/db.ts`, no third-
 How data is read:
 - Badge and popup: `findRecordForUrl()` looks up `candidateKeys(url)` (the URL cut at each `/` or `?`) on the
   `matchKey` index. No full load. `chooseMatch` must agree with `findMatch`; a randomized test checks it.
-- List page: `queryRecords()` walks the sort index, filters rows as it goes, and stops after `limit` matches
-  (60 per page, more on scroll). Thumbnails load only when a card nears the viewport.
+- List page: `queryRecords()` walks the sort index, filters rows as it goes (search, status, tag, folder), and stops
+  after `limit` matches (60 per page, more on scroll). Thumbnails load only when a card nears the viewport.
+  Folder counts come from the `folderId` index keys (`folderCounts`), not from record values.
 - `getAllRecords()` is for export/import only.
 
 Rules:
 - All writes go through storage.ts so the change signal fires. Each write is one transaction; inside `withTx`
   only issue IDB requests (no fetch, no other awaits) or the transaction auto-commits.
+- Record writes (`putRecords`, `updateRecord`, `applyImport`) drop a `folderId` whose folder no longer exists, in the
+  same transaction, so a record never points at a deleted folder.
 - `updatedAt` must change on every edit; import merge depends on it. Use `updateRecord()`, which sets it and is
   atomic (read and write in one transaction). An empty patch is a no-op.
 - Change status through `statusChange()` so `readAt` stays in step (set on read, cleared otherwise).
@@ -88,6 +100,13 @@ Rules:
 
 Stored records migrate on first access in each context (`ensureReady` in storage.ts). Backups from older versions
 migrate on import; backups from newer versions are rejected.
+
+### Backup and folders
+
+Backups carry `folders` (absent in v1 files). `planImport` merges folders by id (newer `updatedAt` wins). An incoming
+folder with a new id but the same name as a local one is not created; its records go into the local folder. A newer
+rename that would duplicate another folder's name is skipped. A record `folderId` naming no known folder becomes
+No folder.
 
 ## URL matching
 

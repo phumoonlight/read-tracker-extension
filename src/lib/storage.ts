@@ -1,11 +1,14 @@
 import { browser } from 'wxt/browser';
-import { IDX, META, RECORDS, THUMBNAILS, req, withTx } from './db';
+import { FOLDERS, IDX, META, RECORDS, THUMBNAILS, req, withTx } from './db';
+import { cleanFolderName, folderNameError, newFolder, sortFolders } from './folders';
 import { candidateKeys, chooseMatch } from './match';
 import { migrateRecord } from './migrate';
-import { SCHEMA_VERSION, type ReadingRecord, type ReadStatus } from './types';
+import { SCHEMA_VERSION, type Folder, type ReadingRecord, type ReadStatus } from './types';
 
 /**
  * Records repository on IndexedDB (see db.ts for the layout).
+ *
+ * Folders live in the same database and share the change signal.
  *
  * Every write also bumps "recordsRevision" in chrome.storage.local. IndexedDB has no
  * change events, but storage.onChanged reaches every extension context and wakes
@@ -26,7 +29,10 @@ interface Row extends ReadingRecord {
 const RANK: Record<ReadStatus, number> = { unread: 2, reading: 1, read: 0 };
 
 function toRow(r: ReadingRecord): Row {
-  return { ...r, _title: r.title.toLocaleLowerCase(), _rank: RANK[r.status] };
+  const row: Row = { ...r, _title: r.title.toLocaleLowerCase(), _rank: RANK[r.status] };
+  // Keep "no folder" as an absent property (not stored as undefined).
+  if (row.folderId === undefined) delete row.folderId;
+  return row;
 }
 
 function fromRow(row: Row): ReadingRecord {
@@ -173,6 +179,8 @@ export interface RecordQuery {
   search?: string;
   status?: ReadStatus;
   tag?: string;
+  /** undefined = every record, null = only records without a folder, string = that folder. */
+  folder?: string | null;
   sort: SortKey;
   /** Stop after this many matches. */
   limit: number;
@@ -195,6 +203,7 @@ export async function queryRecords(q: RecordQuery): Promise<{ records: ReadingRe
   const matches = (r: Row) =>
     (!q.status || r.status === q.status) &&
     (!q.tag || r.tags.includes(q.tag)) &&
+    (q.folder === undefined || (r.folderId ?? null) === q.folder) &&
     (!search || [r._title, r.url.toLowerCase(), (r.notes ?? '').toLowerCase(), ...r.tags].some((s) => s.includes(search)));
 
   return withTx(RECORDS, 'readonly', async (tx) => {
@@ -230,12 +239,22 @@ export async function queryRecords(q: RecordQuery): Promise<{ records: ReadingRe
 // ---------------------------------------------------------------------------
 // Writes (each one transaction, then a change signal)
 
+/**
+ * Inside a write transaction that includes FOLDERS: drop a folderId that points at a
+ * folder which no longer exists (e.g. deleted from another window meanwhile).
+ */
+async function withValidFolder(tx: IDBTransaction, r: ReadingRecord): Promise<ReadingRecord> {
+  if (r.folderId === undefined) return r;
+  const exists = (await req(tx.objectStore(FOLDERS).getKey(r.folderId))) !== undefined;
+  return exists ? r : { ...r, folderId: undefined };
+}
+
 export async function putRecords(records: ReadingRecord[]): Promise<void> {
   if (!records.length) return;
   await ensureReady();
-  await withTx(RECORDS, 'readwrite', async (tx) => {
+  await withTx([RECORDS, FOLDERS], 'readwrite', async (tx) => {
     const store = tx.objectStore(RECORDS);
-    for (const r of records) store.put(toRow(r));
+    for (const r of records) store.put(toRow(await withValidFolder(tx, r)));
   });
   await notifyChanged();
 }
@@ -252,7 +271,7 @@ export async function updateRecord(
   change: (r: ReadingRecord) => Partial<ReadingRecord>,
 ): Promise<ReadingRecord | undefined> {
   await ensureReady();
-  const result = await withTx(RECORDS, 'readwrite', async (tx) => {
+  const result = await withTx([RECORDS, FOLDERS], 'readwrite', async (tx) => {
     const store = tx.objectStore(RECORDS);
     const row = (await req(store.get(id))) as Row | undefined;
     if (!row) return undefined;
@@ -260,7 +279,7 @@ export async function updateRecord(
     const patch = change(current);
     // An empty patch is a no-op: no write, no updatedAt bump, no change signal.
     if (!Object.keys(patch).length) return { record: current, changed: false };
-    const updated: ReadingRecord = { ...current, ...patch, updatedAt: Date.now() };
+    const updated = await withValidFolder(tx, { ...current, ...patch, updatedAt: Date.now() });
     store.put(toRow(updated));
     return { record: updated, changed: true };
   });
@@ -296,23 +315,102 @@ export async function setThumbnail(id: string, blob: Blob | null): Promise<Readi
 }
 
 /**
- * Apply an import in one transaction: write records, put or delete thumbnails.
+ * Apply an import in one transaction: write folders and records, put or delete thumbnails.
  * Blobs must be prepared beforehand (no async work is allowed inside the transaction).
  */
 export async function applyImport(
+  folders: Folder[],
   records: ReadingRecord[],
   putThumbs: Map<string, Blob>,
   deleteThumbs: string[],
 ): Promise<void> {
   await ensureReady();
-  await withTx([RECORDS, THUMBNAILS], 'readwrite', async (tx) => {
+  await withTx([FOLDERS, RECORDS, THUMBNAILS], 'readwrite', async (tx) => {
+    const folderStore = tx.objectStore(FOLDERS);
+    for (const f of folders) folderStore.put(f);
     const thumbs = tx.objectStore(THUMBNAILS);
     for (const [id, blob] of putThumbs) thumbs.put(blob, id);
     for (const id of deleteThumbs) thumbs.delete(id);
     const store = tx.objectStore(RECORDS);
-    for (const r of records) store.put(toRow(r));
+    for (const r of records) store.put(toRow(await withValidFolder(tx, r)));
   });
-  if (records.length) await notifyChanged();
+  if (records.length || folders.length) await notifyChanged();
+}
+
+// ---------------------------------------------------------------------------
+// Folders
+
+/** All folders, sorted by name. */
+export async function listFolders(): Promise<Folder[]> {
+  await ensureReady();
+  return withTx(FOLDERS, 'readonly', async (tx) => sortFolders((await req(tx.objectStore(FOLDERS).getAll())) as Folder[]));
+}
+
+/** Number of records in each folder (from the folderId index; no record values loaded). */
+export async function folderCounts(): Promise<Map<string, number>> {
+  await ensureReady();
+  return withTx(RECORDS, 'readonly', async (tx) => {
+    const counts = new Map<string, number>();
+    await new Promise<void>((resolve, reject) => {
+      const r = tx.objectStore(RECORDS).index(IDX.folderId).openKeyCursor();
+      r.onsuccess = () => {
+        const c = r.result;
+        if (!c) return resolve();
+        const id = String(c.key);
+        counts.set(id, (counts.get(id) ?? 0) + 1);
+        c.continue();
+      };
+      r.onerror = () => reject(r.error);
+    });
+    return counts;
+  });
+}
+
+/** Create a folder. Throws with a user-facing message if the name is empty, too long or taken. */
+export async function createFolder(name: string): Promise<Folder> {
+  await ensureReady();
+  const folder = await withTx(FOLDERS, 'readwrite', async (tx) => {
+    const store = tx.objectStore(FOLDERS);
+    const error = folderNameError(name, (await req(store.getAll())) as Folder[]);
+    if (error) throw new Error(error);
+    const f = newFolder(name);
+    store.put(f);
+    return f;
+  });
+  await notifyChanged();
+  return folder;
+}
+
+export async function renameFolder(id: string, name: string): Promise<void> {
+  await ensureReady();
+  await withTx(FOLDERS, 'readwrite', async (tx) => {
+    const store = tx.objectStore(FOLDERS);
+    const all = (await req(store.getAll())) as Folder[];
+    const current = all.find((f) => f.id === id);
+    if (!current) throw new Error('This folder no longer exists.');
+    const error = folderNameError(name, all, id);
+    if (error) throw new Error(error);
+    store.put({ ...current, name: cleanFolderName(name), updatedAt: Date.now() });
+  });
+  await notifyChanged();
+}
+
+/**
+ * Delete a folder. Its records are kept and moved to "no folder" (with updatedAt bumped,
+ * so a later import of an older backup does not put them back). One transaction.
+ */
+export async function deleteFolder(id: string): Promise<number> {
+  await ensureReady();
+  const moved = await withTx([FOLDERS, RECORDS], 'readwrite', async (tx) => {
+    tx.objectStore(FOLDERS).delete(id);
+    const store = tx.objectStore(RECORDS);
+    const rows = (await req(store.index(IDX.folderId).getAll(id))) as Row[];
+    const now = Date.now();
+    for (const row of rows) store.put(toRow({ ...fromRow(row), folderId: undefined, updatedAt: now }));
+    return rows.length;
+  });
+  await notifyChanged();
+  return moved;
 }
 
 /** Field changes for a status transition: keeps readAt in step with status. */

@@ -1,5 +1,5 @@
 /** Bump when the stored record shape changes, and add a step in migrate.ts. */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export type MatchMode = 'exact' | 'prefix';
 export type ReadStatus = 'unread' | 'reading' | 'read';
@@ -24,6 +24,8 @@ export interface ReadingRecord {
   /** Prefix records only: the raw URL of the last matching page visited while status was "reading". */
   lastReadUrl?: string;
   tags: string[];
+  /** Folder the record is grouped in; undefined = no folder (the default). Added in schema v2. */
+  folderId?: string;
   notes?: string;
   hasThumbnail: boolean;
   /** Epoch milliseconds. */
@@ -32,11 +34,23 @@ export interface ReadingRecord {
   readAt?: number;
 }
 
+/** A flat group of records. A record is in at most one folder. */
+export interface Folder {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export const FOLDER_NAME_MAX = 60;
+
 export interface BackupFile {
   format: typeof BACKUP_FORMAT;
   version: number;
   exportedAt: number;
   records: ReadingRecord[];
+  /** Added in schema v2; absent in v1 files. */
+  folders: Folder[];
   /** Record id -> data URL. */
   thumbnails: Record<string, string>;
 }

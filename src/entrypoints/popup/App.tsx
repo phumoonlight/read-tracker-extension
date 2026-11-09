@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { browser, type Browser } from 'wxt/browser';
-import { RecordForm, defaultPrefix } from '@/components/RecordForm';
+import { FolderSelect, RecordForm, defaultPrefix } from '@/components/RecordForm';
 import { StatusPicker } from '@/components/StatusPicker';
 import { Thumbnail } from '@/components/Thumbnail';
 import { ThumbnailPicker } from '@/components/ThumbnailPicker';
 import { createRecord } from '@/lib/records';
-import { findRecordForUrl, putRecord, statusChange, updateRecord } from '@/lib/storage';
+import { findRecordForUrl, listFolders, putRecord, statusChange, updateRecord } from '@/lib/storage';
 import { getActiveTab } from '@/lib/tab';
-import { STATUS_LABEL, type ReadingRecord, type ReadStatus } from '@/lib/types';
+import { STATUS_LABEL, type Folder, type ReadingRecord, type ReadStatus } from '@/lib/types';
 import { normalizeUrl } from '@/lib/url';
 
 type ActiveTab = Browser.tabs.Tab & { id: number; url: string };
@@ -15,7 +15,7 @@ type ActiveTab = Browser.tabs.Tab & { id: number; url: string };
 type State =
   | { kind: 'loading' }
   | { kind: 'untrackable' }
-  | { kind: 'ready'; tab: ActiveTab; record?: ReadingRecord };
+  | { kind: 'ready'; tab: ActiveTab; record?: ReadingRecord; folders: Folder[] };
 
 const openList = (hash = '') => {
   void browser.tabs.create({ url: browser.runtime.getURL(`/options.html${hash}`) });
@@ -33,8 +33,8 @@ export function App() {
         setState({ kind: 'untrackable' });
         return;
       }
-      const record = await findRecordForUrl(key);
-      setState({ kind: 'ready', tab: tab as ActiveTab, record });
+      const [record, folders] = await Promise.all([findRecordForUrl(key), listFolders()]);
+      setState({ kind: 'ready', tab: tab as ActiveTab, record, folders });
     })();
   }, []);
 
@@ -55,21 +55,31 @@ export function App() {
           <CurrentRecord
             tab={state.tab}
             record={state.record}
+            folders={state.folders}
             onChange={(record) => setState({ ...state, record })}
           />
         ) : (
-          <AddPage tab={state.tab} onAdded={(record) => setState({ ...state, record })} />
+          <AddPage tab={state.tab} folders={state.folders} onAdded={(record) => setState({ ...state, record })} />
         ))}
     </main>
   );
 }
 
-function AddPage({ tab, onAdded }: { tab: ActiveTab; onAdded: (r: ReadingRecord) => void }) {
+function AddPage({
+  tab,
+  folders,
+  onAdded,
+}: {
+  tab: ActiveTab;
+  folders: Folder[];
+  onAdded: (r: ReadingRecord) => void;
+}) {
   return (
     <>
       <div className="banner">This page is not in your list.</div>
       <RecordForm
         compact
+        folders={folders}
         submitLabel="Add current page"
         initial={{
           title: tab.title ?? '',
@@ -79,6 +89,7 @@ function AddPage({ tab, onAdded }: { tab: ActiveTab; onAdded: (r: ReadingRecord)
           status: 'unread',
           tags: '',
           notes: '',
+          folderId: '',
         }}
         onSubmit={async (v) => {
           const created = createRecord({ ...v, prefix: v.matchKey });
@@ -96,12 +107,21 @@ function AddPage({ tab, onAdded }: { tab: ActiveTab; onAdded: (r: ReadingRecord)
 function CurrentRecord({
   tab,
   record,
+  folders,
   onChange,
 }: {
   tab: ActiveTab;
   record: ReadingRecord;
+  folders: Folder[];
   onChange: (r: ReadingRecord) => void;
 }) {
+  async function setFolder(folderId: string) {
+    const next = await updateRecord(record.id, (r) =>
+      (r.folderId ?? '') === folderId ? {} : { folderId: folderId || undefined },
+    );
+    if (next) onChange(next);
+  }
+
   async function setStatus(status: ReadStatus) {
     const next = await updateRecord(record.id, (r) => ({
       ...statusChange(r, status),
@@ -131,6 +151,8 @@ function CurrentRecord({
         <span>Status</span>
         <StatusPicker value={record.status} onChange={setStatus} />
       </div>
+
+      {folders.length > 0 && <FolderSelect folders={folders} value={record.folderId ?? ''} onChange={setFolder} />}
 
       {continueUrl && (
         <div className="field">

@@ -5,11 +5,11 @@ type RawRecord = Record<string, unknown>;
 /**
  * MIGRATIONS[n] upgrades a record from schema version n to n + 1.
  * To change the record shape: bump SCHEMA_VERSION in types.ts and append a step here.
- *
- * Example for a future v2 that adds `rating`:
- *   1: (r) => ({ ...r, rating: null }),
  */
-const MIGRATIONS: Record<number, (r: RawRecord) => RawRecord> = {};
+const MIGRATIONS: Record<number, (r: RawRecord) => RawRecord> = {
+  // v2 adds optional `folderId`. Absent means "no folder", so v1 records are already valid.
+  1: (r) => r,
+};
 
 /** Bring a stored or imported record up to SCHEMA_VERSION. Throws if `fromVersion` is newer than this build. */
 export function migrateRecord(raw: RawRecord, fromVersion: number): ReadingRecord {

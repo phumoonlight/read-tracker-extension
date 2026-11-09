@@ -8,7 +8,7 @@ const IMG = 'data:image/webp;base64,AAAA';
 describe('planImport (merge by id)', () => {
   it('adds records with new ids', () => {
     const incoming = rec({ id: 'new' });
-    const plan = planImport([rec({ id: 'a' })], buildBackup([incoming], {}));
+    const plan = planImport([rec({ id: 'a' })], [], buildBackup([incoming], [], {}));
     expect(plan.write.map((r) => r.id)).toEqual(['new']);
     expect(plan).toMatchObject({ added: 1, updated: 0, skipped: 0 });
   });
@@ -16,27 +16,27 @@ describe('planImport (merge by id)', () => {
   it('replaces a stored record when the incoming one is newer', () => {
     const stored = rec({ id: 'a', title: 'old', updatedAt: 100 });
     const incoming = { ...stored, title: 'new', updatedAt: 200 };
-    const plan = planImport([stored], buildBackup([incoming], {}));
+    const plan = planImport([stored], [], buildBackup([incoming], [], {}));
     expect(plan.write).toEqual([{ ...incoming, hasThumbnail: false }]);
     expect(plan).toMatchObject({ added: 0, updated: 1, skipped: 0 });
   });
 
   it('keeps the stored record when it is newer', () => {
     const stored = rec({ id: 'a', updatedAt: 300 });
-    const plan = planImport([stored], buildBackup([{ ...stored, title: 'stale', updatedAt: 200 }], {}));
+    const plan = planImport([stored], [], buildBackup([{ ...stored, title: 'stale', updatedAt: 200 }], [], {}));
     expect(plan.write).toEqual([]);
     expect(plan.skipped).toBe(1);
   });
 
   it('keeps the stored record on a tie', () => {
     const stored = rec({ id: 'a', updatedAt: 300 });
-    const plan = planImport([stored], buildBackup([{ ...stored, title: 'same age' }], {}));
+    const plan = planImport([stored], [], buildBackup([{ ...stored, title: 'same age' }], [], {}));
     expect(plan.write).toEqual([]);
     expect(plan.skipped).toBe(1);
   });
 
   it('leaves stored records that are not in the backup untouched', () => {
-    const plan = planImport([rec({ id: 'a' }), rec({ id: 'b' })], buildBackup([], {}));
+    const plan = planImport([rec({ id: 'a' }), rec({ id: 'b' })], [], buildBackup([], [], {}));
     expect(plan.write).toEqual([]);
     expect(plan.deleteThumbnails).toEqual([]);
   });
@@ -45,23 +45,23 @@ describe('planImport (merge by id)', () => {
     const stored = rec({ id: 'a', updatedAt: 500, hasThumbnail: true });
     const winner = rec({ id: 'b', hasThumbnail: true });
     const loser = { ...stored, updatedAt: 100 };
-    const plan = planImport([stored], buildBackup([winner, loser], { a: IMG, b: IMG }));
+    const plan = planImport([stored], [], buildBackup([winner, loser], [], { a: IMG, b: IMG }));
     expect(plan.putThumbnails).toEqual({ b: IMG });
     expect(plan.deleteThumbnails).toEqual([]);
   });
 
   it('sets hasThumbnail from what the file actually contains', () => {
     const claimsThumb = rec({ id: 'x', hasThumbnail: true });
-    const plan = planImport([], buildBackup([claimsThumb], {}));
+    const plan = planImport([], [], buildBackup([claimsThumb], [], {}));
     expect(plan.write[0]?.hasThumbnail).toBe(false);
 
     const hasData = rec({ id: 'y', hasThumbnail: false });
-    expect(planImport([], buildBackup([hasData], { y: IMG })).write[0]?.hasThumbnail).toBe(true);
+    expect(planImport([], [], buildBackup([hasData], [], { y: IMG })).write[0]?.hasThumbnail).toBe(true);
   });
 
   it('removes the stored thumbnail when the newer incoming copy has none', () => {
     const stored = rec({ id: 'a', updatedAt: 100, hasThumbnail: true });
-    const plan = planImport([stored], buildBackup([{ ...stored, hasThumbnail: false, updatedAt: 200 }], {}));
+    const plan = planImport([stored], [], buildBackup([{ ...stored, hasThumbnail: false, updatedAt: 200 }], [], {}));
     expect(plan.deleteThumbnails).toEqual(['a']);
   });
 
@@ -69,14 +69,14 @@ describe('planImport (merge by id)', () => {
     const a1 = rec({ id: 'dup', title: 'first', updatedAt: 100 });
     const a2 = { ...a1, title: 'second', updatedAt: 300 };
     const a3 = { ...a1, title: 'third', updatedAt: 200 };
-    const plan = planImport([], buildBackup([a1, a2, a3], {}));
+    const plan = planImport([], [], buildBackup([a1, a2, a3], [], {}));
     expect(plan.write.map((r) => r.title)).toEqual(['second']);
     expect(plan.added).toBe(1);
   });
 });
 
 describe('parseBackup (validation)', () => {
-  const valid = () => buildBackup([rec({ id: 'a' })], { a: IMG });
+  const valid = () => buildBackup([rec({ id: 'a' })], [], { a: IMG });
 
   it('round-trips a built backup', () => {
     const b = valid();
