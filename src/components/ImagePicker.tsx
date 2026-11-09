@@ -4,6 +4,7 @@ import { addImages, removeImage, reorderImages } from '@/lib/storage';
 import { captureVisible, downloadImage, findOgImage, NeedsPermissionError, requestOriginAccess } from '@/lib/tab';
 import { MAX_IMAGES, type ReadingRecord } from '@/lib/types';
 import { useImageUrl } from './Thumbnail';
+import { XIcon } from './XIcon';
 
 interface Props {
   record: ReadingRecord;
@@ -288,7 +289,7 @@ function ImageTile({
         aria-label={`Remove image ${index + 1}`}
         title="Remove"
       >
-        ×
+        <XIcon size={10} />
       </button>
     </div>
   );

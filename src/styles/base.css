@@ -583,17 +583,17 @@ dialog.viewer {
   right: 4px;
   width: 26px;
   height: 26px;
-  border: 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  /* Red X and ring on a dark circle, so it shows over any image. */
+  border: 1.5px solid var(--danger);
   border-radius: 50%;
   background: var(--bg);
-  color: var(--text);
-  font-size: 18px;
-  line-height: 1;
+  color: var(--danger);
   cursor: pointer;
-  opacity: 0.85;
 }
 .image-remove:hover {
-  opacity: 1;
   background: var(--danger);
   color: var(--danger-text);
 }

@@ -5,6 +5,7 @@ import { normalizeUrl, suggestPrefix } from '@/lib/url';
 import { MAX_URLS, type Folder, type MatchMode, type ReadingRecord, type ReadStatus, type UrlEntry } from '@/lib/types';
 import { StatusPicker } from './StatusPicker';
 import { TagInput } from './TagInput';
+import { XIcon } from './XIcon';
 
 /** One editable URL: the link itself, how it matches, and the series prefix (prefix mode). */
 export interface UrlRow {
@@ -245,10 +246,7 @@ function UrlRowEditor({
             aria-label={`Remove URL ${index + 1}`}
             title="Remove URL"
           >
-            {/* Drawn X (a "×" character sits low in most fonts, so it can't be centred exactly). */}
-            <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
-              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
+            <XIcon />
           </button>
         )}
       </div>
