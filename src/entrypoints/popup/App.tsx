@@ -50,8 +50,10 @@ export function App() {
           Open full list
         </button>
       </header>
-      {state.kind === 'loading' && <p className="muted">Loading…</p>}
-      {state.kind === 'untrackable' && <p className="muted">This page can't be tracked (only http and https pages).</p>}
+      {state.kind === 'loading' && <p className="muted popup-body">Loading…</p>}
+      {state.kind === 'untrackable' && (
+        <p className="muted popup-body">This page can't be tracked (only http and https pages).</p>
+      )}
       {state.kind === 'ready' &&
         (state.record ? (
           <CurrentRecord
@@ -97,17 +99,21 @@ function AddPage({ tab, folders, onAdded }: { tab: ActiveTab; folders: Folder[];
   }
 
   return (
-    <form className="popup-body" onSubmit={add}>
-      <h2 className="popup-section-title">Add this page</h2>
-      <input type="text" value={title} aria-label="Title" placeholder="Title" onChange={(e) => setTitle(e.target.value)} />
-      {folders.length > 0 && <FolderSelect folders={folders} value={folderId} onChange={setFolderId} />}
-      <span className="muted popup-url" title={tab.url}>
-        {displayUrl(tab.url)}
-      </span>
-      {error && <span className="error">{error}</span>}
-      <button type="submit" className="btn btn-primary popup-main-action" disabled={saving}>
-        Add to list
-      </button>
+    <form onSubmit={add}>
+      <div className="popup-body">
+        <h2 className="popup-section-title">Add this page</h2>
+        <input type="text" value={title} aria-label="Title" placeholder="Title" onChange={(e) => setTitle(e.target.value)} />
+        {folders.length > 0 && <FolderSelect folders={folders} value={folderId} onChange={setFolderId} />}
+        <span className="muted popup-url" title={tab.url}>
+          {displayUrl(tab.url)}
+        </span>
+        {error && <span className="error">{error}</span>}
+      </div>
+      <div className="popup-footer">
+        <button type="submit" className="btn btn-primary popup-main-action" disabled={saving}>
+          Add to list
+        </button>
+      </div>
     </form>
   );
 }
@@ -150,61 +156,64 @@ function CurrentRecord({
   const continueUrl = hasSeries(record) && record.lastReadUrl !== tab.url ? record.lastReadUrl : undefined;
 
   return (
-    <div className="popup-body">
-      <div>
-        <div className="current-title">{record.title}</div>
-        <div className="current-meta">
-          {revisit
-            ? record.readAt
-              ? `Last read ${formatDateTime(record.readAt)}`
-              : 'Not read yet'
-            : record.status === 'read'
-              ? `Read${record.readAt ? ` ${new Date(record.readAt).toLocaleDateString()}` : ''}`
-              : 'Unread'}
+    <>
+      <div className="popup-body">
+        <div>
+          <div className="current-title">{record.title}</div>
+          <div className="current-meta">
+            {revisit
+              ? record.readAt
+                ? `Last read ${formatDateTime(record.readAt)}`
+                : 'Not read yet'
+              : record.status === 'read'
+                ? `Read${record.readAt ? ` ${new Date(record.readAt).toLocaleDateString()}` : ''}`
+                : 'Unread'}
+          </div>
         </div>
+
+        {revisit ? (
+          <HoldButton
+            className="btn btn-primary popup-main-action"
+            title="Press and hold to record that you read it now"
+            onConfirm={async () => {
+              const next = await markReadNow(record.id);
+              if (next) onChange(next);
+            }}
+          >
+            Update read
+          </HoldButton>
+        ) : (
+          <button
+            type="button"
+            className={`btn popup-main-action${record.status === 'unread' ? ' btn-primary' : ''}`}
+            onClick={toggleRead}
+          >
+            {record.status === 'unread' ? 'Mark read' : 'Mark unread'}
+          </button>
+        )}
+
+        {folders.length > 0 && <FolderSelect folders={folders} value={record.folderId ?? ''} onChange={setFolder} />}
+
+        {continueUrl && (
+          <a
+            className="popup-url"
+            href={continueUrl}
+            title={continueUrl}
+            onClick={(e) => {
+              e.preventDefault();
+              void browser.tabs.update(tab.id, { url: continueUrl });
+              window.close();
+            }}
+          >
+            Continue: {displayUrl(continueUrl)}
+          </a>
+        )}
       </div>
-
-      {revisit ? (
-        <HoldButton
-          className="btn btn-primary popup-main-action"
-          title="Press and hold to record that you read it now"
-          onConfirm={async () => {
-            const next = await markReadNow(record.id);
-            if (next) onChange(next);
-          }}
-        >
-          Update read
-        </HoldButton>
-      ) : (
-        <button
-          type="button"
-          className={`btn popup-main-action${record.status === 'unread' ? ' btn-primary' : ''}`}
-          onClick={toggleRead}
-        >
-          {record.status === 'unread' ? 'Mark read' : 'Mark unread'}
+      <div className="popup-footer">
+        <button type="button" className="link-button" onClick={() => openList(`#edit=${record.id}`)}>
+          Manage in full list →
         </button>
-      )}
-
-      {folders.length > 0 && <FolderSelect folders={folders} value={record.folderId ?? ''} onChange={setFolder} />}
-
-      {continueUrl && (
-        <a
-          className="popup-url"
-          href={continueUrl}
-          title={continueUrl}
-          onClick={(e) => {
-            e.preventDefault();
-            void browser.tabs.update(tab.id, { url: continueUrl });
-            window.close();
-          }}
-        >
-          Continue: {displayUrl(continueUrl)}
-        </a>
-      )}
-
-      <button type="button" className="link-button" onClick={() => openList(`#edit=${record.id}`)}>
-        Manage in full list →
-      </button>
-    </div>
+      </div>
+    </>
   );
 }
