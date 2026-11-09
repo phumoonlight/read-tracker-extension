@@ -18,7 +18,7 @@ import {
   getRecord,
   listFolders,
   allTagCounts,
-  tagCounts,
+  placeStats,
   onRecordsChanged,
   putRecord,
   queryRecords,
@@ -51,13 +51,12 @@ import {
 /** Rows loaded per page; more load as the end of the list scrolls into view. */
 const PAGE = 60;
 
-/** Sorts offered in Status mode (Revisit places always use least recently read first). */
-type ListSort = Exclude<SortKey, 'revisit'>;
+/** Sorts offered in Status places (each tab has one status, so no status sort; Revisit uses its own order). */
+type ListSort = Exclude<SortKey, 'revisit' | 'status'>;
 const SORT_LABEL: Record<ListSort, string> = {
   updated: 'Recently updated',
   created: 'Recently added',
   title: 'Title A–Z',
-  status: 'Status',
 };
 
 type Modal =
@@ -132,7 +131,8 @@ export function App() {
   const revision = useRevision();
   const [query, setQuery] = useState('');
   const search = useDebounced(query, 200);
-  const [status, setStatus] = useState<ReadStatus | 'all'>('all');
+  /** Status tab in Status places (Revisit places have no tabs). */
+  const [status, setStatus] = useState<ReadStatus>('unread');
   /** Selected tag filters (records must have all of them). */
   const [selTags, setSelTags] = useState<string[]>([]);
   const [sort, setSort] = useState<ListSort>('updated');
@@ -141,6 +141,7 @@ export function App() {
   const [total, setTotal] = useState<number>();
   /** Tags used in the open place, with counts. */
   const [placeTags, setPlaceTags] = useState<[string, number][]>([]);
+  const [statusCounts, setStatusCounts] = useState<Record<ReadStatus, number>>();
   // undefined until first loaded, so a remembered folder isn't mistaken for a deleted one.
   const [loadedFolders, setFolders] = useState<Folder[]>();
   const folders = loadedFolders ?? NO_FOLDERS;
@@ -186,11 +187,13 @@ export function App() {
     void allTagCounts().then(setTagSuggestions);
   }, [revision]);
 
-  // Tags (and counts) of the open place.
+  // Tags and status counts of the open place.
   useEffect(() => {
     let stale = false;
-    void tagCounts(activeFolder).then((t) => {
-      if (!stale) setPlaceTags(t);
+    void placeStats(activeFolder).then((st) => {
+      if (stale) return;
+      setPlaceTags(st.tags);
+      setStatusCounts(st.status);
     });
     return () => {
       stale = true;
@@ -208,12 +211,15 @@ export function App() {
     setLimit(PAGE);
   };
 
+  // "N shown of M": M is the open tab's count (or the whole place in Revisit).
+  const shownOf = revisit ? placeCount : statusCounts?.[status];
+
   // Load the first `limit` matches. Any change re-runs it; stale responses are dropped.
   useEffect(() => {
     let stale = false;
     void queryRecords({
       search,
-      status: revisit || status === 'all' ? undefined : status,
+      status: revisit ? undefined : status,
       tags: activeTags,
       folder: activeFolder,
       sort: revisit ? 'revisit' : sort,
@@ -264,6 +270,9 @@ export function App() {
         onManage={() => setModal({ kind: 'place' })}
       />
 
+      {/* Status places split into Unread / Read tabs; Revisit places don't use statuses. */}
+      {!revisit && <StatusTabs value={status} counts={statusCounts} onChange={resetting(setStatus)} />}
+
       <div className="toolbar">
         <input
           type="search"
@@ -272,20 +281,6 @@ export function App() {
           onChange={(e) => resetting(setQuery)(e.target.value)}
           aria-label="Search"
         />
-        {!revisit && (
-          <select
-            value={status}
-            onChange={(e) => resetting(setStatus)(e.target.value as ReadStatus | 'all')}
-            aria-label="Filter by status"
-          >
-            <option value="all">All statuses</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {STATUS_LABEL[s]}
-              </option>
-            ))}
-          </select>
-        )}
         {/* Revisit places have a fixed order (least recently read first), so no sort menu. */}
         {!revisit && (
           <select value={sort} onChange={(e) => resetting(setSort)(e.target.value as ListSort)} aria-label="Sort">
@@ -301,9 +296,7 @@ export function App() {
       {/* Count of the open place, then the tag filter chips. */}
       <div className="list-meta">
         <span className="muted list-count">
-          {page && placeCount !== undefined
-            ? `${page.records.length}${page.hasMore ? '+' : ''} shown of ${placeCount}`
-            : ''}
+          {page && shownOf !== undefined ? `${page.records.length}${page.hasMore ? '+' : ''} shown of ${shownOf}` : ''}
         </span>
         <TagFilter tags={placeTags} selected={activeTags} onToggle={toggleTag} onClear={() => resetting(setSelTags)([])} />
       </div>
@@ -314,8 +307,12 @@ export function App() {
         <div className="empty">
           {total === 0
             ? 'Your list is empty. Open a page and use the toolbar button to add it.'
-            : search || status !== 'all' || activeTags.length > 0
+            : search || activeTags.length > 0
               ? 'No records here match these filters.'
+              : !revisit && (placeCount ?? 0) > 0
+                ? status === 'unread'
+                  ? 'Nothing unread here.'
+                  : 'Nothing marked read here yet.'
               : isFolderId(activeFolder)
                 ? 'This folder is empty. Move records here from their Edit dialog or the popup.'
                 : 'Home is empty: every record is in a folder.'}
@@ -654,6 +651,28 @@ function EditDialog({
         />
       )}
     </Dialog>
+  );
+}
+
+/** Unread / Read tabs with counts. */
+function StatusTabs({
+  value,
+  counts,
+  onChange,
+}: {
+  value: ReadStatus;
+  counts: Record<ReadStatus, number> | undefined;
+  onChange: (s: ReadStatus) => void;
+}) {
+  return (
+    <div className="status-tabs" role="tablist" aria-label="Status">
+      {STATUSES.map((s) => (
+        <button key={s} type="button" role="tab" aria-selected={value === s} onClick={() => onChange(s)}>
+          {STATUS_LABEL[s]}
+          {counts && <span className="status-tab-count">{counts[s]}</span>}
+        </button>
+      ))}
+    </div>
   );
 }
 

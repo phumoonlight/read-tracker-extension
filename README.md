@@ -9,7 +9,7 @@ stored in the browser.
   og:image. Images are kept at full resolution; click one to view it full size.
 - Group records into folders. Records start in **Home** (the default place for records without a folder); pick a
   folder when adding or editing.
-- Browse everything in a full-page list with folders, search, status and tag filters, and sorting.
+- Browse everything in a full-page list with folders, **Unread / Read** tabs, search, tag filters and sorting.
 - Back up to a single JSON file (original images included) and import it again later or on another machine.
 
 ## Install from source

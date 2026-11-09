@@ -21,7 +21,7 @@
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(180px, 2fr) repeat(2, minmax(120px, 1fr));
+  grid-template-columns: minmax(180px, 3fr) minmax(160px, 1fr);
   gap: 8px;
 }
 
@@ -349,4 +349,40 @@
 }
 .list-count {
   font-size: 16px;
+}
+
+/* Unread / Read tabs */
+.status-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.status-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: -1px;
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--text-muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+.status-tabs button:hover {
+  color: var(--text);
+}
+.status-tabs button[aria-selected='true'] {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+.status-tab-count {
+  min-width: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 16px;
+  font-weight: 400;
+  text-align: center;
 }

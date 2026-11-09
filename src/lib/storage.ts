@@ -198,22 +198,32 @@ export async function allTagCounts(): Promise<[string, number][]> {
   });
 }
 
+export interface PlaceStats {
+  /** [tag, count], sorted by tag. */
+  tags: [string, number][];
+  /** Records per status. */
+  status: Record<ReadStatus, number>;
+}
+
 /**
- * Tags used in one place (null = Home, or a folder id) with how many records there have
- * each, sorted by tag. Reads that place's records (small: no image data).
+ * Tag and status counts for one place (null = Home, or a folder id), in one pass over that
+ * place's records (small: no image data).
  */
-export async function tagCounts(place: string | null): Promise<[string, number][]> {
+export async function placeStats(place: string | null): Promise<PlaceStats> {
   await ensureReady();
   return withTx(RECORDS, 'readonly', async (tx) => {
     const store = tx.objectStore(RECORDS);
-    const rows = (
+    const rows =
       place === null
         ? ((await req(store.getAll())) as Row[]).filter((r) => r.folderId === undefined)
-        : ((await req(store.index(IDX.folderId).getAll(place))) as Row[])
-    );
-    const counts = new Map<string, number>();
-    for (const r of rows) for (const t of r.tags) counts.set(t, (counts.get(t) ?? 0) + 1);
-    return [...counts].sort(([a], [b]) => a.localeCompare(b));
+        : ((await req(store.index(IDX.folderId).getAll(place))) as Row[]);
+    const tags = new Map<string, number>();
+    const status: Record<ReadStatus, number> = { unread: 0, read: 0 };
+    for (const r of rows) {
+      status[r.status] = (status[r.status] ?? 0) + 1;
+      for (const t of r.tags) tags.set(t, (tags.get(t) ?? 0) + 1);
+    }
+    return { tags: [...tags].sort(([a], [b]) => a.localeCompare(b)), status };
   });
 }
 

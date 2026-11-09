@@ -106,8 +106,10 @@ How data is read:
   originals load only in the viewer.
   Folder counts come from the `folderId` index keys (`folderCounts`), not from record values.
 - Tag filter: a chip row under the search box (`TagFilter`) lists the tags used in the open place with counts
-  (`tagCounts(place)`, reads that place's records); several can be selected and `queryRecords({ tags })` keeps
+  (`placeStats(place)`, one pass over that place's records, also gives the status counts); several can be selected and `queryRecords({ tags })` keeps
   records that have all of them. Selection resets when switching place.
+- Status places show **Unread / Read tabs** (`StatusTabs`, counts from `placeStats`; default Unread) instead of a
+  status filter; the list queries one status. Revisit places have no tabs. The sort menu has no status sort.
 - `getAllRecords()` is for export/import only.
 
 Rules:
