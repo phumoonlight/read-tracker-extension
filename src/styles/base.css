@@ -365,6 +365,20 @@ dialog::backdrop {
 .mosaic-cell.thumb-button:hover img {
   filter: brightness(1.08);
 }
+/* Clickable images: accent border on hover and keyboard focus. Drawn by an overlay on
+   top of the image (an outline would be painted under it), so nothing shifts. */
+.thumb-button::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid transparent;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.thumb-button:hover::after,
+.thumb-button:focus-visible::after {
+  border-color: var(--accent);
+}
 
 /* Image tiles in the picker */
 .image-tiles {
