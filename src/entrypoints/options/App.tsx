@@ -65,7 +65,7 @@ type Modal =
   | { kind: 'view'; recordId: string; index: number }
   | { kind: 'new' }
   | { kind: 'folder-new' }
-  | { kind: 'folder-rename'; folder: Folder }
+  | { kind: 'place' }
   | { kind: 'folder-delete'; folder: Folder; count: number }
   | undefined;
 
@@ -253,14 +253,7 @@ export function App() {
         value={activeFolder}
         onChange={resetting(setFolder)}
         onNew={() => setModal({ kind: 'folder-new' })}
-        onRename={(f) => setModal({ kind: 'folder-rename', folder: f })}
-        onDelete={(f) => setModal({ kind: 'folder-delete', folder: f, count: counts.get(f.id) ?? 0 })}
-        home={home}
-        onSettings={(f, patch) => {
-          // Changing mode starts from the first page of the new order.
-          if (patch.readMode) setLimit(PAGE);
-          void (f ? updateFolderSettings(f.id, patch) : updateHomeSettings(patch));
-        }}
+        onManage={() => setModal({ kind: 'place' })}
       />
 
       <div className="toolbar">
@@ -396,13 +389,22 @@ export function App() {
         />
       )}
 
-      {modal?.kind === 'folder-rename' && (
-        <FolderNameDialog
-          title="Rename folder"
-          submitLabel="Rename"
-          initial={modal.folder.name}
+      {modal?.kind === 'place' && (
+        <PlaceDialog
+          // Remount when switching place so the name field starts fresh.
+          key={openFolder?.id ?? 'home'}
+          folder={openFolder}
+          home={home}
           onClose={() => setModal(undefined)}
-          onSubmit={(name) => renameFolder(modal.folder.id, name)}
+          onRename={(name) => renameFolder(openFolder!.id, name)}
+          onSettings={(patch) => {
+            // Changing mode starts from the first page of the new order.
+            if (patch.readMode) setLimit(PAGE);
+            void (openFolder ? updateFolderSettings(openFolder.id, patch) : updateHomeSettings(patch));
+          }}
+          onDelete={() =>
+            openFolder && setModal({ kind: 'folder-delete', folder: openFolder, count: counts.get(openFolder.id) ?? 0 })
+          }
         />
       )}
 
@@ -749,10 +751,7 @@ function FolderBar({
   value,
   onChange,
   onNew,
-  onRename,
-  onDelete,
-  onSettings,
-  home,
+  onManage,
 }: {
   folders: Folder[];
   counts: Map<string, number>;
@@ -760,15 +759,10 @@ function FolderBar({
   value: FolderFilter;
   onChange: (v: FolderFilter) => void;
   onNew: () => void;
-  onRename: (f: Folder) => void;
-  onDelete: (f: Folder) => void;
-  /** Change settings of a folder, or of Home (null). */
-  onSettings: (f: Folder | null, patch: { imageSize?: ImageSize; readMode?: ReadMode }) => void;
-  home: HomeSettings | undefined;
+  /** Open the settings dialog of the selected place (folder or Home). */
+  onManage: () => void;
 }) {
   const selected = folders.find((f) => f.id === value);
-  const settings = selected ?? home;
-  const placeName = selected ? selected.name : 'Home';
   const chip = (v: FolderFilter, label: string, count: number | undefined) => (
     <button key={v === HOME ? 'home' : `f-${v}`} type="button" className="folder-chip" aria-pressed={value === v} onClick={() => onChange(v)}>
       {label}
@@ -784,56 +778,131 @@ function FolderBar({
           + New folder
         </button>
       </div>
-      {/* Home can only change its settings; folders can also be renamed and deleted. */}
       <div className="row">
-        {selected && (
-          <>
-            <button type="button" className="btn btn-small" onClick={() => onRename(selected)}>
-              Rename folder
+        <button type="button" className="btn btn-small" onClick={onManage}>
+          {selected ? 'Manage folder' : 'Manage Home'}
+        </button>
+      </div>
+    </nav>
+  );
+}
+
+/**
+ * Settings of the open place. Folders: name (saved with its own button), image size,
+ * read mode (both apply at once) and delete. Home: image size and read mode only
+ * (it can't be renamed or deleted).
+ */
+function PlaceDialog({
+  folder,
+  home,
+  onClose,
+  onRename,
+  onSettings,
+  onDelete,
+}: {
+  folder: Folder | undefined;
+  home: HomeSettings | undefined;
+  onClose: () => void;
+  onRename: (name: string) => Promise<unknown>;
+  onSettings: (patch: { imageSize?: ImageSize; readMode?: ReadMode }) => void;
+  onDelete: () => void;
+}) {
+  const settings = folder ?? home;
+  const placeName = folder ? folder.name : 'Home';
+  const [name, setName] = useState(folder?.name ?? '');
+  const [nameMsg, setNameMsg] = useState<{ text: string; error?: boolean }>();
+  const [saving, setSaving] = useState(false);
+  const nameChanged = !!folder && name.trim() !== folder.name;
+
+  return (
+    <Dialog title={folder ? 'Manage folder' : 'Manage Home'} onClose={onClose}>
+      {folder ? (
+        <form
+          className="field"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setSaving(true);
+            setNameMsg(undefined);
+            try {
+              await onRename(name);
+              setNameMsg({ text: 'Saved.' });
+            } catch (err) {
+              setNameMsg({ text: err instanceof Error ? err.message : String(err), error: true });
+            } finally {
+              setSaving(false);
+            }
+          }}
+        >
+          <span>Name</span>
+          <div className="row" style={{ flexWrap: 'nowrap' }}>
+            <input
+              type="text"
+              value={name}
+              maxLength={FOLDER_NAME_MAX}
+              aria-label="Folder name"
+              onChange={(e) => {
+                setName(e.target.value);
+                setNameMsg(undefined);
+              }}
+            />
+            <button type="submit" className="btn btn-small" disabled={saving || !nameChanged || !name.trim()}>
+              Save
             </button>
-            <button type="button" className="btn btn-small btn-ghost" onClick={() => onDelete(selected)}>
-              Delete folder
-            </button>
-          </>
-        )}
-        <span className="muted" style={{ fontSize: 12, marginLeft: selected ? 8 : 0 }}>
-          Image size
-        </span>
+          </div>
+          {nameMsg && <span className={nameMsg.error ? 'error' : 'muted'}>{nameMsg.text}</span>}
+        </form>
+      ) : (
+        <p className="muted" style={{ margin: 0 }}>
+          Home holds every record that isn't in a folder. It can't be renamed or deleted.
+        </p>
+      )}
+
+      <div className="field">
+        <span>Image size</span>
         <div className="segmented size-picker" role="group" aria-label={`Image size for ${placeName}`}>
           {IMAGE_SIZES.map((s) => (
             <button
               key={s}
               type="button"
               aria-pressed={(settings?.imageSize ?? 'medium') === s}
-              onClick={() => onSettings(selected ?? null, { imageSize: s })}
+              onClick={() => onSettings({ imageSize: s })}
               title={{ small: 'Small', medium: 'Medium (default)', large: 'Large', xlarge: 'Extra large' }[s]}
             >
               {IMAGE_SIZE_LABEL[s]}
             </button>
           ))}
         </div>
-        <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>
-          Read mode
-        </span>
+      </div>
+
+      <div className="field">
+        <span>Read mode</span>
         <div className="segmented size-picker" role="group" aria-label={`Read mode for ${placeName}`}>
           {READ_MODES.map((m) => (
-            <button
-              key={m}
-              type="button"
-              aria-pressed={(settings?.readMode ?? 'status') === m}
-              onClick={() => onSettings(selected ?? null, { readMode: m })}
-              title={
-                m === 'status'
-                  ? 'Status (default): mark records unread, reading or read'
-                  : 'Revisit: hold "Update read" to record when you last read it; least recently read comes first'
-              }
-            >
+            <button key={m} type="button" aria-pressed={(settings?.readMode ?? 'status') === m} onClick={() => onSettings({ readMode: m })}>
               {READ_MODE_LABEL[m]}
             </button>
           ))}
         </div>
+        <small className="muted">
+          {(settings?.readMode ?? 'status') === 'revisit'
+            ? 'Revisit: hold “Update read” on a record to record when you last read it. The least recently read come first.'
+            : 'Status: mark records unread, reading or read.'}
+        </small>
       </div>
-    </nav>
+
+      <div className="dialog-actions" style={{ justifyContent: 'space-between' }}>
+        {folder ? (
+          <button type="button" className="btn btn-small btn-danger" onClick={onDelete}>
+            Delete folder
+          </button>
+        ) : (
+          <span />
+        )}
+        <button type="button" className="btn" onClick={onClose}>
+          Done
+        </button>
+      </div>
+    </Dialog>
   );
 }
 
