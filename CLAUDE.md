@@ -65,6 +65,12 @@ records come first), and the status/sort filters and the Manage dialog's status 
 column (`.card-center`; rows are a 3-column grid `body | center | actions` with images on a second row). Settings changes
 go through `updateFolderSettings` / `updateHomeSettings`, which merge and store defaults as absent.
 
+Preferred domains (`domains?` on `Folder`, `lib/domains.ts`): normalized hosts (`normalizeDomain`: no scheme / path /
+port / leading "www."). Matching is the **exact host** (subdomains don't count; "www." is ignored). A domain belongs to
+at most one folder: `createFolder` / `setFolderDomains` refuse a clash in the same transaction, and `planImport`
+drops a clashing domain from incoming folders. The popup's Add form preselects `folderForUrl(folders, tab.url)`,
+else Home. Edited as chips (`TagInput` with `chipPrefix=""`, `addText=addDomainText`) in New folder / Manage folder.
+
 `Folder`: `id`, `name`, `imageSize?` (`small` | `medium` | `large` | `xlarge`; absent = medium), `readMode?`, `createdAt`,
 `updatedAt`. `imageSize` applies while that folder is open. Home has no Folder record: its size is `HomeSettings` in the `meta`
 store (key `home`, `getHomeSettings` / `setHomeImageSize`), exported as `home` in backups and merged newer-wins.

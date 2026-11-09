@@ -1,6 +1,7 @@
 import { browser } from 'wxt/browser';
 import { FOLDERS, IDX, IMAGES, META, RECORDS, req, withTx } from './db';
 import { isPermutation, type NewImage, type StoredImage } from './images';
+import { domainConflictError } from './domains';
 import { cleanFolderName, folderNameError, newFolder, sortFolders } from './folders';
 import { chooseMatch, lookupTags, recordMatchTags } from './match';
 import { urlEntries } from './records';
@@ -520,18 +521,39 @@ export async function folderCounts(): Promise<Map<string, number>> {
 }
 
 /** Create a folder. Throws with a user-facing message if the name is empty, too long or taken. */
-export async function createFolder(name: string): Promise<Folder> {
+export async function createFolder(name: string, domains: string[] = []): Promise<Folder> {
   await ensureReady();
   const folder = await withTx(FOLDERS, 'readwrite', async (tx) => {
     const store = tx.objectStore(FOLDERS);
-    const error = folderNameError(name, (await req(store.getAll())) as Folder[]);
+    const all = (await req(store.getAll())) as Folder[];
+    const error = folderNameError(name, all) ?? domainConflictError(domains, all);
     if (error) throw new Error(error);
-    const f = newFolder(name);
+    const f: Folder = { ...newFolder(name), ...(domains.length ? { domains: [...domains] } : {}) };
     store.put(f);
     return f;
   });
   await notifyChanged();
   return folder;
+}
+
+/**
+ * Set a folder's preferred domains (already normalized). Throws a user-facing error if
+ * another folder already prefers one of them; checked in the same transaction.
+ */
+export async function setFolderDomains(id: string, domains: string[]): Promise<void> {
+  await ensureReady();
+  await withTx(FOLDERS, 'readwrite', async (tx) => {
+    const store = tx.objectStore(FOLDERS);
+    const all = (await req(store.getAll())) as Folder[];
+    const current = all.find((f) => f.id === id);
+    if (!current) throw new Error('This folder no longer exists.');
+    const error = domainConflictError(domains, all, id);
+    if (error) throw new Error(error);
+    const { domains: _old, ...rest } = current;
+    void _old;
+    store.put({ ...rest, ...(domains.length ? { domains: [...domains] } : {}), updatedAt: Date.now() });
+  });
+  await notifyChanged();
 }
 
 export async function renameFolder(id: string, name: string): Promise<void> {

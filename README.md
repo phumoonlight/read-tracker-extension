@@ -49,7 +49,9 @@ change.
 - **Home and folders:** the full list opens on **Home**, which holds every record that isn't in a folder. Click
   **+ New folder** to make one, and click a folder to see its records. **Manage folder** (or **Manage Home**) opens
   its settings: name, **Image size** (S / M / L / XL), **Read mode** and **Delete folder**. Home can't be renamed
-  or deleted, and always uses the Status read mode. Deleting a folder keeps its records (they move to Home). Move a record by choosing a folder (or
+  or deleted, and always uses the Status read mode. A folder can also have **Preferred domains** (e.g. `x.com`): pages you add
+  from the popup on exactly that domain go into that folder by default (otherwise Home). Each domain can belong to
+  only one folder. Deleting a folder keeps its records (they move to Home). Move a record by choosing a folder (or
   Home) in its **Manage** dialog or in the popup. The list remembers which place you had open. Search and filters
   apply within the open place. Filter by tag with the **Tags** chips under the search box (select several to
   narrow down; click a tag on a record to add it).

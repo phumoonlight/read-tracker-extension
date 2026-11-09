@@ -764,3 +764,10 @@ dialog.viewer {
   border-color: var(--accent);
   color: var(--accent-text);
 }
+
+/* A field with a hint or error under it */
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

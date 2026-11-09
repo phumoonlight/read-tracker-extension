@@ -1,3 +1,4 @@
+import { addDomainText } from './domains';
 import { cleanFolderName } from './folders';
 import { migrateRecord } from './migrate';
 import { isHttpUrl } from './records';
@@ -106,11 +107,16 @@ function parseFolder(f: unknown, i: number): Folder {
   if (!name || name.length > FOLDER_NAME_MAX) throw bad('name');
   for (const k of ['createdAt', 'updatedAt'] as const) if (typeof f[k] !== 'number') throw bad(k);
   const imageSize = parseImageSize(f.imageSize);
+  // Preferred domains: keep valid ones (normalized, no duplicates); anything else is dropped.
+  const domains = Array.isArray(f.domains)
+    ? addDomainText([], f.domains.filter((d): d is string => typeof d === 'string').join(','))
+    : [];
   return {
     id: f.id,
     name,
     ...(imageSize && imageSize !== 'medium' ? { imageSize } : {}),
     ...parseReadMode(f.readMode),
+    ...(domains.length ? { domains } : {}),
     createdAt: f.createdAt as number,
     updatedAt: f.updatedAt as number,
   };
@@ -240,6 +246,25 @@ export function planImport(
       folderById.set(f.id, f);
     }
   }
+  // A preferred domain belongs to one folder: local folders that aren't being replaced keep
+  // theirs; an incoming folder drops any domain already claimed (first one wins).
+  const writing = new Set(plan.writeFolders.map((f) => f.id));
+  const claimed = new Map<string, string>();
+  for (const f of folderById.values()) {
+    if (!writing.has(f.id)) for (const d of f.domains ?? []) claimed.set(d, f.id);
+  }
+  plan.writeFolders = plan.writeFolders.map((f) => {
+    const kept = (f.domains ?? []).filter((d) => {
+      const owner = claimed.get(d);
+      if (owner !== undefined && owner !== f.id) return false;
+      claimed.set(d, f.id);
+      return true;
+    });
+    const { domains: _d, ...rest } = f;
+    void _d;
+    return kept.length ? { ...rest, domains: kept } : rest;
+  });
+
   const resolveFolder = (id: string | undefined) => {
     if (id === undefined) return undefined;
     const mapped = folderIdMap.get(id) ?? id;

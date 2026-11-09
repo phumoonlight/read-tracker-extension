@@ -51,6 +51,11 @@ export interface Folder {
   imageSize?: ImageSize;
   /** How records here are read; absent = 'status'. */
   readMode?: ReadMode;
+  /**
+   * Preferred domains (normalized, e.g. "x.com"): adding a page on one of them preselects
+   * this folder. Each domain belongs to at most one folder. Absent = none.
+   */
+  domains?: string[];
   createdAt: number;
   updatedAt: number;
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { browser, type Browser } from 'wxt/browser';
 import { HoldButton } from '@/components/HoldButton';
+import { folderForUrl } from '@/lib/domains';
 import { matchedEntry } from '@/lib/match';
 import { createRecord, formatAgo, formatDateTime, hasSeries } from '@/lib/records';
 import { findRecordForUrl, listFolders, markReadNow, putRecord, statusChange, updateRecord } from '@/lib/storage';
@@ -85,7 +86,8 @@ export function App() {
 /** Add the current page: title and folder only. It starts unread. */
 function AddPage({ tab, folders, onAdded }: { tab: ActiveTab; folders: Folder[]; onAdded: (r: ReadingRecord) => void }) {
   const [title, setTitle] = useState(tab.title ?? '');
-  const [folderId, setFolderId] = useState('');
+  // Preselect the folder whose preferred domains cover this page; otherwise Home.
+  const [folderId, setFolderId] = useState(() => folderForUrl(folders, tab.url)?.id ?? '');
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
 

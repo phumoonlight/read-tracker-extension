@@ -4,9 +4,11 @@ import { RecordForm, newUrlRow, urlRowsFor, type RecordFormResult } from '@/comp
 import { UrlLink } from '@/components/UrlLink';
 import { ImageStrip } from '@/components/Thumbnail';
 import { HoldButton } from '@/components/HoldButton';
+import { TagInput } from '@/components/TagInput';
 import { ImagePicker } from '@/components/ImagePicker';
 import { ImageViewer } from '@/components/ImageViewer';
 import { decodeFolderFilter, encodeFolderFilter } from '@/lib/folders';
+import { addDomainText } from '@/lib/domains';
 import { createRecord, formatAgo, formatDateTime, hasSeries, urlEntries } from '@/lib/records';
 import {
   countRecords,
@@ -24,6 +26,7 @@ import {
   getHomeSettings,
   markReadNow,
   renameFolder,
+  setFolderDomains,
   updateFolderSettings,
   updateHomeSettings,
   statusChange,
@@ -396,8 +399,8 @@ export function App() {
           submitLabel="Create"
           initial=""
           onClose={() => setModal(undefined)}
-          onSubmit={async (name) => {
-            const f = await createFolder(name);
+          onSubmit={async (name, domains) => {
+            const f = await createFolder(name, domains);
             resetting(setFolder)(f.id);
           }}
         />
@@ -411,6 +414,7 @@ export function App() {
           home={home}
           onClose={() => setModal(undefined)}
           onRename={(name) => renameFolder(openFolder!.id, name)}
+          onDomains={(domains) => setFolderDomains(openFolder!.id, domains)}
           onSettings={(patch) => {
             // Changing mode starts from the first page of the new order.
             if (patch.readMode) setLimit(PAGE);
@@ -809,12 +813,15 @@ function PlaceDialog({
   onClose,
   onRename,
   onSettings,
+  onDomains,
   onDelete,
 }: {
   folder: Folder | undefined;
   home: HomeSettings | undefined;
   onClose: () => void;
   onRename: (name: string) => Promise<unknown>;
+  /** Save the folder's preferred domains (throws if another folder already has one). */
+  onDomains: (domains: string[]) => Promise<unknown>;
   onSettings: (patch: { imageSize?: ImageSize; readMode?: ReadMode }) => void;
   onDelete: () => void;
 }) {
@@ -822,6 +829,7 @@ function PlaceDialog({
   const placeName = folder ? folder.name : 'Home';
   const [name, setName] = useState(folder?.name ?? '');
   const [nameMsg, setNameMsg] = useState<{ text: string; error?: boolean }>();
+  const [domainMsg, setDomainMsg] = useState<string>();
   const [saving, setSaving] = useState(false);
   const nameChanged = !!folder && name.trim() !== folder.name;
 
@@ -866,6 +874,27 @@ function PlaceDialog({
         <p className="muted" style={{ margin: 0 }}>
           Home holds every record that isn't in a folder. It can't be renamed or deleted.
         </p>
+      )}
+
+      {folder && (
+        <div className="field-group">
+          <DomainInput
+            value={folder.domains ?? []}
+            onChange={async (domains) => {
+              setDomainMsg(undefined);
+              try {
+                await onDomains(domains);
+              } catch (err) {
+                setDomainMsg(err instanceof Error ? err.message : String(err));
+              }
+            }}
+          />
+          {domainMsg ? (
+            <span className="error">{domainMsg}</span>
+          ) : (
+            <small className="muted">Pages added from these domains go into this folder by default.</small>
+          )}
+        </div>
       )}
 
       <div className="field">
@@ -928,6 +957,21 @@ function PlaceDialog({
   );
 }
 
+/** Preferred domains as chips (no "#"), normalized as they're added. */
+function DomainInput({ value, onChange }: { value: string[]; onChange: (domains: string[]) => void }) {
+  return (
+    <TagInput
+      label="Preferred domains"
+      value={value}
+      onChange={onChange}
+      suggestions={[]}
+      chipPrefix=""
+      addText={addDomainText}
+      placeholder="e.g. x.com, youtube.com"
+    />
+  );
+}
+
 function FolderNameDialog({
   title,
   submitLabel,
@@ -938,10 +982,11 @@ function FolderNameDialog({
   title: string;
   submitLabel: string;
   initial: string;
-  onSubmit: (name: string) => Promise<unknown>;
+  onSubmit: (name: string, domains: string[]) => Promise<unknown>;
   onClose: () => void;
 }) {
   const [name, setName] = useState(initial);
+  const [domains, setDomains] = useState<string[]>([]);
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
   return (
@@ -953,7 +998,7 @@ function FolderNameDialog({
           setSaving(true);
           setError(undefined);
           try {
-            await onSubmit(name);
+            await onSubmit(name, domains);
             onClose();
           } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
@@ -966,6 +1011,8 @@ function FolderNameDialog({
           <span>Name</span>
           <input type="text" value={name} maxLength={FOLDER_NAME_MAX} autoFocus onChange={(e) => setName(e.target.value)} />
         </label>
+        <DomainInput value={domains} onChange={setDomains} />
+        <small className="muted">Pages added from these domains go into this folder by default (optional).</small>
         {error && <span className="error">{error}</span>}
         <div className="dialog-actions">
           <button type="button" className="btn" onClick={onClose}>

@@ -156,3 +156,37 @@ describe('read mode in backups', () => {
     expect(home).toEqual({ imageSize: 'large', updatedAt: 3 });
   });
 });
+
+describe('preferred domains in backups', () => {
+  const base = () => buildBackup([], [], []);
+  const withDomains = (f: Folder, domains: unknown) => ({ ...f, domains });
+
+  it('keeps valid domains (normalized) and drops invalid ones', () => {
+    const parsed = parseBackup(
+      JSON.stringify({ ...base(), folders: [withDomains(folder('f', 'A'), ['https://www.X.com/a', 'nonsense', 5, 'x.com'])] }),
+    );
+    expect(parsed.folders[0]?.domains).toEqual(['x.com']);
+    const none = parseBackup(JSON.stringify({ ...base(), folders: [withDomains(folder('g', 'B'), 'x.com')] }));
+    expect(none.folders[0]).not.toHaveProperty('domains');
+  });
+
+  it('keeps a domain unique on import: a local folder keeps it, the incoming one drops it', () => {
+    const local = { ...folder('a', 'Artists'), domains: ['x.com'] };
+    const incoming = { ...folder('v', 'Video'), domains: ['x.com', 'youtube.com'] };
+    const plan = planImport([], [local], buildBackup([], [incoming], []));
+    expect(plan.writeFolders).toEqual([{ ...folder('v', 'Video'), domains: ['youtube.com'] }]);
+  });
+
+  it('between two incoming folders, the first keeps the domain', () => {
+    const one = { ...folder('one', 'One'), domains: ['x.com'] };
+    const two = { ...folder('two', 'Two'), domains: ['x.com'] };
+    const plan = planImport([], [], buildBackup([], [one, two], []));
+    expect(plan.writeFolders.map((f) => f.domains)).toEqual([['x.com'], undefined]);
+  });
+
+  it('a newer copy of a local folder may keep its own domains', () => {
+    const local = { ...folder('a', 'Artists', 100), domains: ['x.com'] };
+    const newer = { ...folder('a', 'Artists', 200), domains: ['x.com', 'pixiv.net'] };
+    expect(planImport([], [local], buildBackup([], [newer], [])).writeFolders[0]?.domains).toEqual(['x.com', 'pixiv.net']);
+  });
+});

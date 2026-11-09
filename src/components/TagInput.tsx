@@ -11,12 +11,20 @@ export function TagInput({
   onChange,
   suggestions,
   label = 'Tags',
+  chipPrefix = '#',
+  addText = addTagText,
+  placeholder = 'Add a tag…',
 }: {
   value: string[];
   onChange: (tags: string[]) => void;
-  /** Existing tags with their usage counts. */
+  /** Existing items with their usage counts (suggested while typing). */
   suggestions: readonly (readonly [string, number])[];
   label?: string;
+  /** Shown before each chip ('#' for tags, '' for domains). */
+  chipPrefix?: string;
+  /** Turns typed / pasted text into the new list (normalizing, dropping invalid entries). */
+  addText?: (current: readonly string[], text: string) => string[];
+  placeholder?: string;
 }) {
   const [draft, setDraft] = useState('');
   const [open, setOpen] = useState(false);
@@ -26,7 +34,7 @@ export function TagInput({
   const matches = open ? suggestTags(suggestions, draft, value) : [];
 
   const commit = (text: string) => {
-    if (text.trim()) onChange(addTagText(value, text));
+    if (text.trim()) onChange(addText(value, text));
     setDraft('');
     setActive(0);
   };
@@ -57,7 +65,8 @@ export function TagInput({
       <div className="tag-input" onClick={() => inputRef.current?.focus()}>
         {value.map((t) => (
           <span key={t} className="tag-input-chip">
-            #{t}
+            {chipPrefix}
+            {t}
             <button
               type="button"
               aria-label={`Remove tag ${t}`}
@@ -74,7 +83,7 @@ export function TagInput({
           ref={inputRef}
           type="text"
           value={draft}
-          placeholder={value.length ? '' : 'Add a tag…'}
+          placeholder={value.length ? '' : placeholder}
           aria-label={label}
           role="combobox"
           aria-expanded={matches.length > 0}
@@ -87,7 +96,7 @@ export function TagInput({
             if (text.includes(',')) {
               // Everything before the last comma becomes tags; the rest keeps being typed.
               const cut = text.lastIndexOf(',');
-              onChange(addTagText(value, text.slice(0, cut)));
+              onChange(addText(value, text.slice(0, cut)));
               setDraft(text.slice(cut + 1));
             } else {
               setDraft(text);
@@ -115,7 +124,8 @@ export function TagInput({
               }}
               onMouseEnter={() => setActive(i)}
             >
-              #{t}
+              {chipPrefix}
+            {t}
               <span className="muted">{suggestions.find(([s]) => s === t)?.[1]}</span>
             </li>
           ))}
