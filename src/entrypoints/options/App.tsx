@@ -7,7 +7,6 @@ import { HoldButton } from '@/components/HoldButton';
 import { StatusPicker } from '@/components/StatusPicker';
 import { ImagePicker } from '@/components/ImagePicker';
 import { ImageViewer } from '@/components/ImageViewer';
-import { exportToFile, importFromFile } from '@/lib/backup-io';
 import { decodeFolderFilter, encodeFolderFilter } from '@/lib/folders';
 import { createRecord, formatDateTime, hasSeries, urlEntries } from '@/lib/records';
 import {
@@ -219,6 +218,9 @@ export function App() {
               ? `${page.records.length}${page.hasMore ? '+' : ''} shown of ${placeCount}`
               : ''}
           </span>
+          <a className="btn" href="/backup.html">
+            Backup
+          </a>
           <button type="button" className="btn btn-primary" onClick={() => setModal({ kind: 'new' })}>
             New record
           </button>
@@ -309,7 +311,6 @@ export function App() {
         </>
       )}
 
-      <Backup />
 
       {modal?.kind === 'new' && (
         <Dialog title="New record" onClose={() => setModal(undefined)}>
@@ -621,55 +622,6 @@ function EditDialog({
         />
       )}
     </Dialog>
-  );
-}
-
-function Backup() {
-  const [message, setMessage] = useState<{ text: string; error?: boolean }>();
-  return (
-    <section className="backup">
-      <h2>Backup</h2>
-      <p className="muted" style={{ margin: 0 }}>
-        Export everything (original images included) to one JSON file. Importing merges by record id: the copy with the
-        newer “updated” time wins.
-      </p>
-      <div className="row">
-        <button
-          type="button"
-          className="btn"
-          onClick={async () => {
-            try {
-              const n = await exportToFile();
-              setMessage({ text: `Exported ${n} record${n === 1 ? '' : 's'}.` });
-            } catch (e) {
-              setMessage({ text: `Export failed: ${e instanceof Error ? e.message : e}`, error: true });
-            }
-          }}
-        >
-          Export JSON
-        </button>
-        <label className="btn">
-          Import JSON
-          <input
-            type="file"
-            accept="application/json,.json"
-            hidden
-            onChange={async (e) => {
-              const file = e.target.files?.[0];
-              e.target.value = '';
-              if (!file) return;
-              try {
-                const p = await importFromFile(file);
-                setMessage({ text: `Imported: ${p.added} added, ${p.updated} updated, ${p.skipped} unchanged.` });
-              } catch (err) {
-                setMessage({ text: `Import failed: ${err instanceof Error ? err.message : err}`, error: true });
-              }
-            }}
-          />
-        </label>
-      </div>
-      {message && <span className={message.error ? 'error' : 'muted'}>{message.text}</span>}
-    </section>
   );
 }
 

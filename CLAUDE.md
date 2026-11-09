@@ -24,7 +24,8 @@ src/
   entrypoints/
     background.ts        service worker: badge per tab, series progress (lastReadUrl)
     popup/               toolbar popup: current page state, add, status, folder, images
-    options/             full list page (options_ui, open_in_tab): folder bar, record list, search, filters, Manage dialog (edit + delete), backup
+    options/             full list page (options_ui, open_in_tab): folder bar, record list, search, filters, Manage dialog (edit + delete)
+    backup/              Backup page (backup.html, linked from the list header): export / import JSON
   components/            shared React UI (RecordForm, ImagePicker, ImageViewer, Thumbnail (cover), UrlLink, HoldButton,
                          StatusPicker, Dialog)
   lib/                   framework-free logic (only db.ts / storage.ts / tab.ts / images.ts touch browser APIs)

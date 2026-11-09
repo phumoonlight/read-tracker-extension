@@ -1,0 +1,48 @@
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.page-header h1 {
+  font-size: 22px;
+}
+
+.back-link {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.back-link:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.backup-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.backup-section h2 {
+  font-size: 15px;
+}
+.backup-section p {
+  margin: 0;
+}
+
+.btn.is-disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}

@@ -221,19 +221,6 @@
   border-radius: var(--radius);
 }
 
-.backup {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-.backup h2 {
-  font-size: 15px;
-}
-
 .folder-bar {
   display: flex;
   flex-direction: column;

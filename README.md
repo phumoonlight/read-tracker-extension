@@ -54,7 +54,8 @@ change.
   back to again and again: each record gets an **Update read** button (press and hold it for a second) that
   records when you last read it. The list always shows the least recently read first (never read at the top), and
   after **Update read** the record moves to the bottom to wait its turn.
-- **Backup:** in the full list, use **Export JSON** and **Import JSON** at the bottom. When the same record exists
+- **Backup:** in the full list, click **Backup** (top right) to open the Backup page with **Export JSON** and
+  **Import JSON**. When the same record exists
   in both places, the copy that was edited most recently is kept.
 
 ## Permissions
