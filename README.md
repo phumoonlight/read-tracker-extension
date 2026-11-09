@@ -45,7 +45,7 @@ change.
   folders). The folder, images, extra URLs, tags and notes are managed on the full list page.
 - **View images:** click a card's image in the full list (or an image tile) to open the full-size viewer; use
   the arrow keys to step through a record's images, or **Open original** to see it in a tab.
-- **Full list:** click **Open full list** in the popup, or right-click the toolbar icon and choose **Options**.
+- **Full list:** click the list icon (**Open full list**) in the popup, or right-click the toolbar icon and choose **Options**.
 - **Home and folders:** the full list opens on **Home**, which holds every record that isn't in a folder. Click
   **+ New folder** to make one, and click a folder to see its records. **Manage folder** (or **Manage Home**) opens
   its settings: name, **Image size** (S / M / L / XL), **Read mode** and **Delete folder**. Home can't be renamed

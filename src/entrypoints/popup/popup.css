@@ -66,9 +66,9 @@ body {
   font-weight: 700;
 }
 
-/* "Manage in full list →" */
+/* "Manage" (opens the record on the full list page), at the right of the footer */
 .link-button {
-  align-self: flex-start;
+  align-self: flex-end;
   padding: 0;
   border: 0;
   background: none;
@@ -87,4 +87,22 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+/* Icon button in the header (Open full list) */
+.popup-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.popup-icon-btn:hover {
+  background: var(--surface-2);
+  color: var(--text);
 }

@@ -45,8 +45,22 @@ export function App() {
     <main className="popup">
       <header className="popup-header">
         <h1>Read Tracker</h1>
-        <button type="button" className="btn btn-small" onClick={() => openList()}>
-          Open full list
+        <button
+          type="button"
+          className="popup-icon-btn"
+          onClick={() => openList()}
+          title="Open full list"
+          aria-label="Open full list"
+        >
+          {/* List icon */}
+          <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+            <path
+              d="M7 5h10M7 10h10M7 15h10M3 5h.01M3 10h.01M3 15h.01"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </svg>
         </button>
       </header>
       {state.kind === 'loading' && <p className="muted popup-body">Loading…</p>}
@@ -201,7 +215,7 @@ function CurrentRecord({
       </div>
       <div className="popup-footer">
         <button type="button" className="link-button" onClick={() => openList(`#edit=${record.id}`)}>
-          Manage in full list →
+          Manage
         </button>
       </div>
     </>
