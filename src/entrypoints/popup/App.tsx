@@ -97,7 +97,7 @@ function AddPage({
           title: tab.title ?? '',
           urls: [newUrlRow(tab.url)],
           status: 'unread',
-          tags: '',
+          tags: [],
           notes: '',
           folderId: '',
         }}

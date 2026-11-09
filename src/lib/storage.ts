@@ -178,6 +178,26 @@ export async function countRecords(): Promise<number> {
   return withTx(RECORDS, 'readonly', (tx) => req(tx.objectStore(RECORDS).count()));
 }
 
+/** Every tag in use, with how many records have it (from the tags index keys; no record values loaded). */
+export async function allTagCounts(): Promise<[string, number][]> {
+  await ensureReady();
+  return withTx(RECORDS, 'readonly', async (tx) => {
+    const counts = new Map<string, number>();
+    await new Promise<void>((resolve, reject) => {
+      const r = tx.objectStore(RECORDS).index(IDX.tags).openKeyCursor();
+      r.onsuccess = () => {
+        const c = r.result;
+        if (!c) return resolve();
+        const t = String(c.key);
+        counts.set(t, (counts.get(t) ?? 0) + 1);
+        c.continue();
+      };
+      r.onerror = () => reject(r.error);
+    });
+    return [...counts];
+  });
+}
+
 /**
  * Tags used in one place (null = Home, or a folder id) with how many records there have
  * each, sorted by tag. Reads that place's records (small: no image data).

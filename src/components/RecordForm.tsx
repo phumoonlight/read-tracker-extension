@@ -1,9 +1,10 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { matchTag } from '@/lib/match';
-import { computeMatchKey, parseTags, urlEntries } from '@/lib/records';
+import { computeMatchKey, normalizeTags, urlEntries } from '@/lib/records';
 import { normalizeUrl, suggestPrefix } from '@/lib/url';
 import { MAX_URLS, type Folder, type MatchMode, type ReadingRecord, type ReadStatus, type UrlEntry } from '@/lib/types';
 import { StatusPicker } from './StatusPicker';
+import { TagInput } from './TagInput';
 
 /** One editable URL: the link itself, how it matches, and the series prefix (prefix mode). */
 export interface UrlRow {
@@ -17,7 +18,7 @@ export interface RecordFormValues {
   /** The first row is the main URL (listed first on the card). */
   urls: UrlRow[];
   status: ReadStatus;
-  tags: string;
+  tags: string[];
   notes: string;
   /** '' = Home (no folder). */
   folderId: string;
@@ -87,6 +88,8 @@ interface Props {
   children?: ReactNode;
   /** Shown at the left of the button row (e.g. Delete record). */
   footerStart?: ReactNode;
+  /** Existing tags with usage counts, suggested while typing a tag. */
+  tagSuggestions?: readonly (readonly [string, number])[];
 }
 
 export function RecordForm({
@@ -99,6 +102,7 @@ export function RecordForm({
   hideStatus,
   children,
   footerStart,
+  tagSuggestions = [],
 }: Props) {
   const [v, setV] = useState(initial);
   const [error, setError] = useState<string>();
@@ -124,7 +128,7 @@ export function RecordForm({
         matchKey: main.matchKey,
         otherUrls: others,
         status: v.status,
-        tags: parseTags(v.tags),
+        tags: normalizeTags(v.tags),
         notes: v.notes.trim() || undefined,
         // A folder deleted while the form was open counts as Home.
         folderId: folders.some((f) => f.id === v.folderId) ? v.folderId : undefined,
@@ -180,15 +184,7 @@ export function RecordForm({
         <div className="form-pair">
           {showFolder && <FolderSelect folders={folders} value={v.folderId} onChange={(id) => set('folderId', id)} />}
           {!compact && (
-            <label className="field">
-              <span>Tags</span>
-              <input
-                type="text"
-                value={v.tags}
-                placeholder="comma, separated"
-                onChange={(e) => set('tags', e.target.value)}
-              />
-            </label>
+            <TagInput value={v.tags} onChange={(tags) => set('tags', tags)} suggestions={tagSuggestions} />
           )}
         </div>
       )}

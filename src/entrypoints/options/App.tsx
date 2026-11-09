@@ -17,6 +17,7 @@ import {
   folderCounts,
   getRecord,
   listFolders,
+  allTagCounts,
   tagCounts,
   onRecordsChanged,
   putRecord,
@@ -179,6 +180,12 @@ export function App() {
   // Only folders can use it; Home is always Status.
   const revisit = openFolder?.readMode === 'revisit';
 
+  // Every tag in use, for suggestions in the record form.
+  const [tagSuggestions, setTagSuggestions] = useState<[string, number][]>([]);
+  useEffect(() => {
+    void allTagCounts().then(setTagSuggestions);
+  }, [revision]);
+
   // Tags (and counts) of the open place.
   useEffect(() => {
     let stale = false;
@@ -338,11 +345,12 @@ export function App() {
           <RecordForm
             submitLabel="Add"
             folders={folders}
+            tagSuggestions={tagSuggestions}
             initial={{
               title: '',
               urls: [newUrlRow()],
               status: 'unread',
-              tags: '',
+              tags: [],
               notes: '',
               // Adding while a folder is open puts the record in that folder.
               folderId: isFolderId(activeFolder) ? activeFolder : '',
@@ -365,6 +373,7 @@ export function App() {
           id={modal.id}
           revision={revision}
           folders={folders}
+          tagSuggestions={tagSuggestions}
           onClose={() => setModal(undefined)}
         />
       )}
@@ -547,11 +556,13 @@ function EditDialog({
   id,
   revision,
   folders,
+  tagSuggestions,
   onClose,
 }: {
   id: string;
   revision: number;
   folders: Folder[];
+  tagSuggestions: [string, number][];
   onClose: () => void;
 }) {
   // Loaded by id (the record may not be on the loaded page) and reloaded on any change,
@@ -608,13 +619,14 @@ function EditDialog({
         }
         submitLabel="Save"
         folders={folders}
+        tagSuggestions={tagSuggestions}
         // Revisit records keep their last-read time; a status change here would clear it.
         hideStatus={!!record.folderId && folders.find((f) => f.id === record.folderId)?.readMode === 'revisit'}
         initial={{
           title: record.title,
           urls: urlRowsFor(record),
           status: record.status,
-          tags: record.tags.join(', '),
+          tags: record.tags,
           notes: record.notes ?? '',
           folderId: record.folderId ?? '',
         }}

@@ -537,3 +537,74 @@ dialog.viewer {
   border-color: var(--text-muted);
   color: var(--text);
 }
+
+/* Tag field: #chips + text input + suggestions */
+.tag-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 4px 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: text;
+}
+.tag-input:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.tag-input input {
+  flex: 1;
+  min-width: 80px;
+  width: auto;
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  outline: none;
+}
+.tag-input-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 4px 1px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 16px;
+}
+.tag-input-chip button {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.tag-input-chip button:hover {
+  background: var(--border);
+  color: var(--text);
+}
+.tag-suggestions {
+  margin: 2px 0 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.tag-suggestions li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.tag-suggestions li[aria-selected='true'] {
+  background: var(--surface-2);
+}
