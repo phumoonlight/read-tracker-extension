@@ -78,3 +78,23 @@ export const openUrl = (r: ReadingRecord) => (hasSeries(r) && r.lastReadUrl) || 
 /** "Nov 9, 2026, 2:03 PM" in the user's locale: for last-read times. */
 export const formatDateTime = (ms: number) =>
   new Date(ms).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+
+/**
+ * How long ago a time was, in whole units: "just now", "10 min ago", "1 hour ago",
+ * "3 days ago", "2 months ago", "1 year ago". Future times (clock changes) count as "just now".
+ */
+export function formatAgo(ms: number, now = Date.now()): string {
+  const s = Math.floor((now - ms) / 1000);
+  if (s < 60) return 'just now';
+  const units: [number, string][] = [
+    [60 * 60 * 24 * 365, 'year'],
+    [60 * 60 * 24 * 30, 'month'],
+    [60 * 60 * 24, 'day'],
+    [60 * 60, 'hour'],
+  ];
+  for (const [size, name] of units) {
+    const n = Math.floor(s / size);
+    if (n >= 1) return `${n} ${name}${n === 1 ? '' : 's'} ago`;
+  }
+  return `${Math.floor(s / 60)} min ago`;
+}

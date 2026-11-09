@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { browser, type Browser } from 'wxt/browser';
 import { HoldButton } from '@/components/HoldButton';
 import { matchedEntry } from '@/lib/match';
-import { createRecord, formatDateTime, hasSeries } from '@/lib/records';
+import { createRecord, formatAgo, formatDateTime, hasSeries } from '@/lib/records';
 import { findRecordForUrl, listFolders, markReadNow, putRecord, statusChange, updateRecord } from '@/lib/storage';
 import { getActiveTab } from '@/lib/tab';
 import type { Folder, ReadingRecord } from '@/lib/types';
@@ -166,13 +166,16 @@ function CurrentRecord({
       <div className="popup-body">
         <div>
           <div className="current-title">{record.title}</div>
-          <div className="current-meta">
+          {/* Relative time ("10 min ago"); the exact date and time are in the tooltip. */}
+          <div className="current-meta" title={record.readAt ? formatDateTime(record.readAt) : undefined}>
             {revisit
               ? record.readAt
-                ? `Last read ${formatDateTime(record.readAt)}`
+                ? `Last read ${formatAgo(record.readAt)}`
                 : 'Not read yet'
               : record.status === 'read'
-                ? `Read${record.readAt ? ` ${new Date(record.readAt).toLocaleDateString()}` : ''}`
+                ? record.readAt
+                  ? `Read ${formatAgo(record.readAt)}`
+                  : 'Read'
                 : 'Unread'}
           </div>
         </div>

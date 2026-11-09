@@ -7,7 +7,7 @@ import { HoldButton } from '@/components/HoldButton';
 import { ImagePicker } from '@/components/ImagePicker';
 import { ImageViewer } from '@/components/ImageViewer';
 import { decodeFolderFilter, encodeFolderFilter } from '@/lib/folders';
-import { createRecord, formatDateTime, hasSeries, urlEntries } from '@/lib/records';
+import { createRecord, formatAgo, formatDateTime, hasSeries, urlEntries } from '@/lib/records';
 import {
   countRecords,
   createFolder,
@@ -126,8 +126,18 @@ function useRevision(): number {
   return revision;
 }
 
+/** Re-render every minute so relative times ("10 min ago") stay current on an idle page. */
+function useMinuteTick() {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 60_000);
+    return () => clearInterval(t);
+  }, []);
+}
+
 export function App() {
   const revision = useRevision();
+  useMinuteTick();
   const [query, setQuery] = useState('');
   const search = useDebounced(query, 200);
   /** Status tab in Status places (Revisit places have no tabs). */
@@ -507,12 +517,16 @@ function Card({
         {(revisit || record.status === 'read' || hasSeries(record)) && (
           <div className="card-meta">
             {revisit ? (
-              record.readAt ? `Last read ${formatDateTime(record.readAt)}` : 'Not read yet'
+              record.readAt ? (
+                <span title={formatDateTime(record.readAt)}>Last read {formatAgo(record.readAt)}</span>
+              ) : (
+                'Not read yet'
+              )
             ) : (
               record.status === 'read' && (
                 <>
-                  <span className="status-dot" /> Read
-                  {record.readAt && ` ${new Date(record.readAt).toLocaleDateString()}`}
+                  <span className="status-dot" />{' '}
+                  {record.readAt ? <span title={formatDateTime(record.readAt)}>Read {formatAgo(record.readAt)}</span> : 'Read'}
                 </>
               )
             )}

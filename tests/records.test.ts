@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeMatchKey, createRecord, isHttpUrl, parseTags } from '@/lib/records';
+import { computeMatchKey, createRecord, formatAgo, isHttpUrl, parseTags } from '@/lib/records';
 
 describe('computeMatchKey', () => {
   it('uses the normalized URL for exact records', () => {
@@ -68,5 +68,27 @@ describe('helpers', () => {
   });
   it('parseTags', () => {
     expect(parseTags(' Fantasy, sci-fi ,,fantasy')).toEqual(['fantasy', 'sci-fi']);
+  });
+});
+
+describe('formatAgo', () => {
+  const now = Date.UTC(2026, 10, 9, 12, 0, 0);
+  const ago = (s: number) => formatAgo(now - s * 1000, now);
+  it('uses whole units', () => {
+    expect(ago(0)).toBe('just now');
+    expect(ago(59)).toBe('just now');
+    expect(ago(60)).toBe('1 min ago');
+    expect(ago(10 * 60)).toBe('10 min ago');
+    expect(ago(59 * 60 + 59)).toBe('59 min ago');
+    expect(ago(60 * 60)).toBe('1 hour ago');
+    expect(ago(5 * 60 * 60)).toBe('5 hours ago');
+    expect(ago(24 * 60 * 60)).toBe('1 day ago');
+    expect(ago(29 * 24 * 60 * 60)).toBe('29 days ago');
+    expect(ago(30 * 24 * 60 * 60)).toBe('1 month ago');
+    expect(ago(400 * 24 * 60 * 60)).toBe('1 year ago');
+    expect(ago(800 * 24 * 60 * 60)).toBe('2 years ago');
+  });
+  it('treats future times as just now', () => {
+    expect(formatAgo(now + 5000, now)).toBe('just now');
   });
 });
