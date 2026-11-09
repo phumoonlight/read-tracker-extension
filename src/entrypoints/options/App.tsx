@@ -234,11 +234,6 @@ export function App() {
       <header className="page-header">
         <h1>Reading list</h1>
         <div className="row">
-          <span className="muted">
-            {page && placeCount !== undefined
-              ? `${page.records.length}${page.hasMore ? '+' : ''} shown of ${placeCount}`
-              : ''}
-          </span>
           <a className="btn" href="/backup.html">
             Backup
           </a>
@@ -296,7 +291,15 @@ export function App() {
         )}
       </div>
 
-      <TagFilter tags={placeTags} selected={activeTags} onToggle={toggleTag} onClear={() => resetting(setSelTags)([])} />
+      {/* Count of the open place, then the tag filter chips. */}
+      <div className="list-meta">
+        <span className="muted list-count">
+          {page && placeCount !== undefined
+            ? `${page.records.length}${page.hasMore ? '+' : ''} shown of ${placeCount}`
+            : ''}
+        </span>
+        <TagFilter tags={placeTags} selected={activeTags} onToggle={toggleTag} onClear={() => resetting(setSelTags)([])} />
+      </div>
 
       {page === undefined ? (
         <p className="muted">Loading…</p>

@@ -334,3 +334,14 @@
 .tag-chip-count {
   opacity: 0.7;
 }
+
+/* Line under the search box: record count, then tag chips */
+.list-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+}
+.list-count {
+  font-size: 12px;
+}
