@@ -78,11 +78,13 @@ export function SitePlaceholder({ url, size }: { url: string; size: 'large' | 's
 }
 
 /**
- * A record's cover: the preview of its first image, loaded only when it scrolls near
- * the viewport, with a "+N" badge when it has more images. Without images (or if the
- * image is missing) it shows a site placeholder. The domain is used rather than the
+ * A record's cover: all of its images (up to MAX_IMAGES) as a mosaic in one 16:10 area,
+ * so cards keep the same size whatever the count: 1 = full, 2 = side by side,
+ * 3 = one large on the left and two stacked on the right (the first image is the
+ * large one). Previews load only when the cover scrolls near the viewport.
+ * Without images it shows a site placeholder; the domain is used rather than the
  * title, whose first character may be a combining mark in some scripts (e.g. Thai).
- * With `onOpen`, clicking a cover that has images calls it (to open the viewer).
+ * With `onOpen`, clicking an image calls it with that image's index (open the viewer).
  */
 export function Thumbnail({
   record,
@@ -91,36 +93,51 @@ export function Thumbnail({
 }: {
   record: ReadingRecord;
   size?: 'large' | 'small';
-  onOpen?: () => void;
+  onOpen?: (index: number) => void;
 }) {
   const [ref, near] = useNearViewport<HTMLDivElement>();
-  const cover = record.images[0];
-  const url = useImageUrl(cover, { enabled: near });
-  const extra = record.images.length - 1;
-
-  const content = url ? (
-    <>
-      <img className="thumb" src={url} alt="" />
-      {extra > 0 && <span className="thumb-more">+{extra}</span>}
-    </>
-  ) : (
-    <SitePlaceholder url={record.url} size={size} />
-  );
+  const count = record.images.length;
 
   return (
     <div ref={ref} className="thumb-wrap">
-      {onOpen && url ? (
-        <button
-          type="button"
-          className="thumb-button"
-          onClick={onOpen}
-          aria-label={`View ${record.images.length === 1 ? 'image' : `${record.images.length} images`}`}
-        >
-          {content}
-        </button>
+      {count === 0 ? (
+        <SitePlaceholder url={record.url} size={size} />
       ) : (
-        content
+        <div className={`thumb mosaic mosaic-${Math.min(count, 3)}`}>
+          {record.images.slice(0, 3).map((id, i) => (
+            <MosaicCell
+              key={id}
+              imageId={id}
+              enabled={near}
+              label={count === 1 ? 'View image' : `View image ${i + 1} of ${count}`}
+              onOpen={onOpen && (() => onOpen(i))}
+            />
+          ))}
+        </div>
       )}
     </div>
+  );
+}
+
+function MosaicCell({
+  imageId,
+  enabled,
+  label,
+  onOpen,
+}: {
+  imageId: string;
+  enabled: boolean;
+  label: string;
+  onOpen?: () => void;
+}) {
+  const url = useImageUrl(imageId, { enabled });
+  // A missing image leaves an empty (tinted) cell rather than collapsing the layout.
+  const img = url ? <img src={url} alt="" /> : null;
+  return onOpen && url ? (
+    <button type="button" className="mosaic-cell thumb-button" onClick={onOpen} aria-label={label}>
+      {img}
+    </button>
+  ) : (
+    <div className="mosaic-cell">{img}</div>
   );
 }

@@ -152,7 +152,10 @@ download is blocked by CORS. Don't add install-time permissions without a strong
 - Keep `src/lib` free of React. Put pure logic in its own function so it can be tested without browser APIs.
 - Import browser APIs from `wxt/browser` (`browser.*`), not the global `chrome`.
 - Use `<dialog>` (components/Dialog.tsx) for confirmations, never `window.confirm`.
-- Records may have no images. `<Thumbnail>` (the cover) then shows a placeholder tinted per site (`siteLabel` + `hueFor`,
+- `<Thumbnail>` (the cover) shows all of a record's images as a mosaic in one 16:10 box (1 full, 2 side by side,
+  3 = large left + two stacked), so card sizes never depend on the image count; clicking an image opens the viewer
+  at that index.
+- Records may have no images. `<Thumbnail>` then shows a placeholder tinted per site (`siteLabel` + `hueFor`,
   colors from the `--ph-*` tokens): the domain at size "large", its first letter at "small". Never derive the
   placeholder from the title (its first character can be a combining mark, e.g. in Thai).
 - `localStorage` is only for per-browser UI conveniences (the grid/list choice, key `read-tracker:view`), always

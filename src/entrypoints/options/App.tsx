@@ -251,7 +251,7 @@ export function App() {
                 layout={view}
                 folderName={activeFolder === ALL && r.folderId ? folderName.get(r.folderId) : undefined}
                 onEdit={() => setModal({ kind: 'edit', id: r.id })}
-                onView={() => setModal({ kind: 'view', recordId: r.id, index: 0 })}
+                onView={(index) => setModal({ kind: 'view', recordId: r.id, index })}
                 onDelete={() => setModal({ kind: 'delete', record: r })}
                 onTag={resetting(setTag)}
               />
@@ -414,7 +414,8 @@ function Card({
   /** Shown when the list spans folders (the "All" view). */
   folderName?: string;
   onEdit: () => void;
-  onView: () => void;
+  /** Open the viewer at this image index. */
+  onView: (index: number) => void;
   onDelete: () => void;
   onTag: (t: string) => void;
 }) {
@@ -424,7 +425,7 @@ function Card({
     <article className={`card card-${layout}`} data-status={record.status}>
       <div className="card-thumb">
         {record.images.length > 0 ? (
-          // Clicking an image opens the full-resolution viewer.
+          // Clicking an image opens the full-resolution viewer at that image.
           <Thumbnail record={record} size={size} onOpen={onView} />
         ) : (
           // No image: the placeholder links to the page, like the title.

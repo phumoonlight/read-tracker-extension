@@ -138,7 +138,7 @@ function CurrentRecord({
   return (
     <>
       <div className="current" data-status={record.status}>
-        <Thumbnail record={record} size="small" onOpen={() => openList(viewHash(record.id, 0))} />
+        <Thumbnail record={record} size="small" onOpen={(i) => openList(viewHash(record.id, i))} />
         <div>
           <div className="current-title">{record.title}</div>
           <div className="current-meta">
