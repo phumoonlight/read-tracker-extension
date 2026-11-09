@@ -6,6 +6,7 @@ import { MAX_URLS, type Folder, type MatchMode, type ReadingRecord, type ReadSta
 import { StatusPicker } from './StatusPicker';
 import { TagInput } from './TagInput';
 import { XIcon } from './XIcon';
+import { ConfirmDialog } from './Dialog';
 
 /** One editable URL: the link itself, how it matches, and the series prefix (prefix mode). */
 export interface UrlRow {
@@ -108,6 +109,9 @@ export function RecordForm({
   const [v, setV] = useState(initial);
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
+  /** Index of the URL row waiting for the user to confirm its removal. */
+  const [confirmUrl, setConfirmUrl] = useState<number>();
+  const removeUrl = (i: number) => setV((p) => ({ ...p, urls: p.urls.filter((_, j) => j !== i) }));
   const set = <K extends keyof RecordFormValues>(k: K, value: RecordFormValues[K]) => setV((p) => ({ ...p, [k]: value }));
   const setRow = (i: number, patch: Partial<UrlRow>) =>
     setV((p) => ({ ...p, urls: p.urls.map((r, j) => (j === i ? { ...r, ...patch } : r)) }));
@@ -159,7 +163,12 @@ export function RecordForm({
               index={i}
               row={row}
               onChange={(patch) => setRow(i, patch)}
-              onRemove={v.urls.length > 1 ? () => setV((p) => ({ ...p, urls: p.urls.filter((_, j) => j !== i) })) : undefined}
+              onRemove={
+                v.urls.length > 1
+                  ? // A blank row goes at once; a filled-in URL asks first.
+                    () => (row.url.trim() ? setConfirmUrl(i) : removeUrl(i))
+                  : undefined
+              }
             />
           ))}
           {v.urls.length < MAX_URLS && (
@@ -194,6 +203,20 @@ export function RecordForm({
       )}
 
       {error && <span className="error">{error}</span>}
+      {confirmUrl !== undefined && v.urls[confirmUrl] && (
+        <ConfirmDialog
+          title="Remove URL?"
+          message={
+            <>
+              <code className="remove-url">{v.urls[confirmUrl].url}</code>
+              It's removed from this record when you click Save (Cancel keeps it).
+            </>
+          }
+          confirmLabel="Remove"
+          onClose={() => setConfirmUrl(undefined)}
+          onConfirm={() => removeUrl(confirmUrl)}
+        />
+      )}
       <div className="form-footer">
         {footerStart}
         <span className="form-footer-spacer" />

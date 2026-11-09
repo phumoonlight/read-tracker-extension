@@ -691,3 +691,10 @@ dialog.viewer {
   border-radius: var(--radius-sm);
   object-fit: contain;
 }
+
+/* The URL shown in the "Remove URL?" confirmation */
+.remove-url {
+  display: block;
+  margin-bottom: 10px;
+  word-break: break-all;
+}
