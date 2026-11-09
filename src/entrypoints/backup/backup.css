@@ -46,3 +46,8 @@
   opacity: 0.55;
   pointer-events: none;
 }
+
+/* Erase all data: a red outline marks the destructive section. */
+.backup-danger {
+  border-color: var(--danger);
+}

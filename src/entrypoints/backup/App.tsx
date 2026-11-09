@@ -1,5 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { HoldButton } from '@/components/HoldButton';
 import { exportToFile, importFromFile } from '@/lib/backup-io';
+import { countRecords, listFolders, onRecordsChanged, wipeAllData } from '@/lib/storage';
+
+/** Erasing everything takes a longer hold than the everyday hold buttons. */
+const WIPE_HOLD_MS = 3000;
 
 type Message = { text: string; error?: boolean };
 
@@ -10,7 +15,19 @@ type Message = { text: string; error?: boolean };
 export function App() {
   const [exportMsg, setExportMsg] = useState<Message>();
   const [importMsg, setImportMsg] = useState<Message>();
+  const [wipeMsg, setWipeMsg] = useState<Message>();
   const [busy, setBusy] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [counts, setCounts] = useState<{ records: number; folders: number }>();
+
+  useEffect(() => {
+    const load = () =>
+      Promise.all([countRecords(), listFolders()]).then(([records, folders]) =>
+        setCounts({ records, folders: folders.length }),
+      );
+    void load();
+    return onRecordsChanged(() => void load());
+  }, []);
 
   return (
     <div className="page">
@@ -70,6 +87,7 @@ export function App() {
                 e.target.value = '';
                 if (!file) return;
                 setBusy(true);
+                setImporting(true);
                 setImportMsg(undefined);
                 try {
                   const p = await importFromFile(file);
@@ -78,13 +96,54 @@ export function App() {
                   setImportMsg({ text: `Import failed: ${err instanceof Error ? err.message : err}`, error: true });
                 } finally {
                   setBusy(false);
+                  setImporting(false);
                 }
               }}
             />
           </label>
         </div>
-        {busy && <span className="muted">Working…</span>}
+        {importing && <span className="muted">Working…</span>}
         {importMsg && <span className={importMsg.error ? 'error' : 'muted'}>{importMsg.text}</span>}
+      </section>
+
+      <section className="backup-section backup-danger">
+        <h2>Erase all data</h2>
+        <p className="muted">
+          Deletes every record, image and folder, and resets Home's settings
+          {counts && (
+            <>
+              {' '}
+              (now {counts.records} record{counts.records === 1 ? '' : 's'} and {counts.folders} folder
+              {counts.folders === 1 ? '' : 's'})
+            </>
+          )}
+          . This can't be undone, so export a backup first if you might want them back.
+        </p>
+        <div className="row">
+          <HoldButton
+            className="btn btn-danger"
+            holdMs={WIPE_HOLD_MS}
+            disabled={busy}
+            title="Press and hold for 3 seconds to erase everything"
+            hintLabel="Hold for 3 s to erase"
+            doneLabel="Erased ✓"
+            onConfirm={async () => {
+              setBusy(true);
+              setWipeMsg(undefined);
+              try {
+                await wipeAllData();
+                setWipeMsg({ text: 'All data erased.' });
+              } catch (e) {
+                setWipeMsg({ text: `Erase failed: ${e instanceof Error ? e.message : e}`, error: true });
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Hold to erase everything
+          </HoldButton>
+        </div>
+        {wipeMsg && <span className={wipeMsg.error ? 'error' : 'muted'}>{wipeMsg.text}</span>}
       </section>
     </div>
   );

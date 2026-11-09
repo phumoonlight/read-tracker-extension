@@ -18,6 +18,8 @@ export function HoldButton({
   title,
   doneLabel = 'Updated ✓',
   hintLabel = 'Hold to update',
+  holdMs = HOLD_MS,
+  disabled = false,
 }: {
   children: ReactNode;
   onConfirm: () => void | Promise<unknown>;
@@ -25,6 +27,9 @@ export function HoldButton({
   title?: string;
   doneLabel?: string;
   hintLabel?: string;
+  /** Hold time for this button (default HOLD_MS); longer for more destructive actions. */
+  holdMs?: number;
+  disabled?: boolean;
 }) {
   const [phase, setPhase] = useState<Phase>('idle');
   const holdTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -45,14 +50,14 @@ export function HoldButton({
   };
 
   function start() {
-    if (phase === 'holding') return;
+    if (phase === 'holding' || disabled) return;
     clearTimeout(messageTimer.current);
     setPhase('holding');
     holdTimer.current = setTimeout(() => {
       holdTimer.current = undefined;
       showFor('done');
       void onConfirm();
-    }, HOLD_MS);
+    }, holdMs);
   }
 
   /** Released or left before the hold completed: cancel without acting. */
@@ -69,8 +74,9 @@ export function HoldButton({
     <button
       type="button"
       className={`hold-button ${phase === 'holding' ? 'is-holding' : ''} ${className}`}
-      style={{ ['--hold-ms' as string]: `${HOLD_MS}ms` }}
+      style={{ ['--hold-ms' as string]: `${holdMs}ms` }}
       title={title}
+      disabled={disabled}
       onPointerDown={(e) => {
         if (e.button !== 0) return;
         start();

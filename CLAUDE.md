@@ -25,7 +25,8 @@ src/
     background.ts        service worker: badge per tab, series progress (lastReadUrl)
     popup/               toolbar popup (short): add page (title + folder chips), or read state only; links to Manage
     options/             full list page (options_ui, open_in_tab): folder bar, record list, search, filters, Manage dialog (edit + delete)
-    backup/              Backup page (backup.html, linked from the list header): export / import JSON
+    backup/              Backup page (backup.html, linked from the list header): export / import JSON, erase all data
+                         (`wipeAllData`, one transaction; `HoldButton` with a 3 s hold)
   components/            shared React UI (RecordForm, ImagePicker, ImageViewer, Thumbnail (cover), UrlLink, HoldButton,
                          StatusPicker, Dialog)
   lib/                   framework-free logic (only db.ts / storage.ts / tab.ts / images.ts touch browser APIs)

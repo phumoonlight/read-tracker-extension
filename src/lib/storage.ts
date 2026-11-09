@@ -614,3 +614,23 @@ export function statusChange(r: ReadingRecord, status: ReadStatus): Partial<Read
   if (status === r.status) return {};
   return { status, readAt: status === 'read' ? Date.now() : undefined };
 }
+
+// ---------------------------------------------------------------------------
+// Reset
+
+/**
+ * Delete everything: records, images, folders and Home settings, in one transaction.
+ * The record schema version is kept so the empty database isn't migrated again.
+ */
+export async function wipeAllData(): Promise<void> {
+  await ensureReady();
+  await withTx([RECORDS, IMAGES, FOLDERS, META], 'readwrite', async (tx) => {
+    tx.objectStore(RECORDS).clear();
+    tx.objectStore(IMAGES).clear();
+    tx.objectStore(FOLDERS).clear();
+    const meta = tx.objectStore(META);
+    meta.clear();
+    meta.put(SCHEMA_VERSION, 'schemaVersion');
+  });
+  await notifyChanged();
+}
