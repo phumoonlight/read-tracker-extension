@@ -515,7 +515,7 @@ function Card({
         {record.tags.length > 0 && (
           <div className="card-tags">
             {record.tags.map((t) => (
-              <button key={t} type="button" className="tag" style={{ border: 0, cursor: 'pointer' }} onClick={() => onTag(t)}>
+              <button key={t} type="button" className="tag tag-button" title={`Filter by “${t}”`} onClick={() => onTag(t)}>
                 {t}
               </button>
             ))}

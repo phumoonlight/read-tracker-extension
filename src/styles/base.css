@@ -232,6 +232,16 @@ textarea {
   color: var(--text-muted);
   font-size: 12px;
 }
+/* Clickable tag on a record (adds it to the tag filter) */
+.tag-button {
+  border: 0;
+  cursor: pointer;
+}
+.tag-button:hover,
+.tag-button:focus-visible {
+  background: var(--border);
+  color: var(--text);
+}
 
 /* Thumbnail */
 .thumb {
