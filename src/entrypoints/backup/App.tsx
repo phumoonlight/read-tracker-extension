@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Dialog } from '@/components/Dialog';
 import { HoldButton } from '@/components/HoldButton';
 import { exportToFile, importFromFile } from '@/lib/backup-io';
 import { countRecords, listFolders, onRecordsChanged, wipeAllData } from '@/lib/storage';
@@ -16,6 +17,7 @@ export function App() {
   const [exportMsg, setExportMsg] = useState<Message>();
   const [importMsg, setImportMsg] = useState<Message>();
   const [wipeMsg, setWipeMsg] = useState<Message>();
+  const [confirmWipe, setConfirmWipe] = useState(false);
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
   const [counts, setCounts] = useState<{ records: number; folders: number }>();
@@ -108,43 +110,67 @@ export function App() {
 
       <section className="backup-section backup-danger">
         <h2>Erase all data</h2>
-        <p className="muted">
-          Deletes every record, image and folder, and resets Home's settings
-          {counts && (
-            <>
-              {' '}
-              (now {counts.records} record{counts.records === 1 ? '' : 's'} and {counts.folders} folder
-              {counts.folders === 1 ? '' : 's'})
-            </>
-          )}
-          . This can't be undone, so export a backup first if you might want them back.
-        </p>
+        <p className="muted">Deletes every record, image and folder, and resets Home's settings. This can't be undone.</p>
         <div className="row">
-          <HoldButton
+          <button
+            type="button"
             className="btn btn-danger"
-            holdMs={WIPE_HOLD_MS}
             disabled={busy}
-            title="Press and hold for 3 seconds to erase everything"
-            hintLabel="Hold for 3 s to erase"
-            doneLabel="Erased ✓"
-            onConfirm={async () => {
-              setBusy(true);
+            onClick={() => {
               setWipeMsg(undefined);
-              try {
-                await wipeAllData();
-                setWipeMsg({ text: 'All data erased.' });
-              } catch (e) {
-                setWipeMsg({ text: `Erase failed: ${e instanceof Error ? e.message : e}`, error: true });
-              } finally {
-                setBusy(false);
-              }
+              setConfirmWipe(true);
             }}
           >
-            Hold to erase everything
-          </HoldButton>
+            Erase all data…
+          </button>
         </div>
         {wipeMsg && <span className={wipeMsg.error ? 'error' : 'muted'}>{wipeMsg.text}</span>}
       </section>
+
+      {confirmWipe && (
+        <Dialog title="Erase all data?" onClose={() => !busy && setConfirmWipe(false)}>
+          <p style={{ margin: 0 }}>
+            This deletes{' '}
+            {counts ? (
+              <strong>
+                {counts.records} record{counts.records === 1 ? '' : 's'} and {counts.folders} folder
+                {counts.folders === 1 ? '' : 's'}
+              </strong>
+            ) : (
+              'every record and folder'
+            )}
+            , all their images, and Home's settings. It can't be undone, so export a backup first if you might want
+            them back.
+          </p>
+          <div className="dialog-actions">
+            <button type="button" className="btn" disabled={busy} onClick={() => setConfirmWipe(false)} autoFocus>
+              Cancel
+            </button>
+            <HoldButton
+              className="btn btn-danger"
+              holdMs={WIPE_HOLD_MS}
+              disabled={busy}
+              title="Press and hold for 3 seconds to erase everything"
+              hintLabel="Hold for 3 s"
+              doneLabel="Erasing…"
+              onConfirm={async () => {
+                setBusy(true);
+                try {
+                  await wipeAllData();
+                  setWipeMsg({ text: 'All data erased.' });
+                } catch (e) {
+                  setWipeMsg({ text: `Erase failed: ${e instanceof Error ? e.message : e}`, error: true });
+                } finally {
+                  setBusy(false);
+                  setConfirmWipe(false);
+                }
+              }}
+            >
+              Hold to erase
+            </HoldButton>
+          </div>
+        </Dialog>
+      )}
     </div>
   );
 }
