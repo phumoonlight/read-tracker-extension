@@ -51,7 +51,7 @@ change.
   Home) in its **Manage** dialog or in the popup. The list remembers which place you had open. Search and filters
   apply within the open place. Filter by tag with the **Tags** chips under the search box (select several to
   narrow down; click a tag on a record to add it).
-- **Read mode:** **Status** (the default) is Unread / Read, set with the button group in each row. **Revisit** is for things you come
+- **Read mode:** **Status** (the default) is Unread / Read: the list has Unread and Read tabs, and each row's **Mark read** / **Mark unread** button moves it to the other tab. **Revisit** is for things you come
   back to again and again: each record gets an **Update read** button (press and hold it for a second) that
   records when you last read it. The list always shows the least recently read first (never read at the top), and
   after **Update read** the record moves to the bottom to wait its turn.
