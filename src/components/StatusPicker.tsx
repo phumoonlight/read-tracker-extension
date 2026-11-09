@@ -5,7 +5,8 @@ export function StatusPicker({ value, onChange }: { value: ReadStatus; onChange:
     <div className="segmented" role="group" aria-label="Status">
       {STATUSES.map((s) => (
         <button key={s} type="button" data-status={s} aria-pressed={value === s} onClick={() => onChange(s)}>
-          {STATUS_LABEL[s]}
+          {/* The dot keeps the status colour; the selected button uses the primary colour. */}
+          <span className="status-dot" aria-hidden="true" /> {STATUS_LABEL[s]}
         </button>
       ))}
     </div>

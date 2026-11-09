@@ -207,7 +207,7 @@ textarea {
   border-left: 1px solid var(--border);
 }
 .segmented button[aria-pressed='true'] {
-  background: var(--seg-color, var(--accent));
+  background: var(--accent);
   color: var(--accent-text);
   font-weight: 600;
 }
@@ -221,15 +221,12 @@ textarea {
 }
 [data-status='unread'] {
   --dot: var(--status-unread);
-  --seg-color: var(--status-unread);
 }
 [data-status='reading'] {
   --dot: var(--status-reading);
-  --seg-color: var(--status-reading);
 }
 [data-status='read'] {
   --dot: var(--status-read);
-  --seg-color: var(--status-read);
 }
 
 .tag {
