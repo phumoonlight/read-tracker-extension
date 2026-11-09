@@ -526,7 +526,12 @@ function Card({
         <select
           value={record.status}
           aria-label="Status"
-          onChange={(e) => void updateRecord(record.id, (r) => statusChange(r, e.target.value as ReadStatus))}
+          onChange={(e) => {
+            // Read the value now: the select is controlled, so by the time updateRecord's
+            // callback runs (after an IndexedDB read), React has reset it to the old status.
+            const status = e.target.value as ReadStatus;
+            void updateRecord(record.id, (r) => statusChange(r, status));
+          }}
         >
           {STATUSES.map((s) => (
             <option key={s} value={s}>

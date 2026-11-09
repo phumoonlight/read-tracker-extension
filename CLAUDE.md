@@ -161,6 +161,8 @@ download is blocked by CORS. Don't add install-time permissions without a strong
 - Keep `src/lib` free of React. Put pure logic in its own function so it can be tested without browser APIs.
 - Import browser APIs from `wxt/browser` (`browser.*`), not the global `chrome`.
 - Use `<dialog>` (components/Dialog.tsx) for confirmations, never `window.confirm`.
+- Read event values (`e.target.value`) synchronously in the handler, never inside an `updateRecord` callback or after
+  an `await`: controlled inputs are reset to the old value by then (this broke the card status picker once).
 - `<Thumbnail>` (the cover) shows all of a record's images as a mosaic in one 16:10 box (1 full, 2 side by side,
   3 = large left + two stacked), so card sizes never depend on the image count; clicking an image opens the viewer
   at that index. Grid cards and the popup use it. List rows instead use `<ImageStrip>`: each image as its own
