@@ -42,7 +42,7 @@ change.
   that exact page, so the badge shows the record on any of them; the first one is the main URL. On the card, each URL is a link under the title (the title itself is not a link).
   **Delete record** is at the bottom of that dialog and asks for confirmation.
 - **On a page in your list:** the popup shows **Mark read** / **Mark unread** (or **Update read** in Revisit
-  folders) and the folder. Images, extra URLs, tags and notes are managed on the full list page.
+  folders). The folder, images, extra URLs, tags and notes are managed on the full list page.
 - **View images:** click a card's image in the full list (or an image tile) to open the full-size viewer; use
   the arrow keys to step through a record's images, or **Open original** to see it in a tab.
 - **Full list:** click **Open full list** in the popup, or right-click the toolbar icon and choose **Options**.

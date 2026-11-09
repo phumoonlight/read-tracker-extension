@@ -22,7 +22,7 @@ const openList = (hash = '') => {
 
 /**
  * The toolbar popup, kept short: add the current page (title + folder), or for a page
- * already in the list, change its read state and folder. Images, extra URLs, tags and
+ * already in the list, change its read state. Images, extra URLs, tags and
  * notes are managed on the full list page ("Manage").
  */
 export function App() {
@@ -117,7 +117,7 @@ function AddPage({ tab, folders, onAdded }: { tab: ActiveTab; folders: Folder[];
   );
 }
 
-/** A page already in the list: its read state (one button), folder, and a link to manage it. */
+/** A page already in the list: its read state (one button) and a link to manage it (folder etc. live there). */
 function CurrentRecord({
   tab,
   record,
@@ -134,13 +134,6 @@ function CurrentRecord({
   const viaPrefix = (tabKey ? matchedEntry(record, tabKey) : undefined)?.matchMode === 'prefix';
   // The record's folder decides how it is read (Status or Revisit); Home is always Status.
   const revisit = !!record.folderId && folders.find((f) => f.id === record.folderId)?.readMode === 'revisit';
-
-  async function setFolder(folderId: string) {
-    const next = await updateRecord(record.id, (r) =>
-      (r.folderId ?? '') === folderId ? {} : { folderId: folderId || undefined },
-    );
-    if (next) onChange(next);
-  }
 
   async function toggleRead() {
     const status = record.status === 'unread' ? 'read' : 'unread';
@@ -190,8 +183,6 @@ function CurrentRecord({
             {record.status === 'unread' ? 'Mark read' : 'Mark unread'}
           </button>
         )}
-
-        {folders.length > 0 && <FolderChips folders={folders} value={record.folderId ?? ''} onChange={setFolder} />}
 
         {continueUrl && (
           <a
