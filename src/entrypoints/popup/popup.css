@@ -80,3 +80,17 @@ body {
   color: var(--text);
   text-decoration: underline;
 }
+
+/*
+ * The popup window is only as tall as its content, so the styled (base-select) list,
+ * which is drawn inside the popup, has no room below and flips above the box. Use the
+ * native dropdown here: it opens below and can extend past the popup's edge.
+ */
+select,
+select::picker(select) {
+  appearance: none;
+}
+option {
+  background: var(--surface);
+  color: var(--text);
+}
