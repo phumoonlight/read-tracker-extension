@@ -218,23 +218,19 @@ function UrlRowEditor({
         aria-label={main ? 'Main URL' : `URL ${index + 1}`}
         onChange={(e) => onChange({ url: e.target.value })}
       />
-      <div className="segmented" role="group" aria-label={`Match mode for URL ${index + 1}`}>
-        <button type="button" aria-pressed={row.matchMode === 'exact'} onClick={() => onChange({ matchMode: 'exact' })}>
-          This page
-        </button>
-        <button
-          type="button"
-          aria-pressed={row.matchMode === 'prefix'}
-          onClick={() => onChange({ matchMode: 'prefix', prefix: row.prefix || defaultPrefix(row.url) })}
-        >
-          Series (prefix)
-        </button>
-      </div>
+      {/*
+        Series (prefix) matching is paused in the UI: new URLs always match their exact page.
+        A URL saved earlier as a series keeps working; it can be switched to its exact page.
+      */}
       {row.matchMode === 'prefix' && (
-        <label className="field">
-          <span>Series prefix: every page under it matches</span>
-          <input type="text" value={row.prefix} onChange={(e) => onChange({ prefix: e.target.value })} />
-        </label>
+        <div className="row" style={{ fontSize: 12 }}>
+          <span className="muted">
+            Matches every page under <code>{row.prefix}</code> (series).
+          </span>
+          <button type="button" className="btn btn-small" onClick={() => onChange({ matchMode: 'exact' })}>
+            Match this page only
+          </button>
+        </div>
       )}
       {matchKey !== undefined && (
         <small className="muted" style={{ wordBreak: 'break-all' }}>

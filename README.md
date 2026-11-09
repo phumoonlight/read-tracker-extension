@@ -4,8 +4,7 @@ A Chrome extension for keeping a reading list on your own machine. No account, n
 stored in the browser.
 
 - The toolbar badge shows whether the current page is in your list: **✓** read, **•** unread or reading.
-- Track a single page, or a whole series with a URL prefix (for example every chapter under
-  `site.com/novel/abc/`). While a series is marked "reading", the extension remembers the last chapter you opened.
+- Each record tracks specific pages: the badge shows when you're on one of its URLs.
 - Attach up to 3 images to each record: upload files, paste an image, screenshot the tab, or use the page's
   og:image. Images are kept at full resolution; click one to view it full size.
 - Group records into folders. Records start in **Home** (the default place for records without a folder); pick a
@@ -36,12 +35,10 @@ change.
 
 ## Using it
 
-- **Add a page:** click the toolbar icon, check the title, choose **This page** or **Series (prefix)**, pick a
-  status and click **Add current page**.
+- **Add a page:** click the toolbar icon, check the title, pick a status and click **Add current page**.
 - **Manage a record:** click **Manage** on its card (or in the popup) to edit its details, folder and images.
-  A record can have several URLs (up to 10): use **+ Add URL** for a mirror or the same series on another site.
-  Each URL matches on its own (this page, or a series prefix), so the badge shows the record on any of them; the
-  first one is the main URL. On the card, each URL is a link under the title (the title itself is not a link).
+  A record can have several URLs (up to 10): use **+ Add URL** for a mirror or another site. Each URL matches
+  that exact page, so the badge shows the record on any of them; the first one is the main URL. On the card, each URL is a link under the title (the title itself is not a link).
   **Delete record** is at the bottom of that dialog and asks for confirmation.
 - **Change status, folder or images:** open the popup on a page that is in your list.
 - **View images:** click a card's image in the full list (or an image tile) to open the full-size viewer; use

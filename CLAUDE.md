@@ -151,6 +151,10 @@ Home.
   its own; `matchedEntry(record, url)` says which one did (the background uses it so `lastReadUrl` only follows
   series URLs). Editing happens in `RecordForm` rows (`validateUrlRows`: blank extra rows ignored, duplicates of the
   same mode+key rejected).
+- **Series (prefix) matching is paused in the UI** (user request): `RecordForm` has no match-mode toggle and new
+  URLs are always `exact`. Everything else still supports `prefix` (matching, index, backups, `lastReadUrl`), and a
+  URL already saved as a series keeps working; its form row shows a note and a "Match this page only" button.
+  To bring series back, restore the This page / Series toggle in `UrlRowEditor`.
 - An exact URL matches when its `matchKey === normalizeUrl(tabUrl)`.
 - Prefix records match on a path boundary (`prefixMatches`): `site.com/a` covers `site.com/a/...` and
   `site.com/a?...`, not `site.com/abc`. An exact match beats any prefix; otherwise the longest prefix wins.
