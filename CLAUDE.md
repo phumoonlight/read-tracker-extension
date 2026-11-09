@@ -40,9 +40,10 @@ src/
     images.ts            StoredImage, getImage/getImagePreview, prepareImage (validate + preview), sniffImageType
     tab.ts               active tab, captureVisibleTab, og:image lookup/download
     records.ts           createRecord, computeMatchKey, tag helpers
-    backup.ts            parseBackup / planImport / buildBackup (pure, unit-tested)
+    backup.ts            parseManifest / parseRecordLine / parseImageLine / planImport / buildManifest (pure, unit-tested)
     backup-io.ts         export download + import apply (side effects)
     zip.ts               minimal ZIP writer / reader (stored entries, ZIP64, deflate on read), CRC-32
+    lines.ts             readLines: stream a text Blob line by line (JSON Lines)
   styles/base.css        color tokens on :root, dark mode via prefers-color-scheme, shared classes
 tests/                   vitest unit tests for pure lib code
 public/icon/             extension icons
@@ -143,8 +144,21 @@ migrate on import; backups from newer versions are rejected.
 
 ### Backup and images
 
-Backups are **ZIP files** (`lib/zip.ts`, own writer/reader, no dependency): `backup.json` plus each original image
-under `images/<id>.<ext>` (`imagePath`), listed in the JSON as `images: [{ id, recordId, file }]`. Entries are stored
+Backups are **ZIP files** (`lib/zip.ts`, own writer/reader, no dependency). Layout 2 (`BACKUP_LAYOUT`, separate
+from `SCHEMA_VERSION`):
+- `manifest.json` (`BackupManifest`): format, `layout`, record schema `version`, `exportedAt`, `counts`, `folders`,
+  `home`. Read first (`openBackup`), so the Backup page previews counts and rejects newer backups before reading
+  records.
+- `records.jsonl`: one record per line. `images.jsonl`: one `{ id, recordId, file }` per line. Both are read as a
+  stream (`lib/lines.ts` `readLines`), never as one string. A bad record line is fatal and names its line
+  (`parseRecordLine`; nothing is written); a bad image line is skipped with an issue (`parseImageLine`).
+- `images/<id>.<ext>` (`imagePath`): original files.
+Layout 1 (the first ZIP backups: one `backup.json`, `parseBackup`) still imports.
+
+Import reports what it skipped or changed as `issues` (strings; `planImport` adds folder renames skipped, domain
+clashes, images not in the file or owned by another record, records moved to Home; parsing adds bad image entries
+and invalid folder domains; an image file that can't be read is skipped and taken off its record instead of failing
+the import). The Backup page lists them under a collapsed summary (`describeIssues` caps the list). Entries are stored
 (not compressed) and the archive Blob is assembled from the image Blobs, so export doesn't copy files into memory
 (only a streaming CRC-32 pass); ZIP64 records are written only when needed. The reader takes stored or deflated
 entries (via `DecompressionStream`), so a re-zipped backup imports. `parseBackup` accepts only plain `images/<name>`

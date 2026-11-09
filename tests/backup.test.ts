@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { buildBackup, imagePath, isImagePath, parseBackup, planImport, typeForImagePath } from '@/lib/backup';
+import {
+  BACKUP_LAYOUT,
+  buildBackup,
+  buildManifest,
+  describeIssues,
+  imagePath,
+  isImagePath,
+  parseBackup,
+  parseImageLine,
+  parseManifest,
+  parseRecordLine,
+  planImport,
+  toJsonLine,
+  typeForImagePath,
+} from '@/lib/backup';
 import { BACKUP_FORMAT, MAX_IMAGES, MAX_URLS, SCHEMA_VERSION, legacyImageId, type BackupImage } from '@/lib/types';
 import { rec } from './fixtures';
 
@@ -232,5 +246,88 @@ describe('ZIP backup image paths', () => {
       }),
     );
     expect(parsed.images).toEqual([{ id: 'a', recordId: 'r', file: 'images/a.png' }]);
+  });
+});
+
+describe('ZIP layout 2 (manifest + JSON lines)', () => {
+  const folderA = { id: 'f', name: 'A', createdAt: 1, updatedAt: 1 };
+  it('round-trips the manifest', () => {
+    const m = buildManifest({ records: 3, images: 2 }, [folderA], { updatedAt: 4, imageSize: 'large' }, 123);
+    const parsed = parseManifest(JSON.stringify(m));
+    expect(parsed).toEqual({ ...m, counts: { records: 3, folders: 1, images: 2 } });
+    expect(parsed.layout).toBe(BACKUP_LAYOUT);
+  });
+  it('rejects manifests that are not ours or are newer', () => {
+    const m = buildManifest({ records: 0, images: 0 }, []);
+    expect(() => parseManifest('{')).toThrow(/manifest\.json is not valid JSON/);
+    expect(() => parseManifest(JSON.stringify({ ...m, format: 'x' }))).toThrow(/Not a Read Tracker/);
+    expect(() => parseManifest(JSON.stringify({ ...m, layout: BACKUP_LAYOUT + 1 }))).toThrow(/newer version/);
+    expect(() => parseManifest(JSON.stringify({ ...m, layout: 'x' }))).toThrow(/layout/);
+    expect(() => parseManifest(JSON.stringify({ ...m, version: SCHEMA_VERSION + 1 }))).toThrow(/newer version/);
+    expect(() => parseManifest(JSON.stringify({ ...m, folders: 'x' }))).toThrow(/folders/);
+  });
+  it('reports invalid folder domains instead of failing', () => {
+    const issues: string[] = [];
+    const m = buildManifest({ records: 0, images: 0 }, [{ ...folderA, domains: ['x.com', 'not a domain', 5 as never] }]);
+    expect(parseManifest(JSON.stringify(m), issues).folders[0]?.domains).toEqual(['x.com']);
+    expect(issues).toHaveLength(2);
+    expect(issues[0]).toMatch(/Folder “A”.*"not a domain"/);
+  });
+  it('parses record lines, with the line number in errors', () => {
+    const r = rec({ id: 'a' });
+    expect(parseRecordLine(toJsonLine(r).trim(), 1, SCHEMA_VERSION)).toEqual(r);
+    expect(() => parseRecordLine('{"id":', 7, SCHEMA_VERSION)).toThrow(/records\.jsonl line 7: not valid JSON/);
+    expect(() => parseRecordLine(JSON.stringify({ ...r, url: 'javascript:x' }), 9, SCHEMA_VERSION)).toThrow(
+      /records\.jsonl line 9: missing or invalid "url"/,
+    );
+    // Older schema versions migrate.
+    expect(parseRecordLine(JSON.stringify({ ...r, status: 'reading' }), 1, 4).status).toBe('unread');
+  });
+  it('skips bad image lines with an issue', () => {
+    const issues: string[] = [];
+    expect(parseImageLine('{"id":"i","recordId":"r","file":"images/i.png"}', 1, issues)).toEqual({
+      id: 'i',
+      recordId: 'r',
+      file: 'images/i.png',
+    });
+    expect(parseImageLine('nope', 2, issues)).toBeUndefined();
+    expect(parseImageLine('{"id":"i","recordId":"r","file":"../i.png"}', 3, issues)).toBeUndefined();
+    expect(issues).toEqual([
+      'images.jsonl line 2: not valid JSON, skipped.',
+      'images.jsonl line 3: image i has no valid file path, skipped.',
+    ]);
+  });
+});
+
+describe('planImport issues', () => {
+  it('reports images it drops and records moved to Home', () => {
+    const other = rec({ id: 'o', images: ['shared'] });
+    const r = rec({ id: 'x', title: 'X', images: ['shared', 'missing'], folderId: 'ghost' });
+    const plan = planImport([other], [], buildBackup([r], [], [img('shared', 'x')]));
+    expect(plan.issues).toEqual([
+      'Record “X”: image shared belongs to another record, skipped.',
+      'Record “X”: image missing is not in the backup, skipped.',
+      'Record “X”: its folder isn\'t in the backup, added to Home.',
+    ]);
+  });
+  it('reports skipped renames and domain clashes', () => {
+    const local = [
+      { id: 'a', name: 'Art', domains: ['x.com'], createdAt: 1, updatedAt: 1 },
+      { id: 'b', name: 'Books', createdAt: 1, updatedAt: 1 },
+    ];
+    const incoming = [
+      { id: 'b', name: 'art', createdAt: 1, updatedAt: 5 },
+      { id: 'n', name: 'New', domains: ['x.com'], createdAt: 1, updatedAt: 1 },
+    ];
+    const plan = planImport([], local, buildBackup([], incoming, []));
+    expect(plan.issues).toEqual([
+      'Folder “Books”: not renamed to “art”, another folder already has that name.',
+      'Folder “New”: preferred domain x.com already belongs to “Art”, not added.',
+    ]);
+  });
+  it('has no issues for a clean import, and describeIssues caps the list', () => {
+    expect(planImport([], [], buildBackup([rec({ id: 'a', images: ['i'] })], [], [img('i', 'a')])).issues).toEqual([]);
+    const many = Array.from({ length: 105 }, (_, i) => `issue ${i}`);
+    expect(describeIssues(many)).toEqual({ shown: many.slice(0, 100), more: 5 });
   });
 });

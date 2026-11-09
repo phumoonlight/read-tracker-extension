@@ -10,7 +10,7 @@ stored in the browser.
 - Group records into folders. Records start in **Home** (the default place for records without a folder); pick a
   folder when adding or editing.
 - Browse everything in a full-page list with folders, **Unread / Read** tabs, search, tag filters and sorting.
-- Back up to a single ZIP file (`backup.json` plus the original images) and import it again later or on another machine.
+- Back up to a single ZIP file (records and folders as JSON, plus the original images) and import it again later or on another machine.
 
 ## Install from source
 
@@ -60,9 +60,11 @@ change.
   records when you last read it. The list always shows the least recently read first (never read at the top), and
   after **Update read** the record moves to the bottom to wait its turn.
 - **Backup:** in the full list, click **Backup** (top right) to open the Backup page with **Export backup** and
-  **Import backup**. The export is a `.zip` with `backup.json` and an `images` folder of the original files (any unzip
-  tool can open it). Older `.json` backups can't be imported. When the same record exists
-  in both places, the copy that was edited most recently is kept.
+  **Import backup**. The export is a `.zip` with `manifest.json` (summary, folders, settings), `records.jsonl` (one
+  record per line), `images.jsonl` and an `images` folder of the original files (any unzip tool can open it).
+  Importing shows what the backup contains before anything is changed; when the same record exists in both places,
+  the copy that was edited most recently is kept. Anything skipped (e.g. a missing image file) is listed afterwards.
+  Older `.json` backups can't be imported.
 - **Erase all data:** at the bottom of the Backup page. Click **Erase all data…**, then in the dialog press and hold
   **Hold to erase** for 3 seconds to delete every record, image and folder and reset Home's settings. It can't be
   undone, so export first.

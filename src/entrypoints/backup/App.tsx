@@ -1,13 +1,34 @@
 import { useEffect, useState } from 'react';
 import { Dialog } from '@/components/Dialog';
 import { HoldButton } from '@/components/HoldButton';
-import { exportToFile, importFromFile } from '@/lib/backup-io';
+import { describeIssues } from '@/lib/backup';
+import { exportToFile, openBackup, type ImportResult, type OpenedBackup } from '@/lib/backup-io';
+import { formatDateTime } from '@/lib/records';
 import { countRecords, listFolders, onRecordsChanged, wipeAllData } from '@/lib/storage';
 
 /** Erasing everything takes a longer hold than the everyday hold buttons. */
 const WIPE_HOLD_MS = 3000;
 
 type Message = { text: string; error?: boolean };
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/** What an import skipped or changed, collapsed under a summary line. */
+function ImportIssues({ issues }: { issues: string[] }) {
+  if (!issues.length) return null;
+  const { shown, more } = describeIssues(issues);
+  return (
+    <details className="import-issues">
+      <summary>{plural(issues.length, 'item')} skipped or changed. Show details</summary>
+      <ul>
+        {shown.map((text, i) => (
+          <li key={i}>{text}</li>
+        ))}
+        {more > 0 && <li className="muted">…and {more} more.</li>}
+      </ul>
+    </details>
+  );
+}
 
 /**
  * Backup page (backup.html, opened from the list page header): export everything to one
@@ -20,6 +41,9 @@ export function App() {
   const [confirmWipe, setConfirmWipe] = useState(false);
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
+  /** A backup that was opened and checked, waiting for the user to confirm the import. */
+  const [pending, setPending] = useState<OpenedBackup>();
+  const [result, setResult] = useState<ImportResult>();
   const [counts, setCounts] = useState<{ records: number; folders: number }>();
 
   useEffect(() => {
@@ -43,8 +67,8 @@ export function App() {
       <section className="backup-section">
         <h2>Export</h2>
         <p className="muted">
-          Saves every record, folder and setting to one ZIP file. Inside are <code>backup.json</code> and an{' '}
-          <code>images</code> folder with the original image files, which you can open or extract with any unzip tool.
+          Saves every record, folder and setting to one ZIP file, with the original image files in an{' '}
+          <code>images</code> folder that you can open or extract with any unzip tool.
         </p>
         <div className="row">
           <button
@@ -73,7 +97,7 @@ export function App() {
       <section className="backup-section">
         <h2>Import</h2>
         <p className="muted">
-          Adds the records from a backup <code>.zip</code>. When a record exists both here and in the file, the copy that was edited most recently is kept. Nothing is deleted.
+          Adds the records from a backup <code>.zip</code>. You'll see what's in it before anything is imported.
         </p>
         <div className="row">
           <label className={`btn${busy ? ' is-disabled' : ''}`} aria-disabled={busy}>
@@ -88,24 +112,69 @@ export function App() {
                 e.target.value = '';
                 if (!file) return;
                 setBusy(true);
-                setImporting(true);
                 setImportMsg(undefined);
+                setResult(undefined);
                 try {
-                  const p = await importFromFile(file);
-                  setImportMsg({ text: `Imported: ${p.added} added, ${p.updated} updated, ${p.skipped} unchanged.` });
+                  setPending(await openBackup(file));
                 } catch (err) {
-                  setImportMsg({ text: `Import failed: ${err instanceof Error ? err.message : err}`, error: true });
+                  setImportMsg({ text: `Can't import: ${err instanceof Error ? err.message : err}`, error: true });
                 } finally {
                   setBusy(false);
-                  setImporting(false);
                 }
               }}
             />
           </label>
         </div>
-        {importing && <span className="muted">Working…</span>}
         {importMsg && <span className={importMsg.error ? 'error' : 'muted'}>{importMsg.text}</span>}
+        {result && <ImportIssues issues={result.issues} />}
       </section>
+
+      {pending && (
+        <Dialog title="Import this backup?" onClose={() => !busy && setPending(undefined)}>
+          <p style={{ margin: 0 }}>
+            {pending.exportedAt ? <>Exported {formatDateTime(pending.exportedAt)}. </> : null}
+            It has{' '}
+            <strong>
+              {plural(pending.counts.records, 'record')}, {plural(pending.counts.folders, 'folder')} and{' '}
+              {plural(pending.counts.images, 'image')}
+            </strong>
+            .
+          </p>
+          <p className="muted" style={{ margin: 0 }}>
+            Records and folders that exist both here and in the backup keep the most recently edited copy. Nothing is
+            deleted.
+          </p>
+          <div className="dialog-actions">
+            <button type="button" className="btn" disabled={busy} onClick={() => setPending(undefined)} autoFocus>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setImporting(true);
+                try {
+                  const r = await pending.run();
+                  setResult(r);
+                  setImportMsg({
+                    text: `Imported: ${r.added} added, ${r.updated} updated, ${r.skipped} unchanged.`,
+                  });
+                } catch (err) {
+                  setImportMsg({ text: `Import failed: ${err instanceof Error ? err.message : err}`, error: true });
+                } finally {
+                  setBusy(false);
+                  setImporting(false);
+                  setPending(undefined);
+                }
+              }}
+            >
+              {importing ? 'Importing…' : 'Import'}
+            </button>
+          </div>
+        </Dialog>
+      )}
 
       <section className="backup-section backup-danger">
         <h2>Erase all data</h2>

@@ -1,4 +1,4 @@
-import { addDomainText } from './domains';
+import { normalizeDomain } from './domains';
 import { cleanFolderName } from './folders';
 import { migrateRecord } from './migrate';
 import { isHttpUrl } from './records';
@@ -34,13 +34,16 @@ export interface ImportPlan {
   updated: number;
   /** Incoming records ignored because the stored copy is the same age or newer. */
   skipped: number;
+  /** Things that were dropped or changed while merging, for the user (see describeIssues). */
+  issues: string[];
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
-function assertRecord(r: unknown, i: number): asserts r is ReadingRecord {
-  const bad = (field: string) => new Error(`Record #${i + 1}: missing or invalid "${field}".`);
-  if (!isObj(r)) throw new Error(`Record #${i + 1} is not an object.`);
+/** `where` names the record in errors, e.g. "Record #3" or "records.jsonl line 3". */
+function assertRecord(r: unknown, where: string): asserts r is ReadingRecord {
+  const bad = (field: string) => new Error(`${where}: missing or invalid "${field}".`);
+  if (!isObj(r)) throw new Error(`${where} is not an object.`);
   for (const f of ['id', 'title', 'url', 'matchKey'] as const) if (typeof r[f] !== 'string') throw bad(f);
   if (r.matchMode !== 'exact' && r.matchMode !== 'prefix') throw bad('matchMode');
   if (!STATUSES.includes(r.status as never)) throw bad('status');
@@ -97,7 +100,7 @@ function parseHome(v: unknown): HomeSettings | undefined {
   };
 }
 
-function parseFolder(f: unknown, i: number): Folder {
+function parseFolder(f: unknown, i: number, issues?: string[]): Folder {
   const bad = (field: string) => new Error(`Folder #${i + 1}: missing or invalid "${field}".`);
   if (!isObj(f)) throw new Error(`Folder #${i + 1} is not an object.`);
   if (typeof f.id !== 'string' || !f.id) throw bad('id');
@@ -107,9 +110,12 @@ function parseFolder(f: unknown, i: number): Folder {
   for (const k of ['createdAt', 'updatedAt'] as const) if (typeof f[k] !== 'number') throw bad(k);
   const imageSize = parseImageSize(f.imageSize);
   // Preferred domains: keep valid ones (normalized, no duplicates); anything else is dropped.
-  const domains = Array.isArray(f.domains)
-    ? addDomainText([], f.domains.filter((d): d is string => typeof d === 'string').join(','))
-    : [];
+  const domains: string[] = [];
+  for (const d of Array.isArray(f.domains) ? f.domains : []) {
+    const n = typeof d === 'string' ? normalizeDomain(d) : null;
+    if (!n) issues?.push(`Folder “${name}”: ignored invalid preferred domain ${JSON.stringify(d)}.`);
+    else if (!domains.includes(n)) domains.push(n);
+  }
   return {
     id: f.id,
     name,
@@ -126,11 +132,35 @@ export function isImagePath(v: unknown): v is string {
   return typeof v === 'string' && /^images\/[^/\\]+$/.test(v) && !v.includes('..');
 }
 
+/** One image entry (images.jsonl line or backup.json item); malformed ones are reported and dropped. */
+export function parseImageEntry(img: unknown, where: string, issues: string[]): BackupImage | undefined {
+  if (!isObj(img) || typeof img.id !== 'string' || !img.id || typeof img.recordId !== 'string') {
+    issues.push(`${where}: not a valid image entry, skipped.`);
+    return undefined;
+  }
+  if (!isImagePath(img.file)) {
+    issues.push(`${where}: image ${img.id} has no valid file path, skipped.`);
+    return undefined;
+  }
+  return { id: img.id, recordId: img.recordId, file: img.file };
+}
+
+/** Check a backup's schema version: older ones are migrated, newer ones are rejected. */
+function checkVersion(version: unknown): number {
+  if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
+    throw new Error('Backup has no valid version number.');
+  }
+  if (version > SCHEMA_VERSION) {
+    throw new Error(`Backup is from a newer version (schema v${version}). Update the extension first.`);
+  }
+  return version;
+}
+
 /**
- * Parse and validate backup.json from a ZIP backup. Older schema versions are migrated;
- * newer ones are rejected.
+ * Parse and validate backup.json, the single-file layout of the first ZIP backups
+ * (layout 1). Older schema versions are migrated; newer ones are rejected.
  */
-export function parseBackup(text: string): BackupFile {
+export function parseBackup(text: string, issues: string[] = []): BackupFile {
   let data: unknown;
   try {
     data = JSON.parse(text);
@@ -138,30 +168,19 @@ export function parseBackup(text: string): BackupFile {
     throw new Error('Not a valid JSON file.');
   }
   if (!isObj(data) || data.format !== BACKUP_FORMAT) throw new Error('Not a Read Tracker backup file.');
-  const version = data.version;
-  if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
-    throw new Error('Backup has no valid version number.');
-  }
-  if (version > SCHEMA_VERSION) {
-    throw new Error(`Backup is from a newer version (schema v${version}). Update the extension first.`);
-  }
+  const version = checkVersion(data.version);
   if (!Array.isArray(data.records)) throw new Error('Backup has no records list.');
   if (data.folders !== undefined && !Array.isArray(data.folders)) throw new Error('Backup has an invalid folders list.');
 
-  const records = data.records.map((raw, i) => {
-    if (!isObj(raw)) throw new Error(`Record #${i + 1} is not an object.`);
-    const r = migrateRecord(raw, version);
-    assertRecord(r, i);
-    return r;
-  });
-  const folders = ((data.folders as unknown[] | undefined) ?? []).map(parseFolder);
+  const records = data.records.map((raw, i) => parseRecordValue(raw, `Record #${i + 1}`, version));
+  const folders = ((data.folders as unknown[] | undefined) ?? []).map((f, i) => parseFolder(f, i, issues));
   const home = parseHome(data.home);
   // Entries that are malformed or have an unsafe path are dropped; records then simply lack that image.
   const images: BackupImage[] = [];
-  for (const img of Array.isArray(data.images) ? data.images : []) {
-    if (!isObj(img) || typeof img.id !== 'string' || !img.id || typeof img.recordId !== 'string') continue;
-    if (isImagePath(img.file)) images.push({ id: img.id, recordId: img.recordId, file: img.file });
-  }
+  (Array.isArray(data.images) ? data.images : []).forEach((img, i) => {
+    const parsed = parseImageEntry(img, `Image #${i + 1}`, issues);
+    if (parsed) images.push(parsed);
+  });
   return {
     format: BACKUP_FORMAT,
     version: SCHEMA_VERSION,
@@ -172,6 +191,114 @@ export function parseBackup(text: string): BackupFile {
     ...(home ? { home } : {}),
   };
 }
+
+function parseRecordValue(raw: unknown, where: string, version: number): ReadingRecord {
+  if (!isObj(raw)) throw new Error(`${where} is not an object.`);
+  const r = migrateRecord(raw, version);
+  assertRecord(r, where);
+  return r;
+}
+
+// ---------------------------------------------------------------------------
+// ZIP layout 2: manifest.json + records.jsonl + images.jsonl + images/
+
+/** Version of the ZIP's file layout (separate from the record SCHEMA_VERSION). 1 = backup.json only. */
+export const BACKUP_LAYOUT = 2;
+export const BACKUP_MANIFEST = 'manifest.json';
+export const BACKUP_RECORDS = 'records.jsonl';
+export const BACKUP_IMAGES = 'images.jsonl';
+
+export interface BackupCounts {
+  records: number;
+  folders: number;
+  images: number;
+}
+
+/** manifest.json: read first, so an import can be checked and previewed without reading the records. */
+export interface BackupManifest {
+  format: typeof BACKUP_FORMAT;
+  layout: number;
+  /** Record schema version of records.jsonl. */
+  version: number;
+  exportedAt: number;
+  counts: BackupCounts;
+  folders: Folder[];
+  home?: HomeSettings;
+}
+
+export function buildManifest(
+  counts: Omit<BackupCounts, 'folders'>,
+  folders: Folder[],
+  home?: HomeSettings,
+  exportedAt = Date.now(),
+): BackupManifest {
+  return {
+    format: BACKUP_FORMAT,
+    layout: BACKUP_LAYOUT,
+    version: SCHEMA_VERSION,
+    exportedAt,
+    counts: { ...counts, folders: folders.length },
+    folders,
+    ...(home ? { home } : {}),
+  };
+}
+
+/** Parse and validate manifest.json. Throws a user-facing error; folder domain problems go to `issues`. */
+export function parseManifest(text: string, issues: string[] = []): BackupManifest {
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`${BACKUP_MANIFEST} is not valid JSON.`);
+  }
+  if (!isObj(data) || data.format !== BACKUP_FORMAT) throw new Error('Not a Read Tracker backup file.');
+  const layout = data.layout;
+  if (typeof layout !== 'number' || !Number.isInteger(layout) || layout < 2) {
+    throw new Error('Backup has no valid layout version.');
+  }
+  if (layout > BACKUP_LAYOUT) throw new Error('Backup is from a newer version. Update the extension first.');
+  const version = checkVersion(data.version);
+  if (!Array.isArray(data.folders)) throw new Error('Backup has an invalid folders list.');
+  const c = isObj(data.counts) ? data.counts : {};
+  const count = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : 0);
+  const folders = data.folders.map((f, i) => parseFolder(f, i, issues));
+  const home = parseHome(data.home);
+  return {
+    format: BACKUP_FORMAT,
+    layout,
+    version,
+    exportedAt: typeof data.exportedAt === 'number' ? data.exportedAt : 0,
+    counts: { records: count(c.records), folders: folders.length, images: count(c.images) },
+    folders,
+    ...(home ? { home } : {}),
+  };
+}
+
+/** One records.jsonl line (1-based `lineNo` for errors). Any problem is fatal: nothing is imported. */
+export function parseRecordLine(line: string, lineNo: number, version: number): ReadingRecord {
+  const where = `${BACKUP_RECORDS} line ${lineNo}`;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(line);
+  } catch {
+    throw new Error(`${where}: not valid JSON.`);
+  }
+  return parseRecordValue(raw, where, version);
+}
+
+/** One images.jsonl line; a bad line is reported in `issues` and skipped. */
+export function parseImageLine(line: string, lineNo: number, issues: string[]): BackupImage | undefined {
+  const where = `${BACKUP_IMAGES} line ${lineNo}`;
+  try {
+    return parseImageEntry(JSON.parse(line), where, issues);
+  } catch {
+    issues.push(`${where}: not valid JSON, skipped.`);
+    return undefined;
+  }
+}
+
+/** One JSON value per line, newline-terminated (records.jsonl / images.jsonl). */
+export const toJsonLine = (v: unknown) => `${JSON.stringify(v)}\n`;
 
 /** Keep the newest copy per id (a file may repeat an id). */
 function newestById<T extends { id: string; updatedAt: number }>(items: readonly T[]): Map<string, T> {
@@ -211,6 +338,7 @@ export function planImport(
     added: 0,
     updated: 0,
     skipped: 0,
+    issues: [],
   };
 
   // --- Home settings: newer wins, like folders.
@@ -228,11 +356,15 @@ export function planImport(
     if (current) {
       folderIdMap.set(f.id, f.id);
       const collides = sameNameId !== undefined && sameNameId !== f.id;
-      if (f.updatedAt > current.updatedAt && !collides) {
-        plan.writeFolders.push(f);
-        idByName.delete(nameKey(current.name));
-        idByName.set(nameKey(f.name), f.id);
-        folderById.set(f.id, f);
+      if (f.updatedAt > current.updatedAt) {
+        if (collides) {
+          plan.issues.push(`Folder “${current.name}”: not renamed to “${f.name}”, another folder already has that name.`);
+        } else {
+          plan.writeFolders.push(f);
+          idByName.delete(nameKey(current.name));
+          idByName.set(nameKey(f.name), f.id);
+          folderById.set(f.id, f);
+        }
       }
     } else if (sameNameId !== undefined) {
       folderIdMap.set(f.id, sameNameId);
@@ -253,7 +385,11 @@ export function planImport(
   plan.writeFolders = plan.writeFolders.map((f) => {
     const kept = (f.domains ?? []).filter((d) => {
       const owner = claimed.get(d);
-      if (owner !== undefined && owner !== f.id) return false;
+      if (owner !== undefined && owner !== f.id) {
+        const ownerName = folderById.get(owner)?.name ?? 'another folder';
+        plan.issues.push(`Folder “${f.name}”: preferred domain ${d} already belongs to “${ownerName}”, not added.`);
+        return false;
+      }
       claimed.set(d, f.id);
       return true;
     });
@@ -280,9 +416,17 @@ export function planImport(
       continue;
     }
     const stored = new Set(current?.images ?? []);
-    const images = r.images.filter(
-      (id) => stored.has(id) || (fileImages.get(id)?.recordId === r.id && !owner.has(id)),
-    );
+    const images = r.images.filter((id) => {
+      if (stored.has(id)) return true;
+      const file = fileImages.get(id);
+      if (file?.recordId === r.id && !owner.has(id)) return true;
+      plan.issues.push(
+        file === undefined
+          ? `Record “${r.title}”: image ${id} is not in the backup, skipped.`
+          : `Record “${r.title}”: image ${id} belongs to another record, skipped.`,
+      );
+      return false;
+    });
     for (const id of images) {
       const img = fileImages.get(id);
       if (img && !stored.has(id)) plan.putImages.push(img);
@@ -291,6 +435,7 @@ export function planImport(
 
     const { folderId, ...rest } = r;
     const resolved = resolveFolder(folderId);
+    if (folderId !== undefined && !resolved) plan.issues.push(`Record “${r.title}”: its folder isn't in the backup, added to Home.`);
     plan.write.push({ ...rest, ...(resolved ? { folderId: resolved } : {}), images });
     if (current) plan.updated++;
     else plan.added++;
@@ -339,4 +484,9 @@ export function typeForImagePath(path: string): string {
   const ext = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
   if (ext === 'jpeg') return 'image/jpeg';
   return Object.entries(EXTENSIONS).find(([, e]) => e === ext)?.[0] ?? '';
+}
+
+/** At most `max` issues for display, plus how many more there were. */
+export function describeIssues(issues: readonly string[], max = 100): { shown: string[]; more: number } {
+  return { shown: issues.slice(0, max), more: Math.max(0, issues.length - max) };
 }
