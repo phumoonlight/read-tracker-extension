@@ -277,7 +277,7 @@
   --tile-h: 240px;
 }
 .list[data-size='xlarge'] {
-  --tile-h: 360px;
+  --tile-h: 320px;
 }
 @media (max-width: 600px) {
   /* Phones: cap the big sizes so a tile doesn't fill the screen. */

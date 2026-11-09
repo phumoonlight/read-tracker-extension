@@ -67,7 +67,7 @@ go through `updateFolderSettings` / `updateHomeSettings`, which merge and store 
 `updatedAt`. `imageSize` applies while that folder is open. Home has no Folder record: its size is `HomeSettings` in the `meta`
 store (key `home`, `getHomeSettings` / `setHomeImageSize`), exported as `home` in backups and merged newer-wins.
 Home can't be renamed or deleted. In either place, the list's image tile height scales with it
-(60 / 120 / 240 / 360 px; width follows each image's aspect ratio, so images are never cropped), and at large/xlarge tiles show original files instead of previews
+(60 / 120 / 240 / 320 px; width follows each image's aspect ratio, so images are never cropped), and at large/xlarge tiles show original files instead of previews
 (`usesOriginalImages`). Set it with `setFolderImageSize`; unknown values in backups fall back to medium. Folders are flat and a record is in at most one folder;
 `folderId` absent = the record is in **Home**, the default place (there is no "All" view: the list always shows
 Home or one folder, and search/filters apply within it). Names are trimmed, whitespace-collapsed, at most
