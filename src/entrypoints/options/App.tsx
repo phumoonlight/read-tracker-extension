@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ConfirmDialog, Dialog } from '@/components/Dialog';
 import { RecordForm, newUrlRow, urlRowsFor, type RecordFormResult } from '@/components/RecordForm';
-import { SiteLabel } from '@/components/SiteLabel';
+import { UrlLink } from '@/components/UrlLink';
 import { ImageStrip, Thumbnail } from '@/components/Thumbnail';
 import { HoldButton } from '@/components/HoldButton';
 import { ImagePicker } from '@/components/ImagePicker';
@@ -9,7 +9,6 @@ import { ImageViewer } from '@/components/ImageViewer';
 import { exportToFile, importFromFile } from '@/lib/backup-io';
 import { decodeFolderFilter, encodeFolderFilter } from '@/lib/folders';
 import { createRecord, formatDateTime, hasSeries, openUrl, urlEntries } from '@/lib/records';
-import { siteLabel } from '@/lib/url';
 import {
   countRecords,
   createFolder,
@@ -465,19 +464,6 @@ function LoadMore({ onLoad, pageKey }: { onLoad: () => void; pageKey: unknown })
   );
 }
 
-/** One URL per distinct site of a record (main URL first), for the site icons on its card. */
-function sites(record: ReadingRecord): string[] {
-  const seen = new Set<string>();
-  return urlEntries(record)
-    .map((e) => e.url)
-    .filter((url) => {
-      const s = siteLabel(url);
-      if (seen.has(s)) return false;
-      seen.add(s);
-      return true;
-    });
-}
-
 function Card({
   record,
   layout,
@@ -516,7 +502,7 @@ function Card({
             // Clicking an image opens the full-resolution viewer at that image.
             <Thumbnail record={record} onOpen={onView} original={originalImages} />
           ) : (
-            // No image: the placeholder links to the page, like the title.
+            // No image: the placeholder opens the main URL (or the series' last chapter).
             <a href={href} target="_blank" rel="noreferrer" tabIndex={-1} aria-hidden="true">
               <Thumbnail record={record} />
             </a>
@@ -524,9 +510,10 @@ function Card({
         </div>
       )}
       <div className="card-body">
-        <a className="card-title" href={href} target="_blank" rel="noreferrer" title={record.title}>
+        {/* The title is plain text; the record's URLs below are the links (it can have several). */}
+        <div className="card-title" title={record.title}>
           {record.title}
-        </a>
+        </div>
         <div className="card-meta">
           {revisit ? (
             record.readAt ? `Last read ${formatDateTime(record.readAt)}` : 'Not read yet'
@@ -537,18 +524,13 @@ function Card({
           )}
           {hasSeries(record) && ' · series'}
           {!revisit && record.readAt && ` · read ${new Date(record.readAt).toLocaleDateString()}`}
-          {sites(record).map((url) => (
-            <span key={url}>
-              {' · '}
-              <SiteLabel url={url} />
-            </span>
-          ))}
         </div>
-        {hasSeries(record) && record.lastReadUrl && (
-          <div className="card-meta card-last" title={record.lastReadUrl}>
-            Last: {record.lastReadUrl.replace(/^https?:\/\/(www\.)?/, '')}
-          </div>
-        )}
+        <div className="card-links">
+          {urlEntries(record).map((e) => (
+            <UrlLink key={`${e.matchMode}|${e.matchKey}`} url={e.url} />
+          ))}
+          {hasSeries(record) && record.lastReadUrl && <UrlLink url={record.lastReadUrl} prefix="Last: " />}
+        </div>
         {record.tags.length > 0 && (
           <div className="card-tags">
             {record.tags.map((t) => (

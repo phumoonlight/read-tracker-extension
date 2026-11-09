@@ -421,13 +421,7 @@ dialog.viewer {
   gap: 8px;
 }
 
-/* Site icon + domain */
-.site-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  vertical-align: middle;
-}
+/* Site icon (from Chrome's favicon cache) */
 .site-icon {
   width: 14px;
   height: 14px;

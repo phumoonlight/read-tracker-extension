@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { faviconUrl, hueFor, isTrackingParam, normalizeUrl, siteLabel, suggestPrefix } from '@/lib/url';
+import { displayUrl, faviconUrl, hueFor, isTrackingParam, normalizeUrl, siteLabel, suggestPrefix } from '@/lib/url';
 
 describe('normalizeUrl', () => {
   it.each([
@@ -119,5 +119,19 @@ describe('faviconUrl', () => {
     expect(u.href.split('?')[0]).toBe('chrome-extension://abc/_favicon/');
     expect(u.searchParams.get('pageUrl')).toBe('https://x.com/a?b=1&c=2');
     expect(u.searchParams.get('size')).toBe('32');
+  });
+});
+
+describe('displayUrl', () => {
+  it('shows host without www plus path, no scheme or trailing slash', () => {
+    expect(displayUrl('https://www.x.com/akaoni2gou/')).toBe('x.com/akaoni2gou');
+    expect(displayUrl('http://Example.com')).toBe('example.com');
+    expect(displayUrl('https://site.com:8080/a/b')).toBe('site.com:8080/a/b');
+  });
+  it('abbreviates the query and drops the hash', () => {
+    expect(displayUrl('https://youtube.com/watch?v=abc#t=1')).toBe('youtube.com/watch?…');
+  });
+  it('returns the input when it is not a URL', () => {
+    expect(displayUrl('not a url')).toBe('not a url');
   });
 });

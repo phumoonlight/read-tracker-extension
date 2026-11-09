@@ -70,8 +70,32 @@
   line-clamp: 3;
   overflow: hidden;
 }
-.card-title:hover {
+
+/* A record's URLs (each a link) under its status line */
+.card-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  min-width: 0;
+}
+.url-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.url-link:hover {
+  color: var(--accent);
   text-decoration: underline;
+}
+.url-link-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card-meta {
@@ -169,11 +193,6 @@
 .card-list .card-title {
   -webkit-line-clamp: 2;
   line-clamp: 2;
-}
-.card-list .card-last {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 @media (max-width: 600px) {

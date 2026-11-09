@@ -110,3 +110,19 @@ export function faviconUrl(base: string, pageUrl: string, size = 32): string {
   u.searchParams.set('size', String(size));
   return u.toString();
 }
+
+/**
+ * Short, readable form of a URL for display: host without "www." plus path, without the
+ * scheme or a trailing slash; a query is shown as "?…". "https://www.x.com/a/b/?q=1" -> "x.com/a/b?…".
+ * Falls back to the input for anything that isn't a valid URL.
+ */
+export function displayUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    const host = u.host.toLowerCase().replace(/^www\./, '');
+    const path = u.pathname.replace(/\/+$/, '');
+    return `${host}${path}${u.search ? '?…' : ''}`;
+  } catch {
+    return url;
+  }
+}

@@ -25,7 +25,8 @@ src/
     background.ts        service worker: badge per tab, series progress (lastReadUrl)
     popup/               toolbar popup: current page state, add, status, folder, images
     options/             full list page (options_ui, open_in_tab): folder bar, grid/list views, search, filters, Manage dialog (edit + delete), backup
-  components/            shared React UI (RecordForm, ImagePicker, ImageViewer, Thumbnail (cover), StatusPicker, Dialog)
+  components/            shared React UI (RecordForm, ImagePicker, ImageViewer, Thumbnail (cover), UrlLink, HoldButton,
+                         StatusPicker, Dialog)
   lib/                   framework-free logic (only db.ts / storage.ts / tab.ts / images.ts touch browser APIs)
     types.ts             ReadingRecord, Folder, SCHEMA_VERSION, BackupFile
     folders.ts           folder name rules (folderNameError), newFolder, sortFolders
@@ -145,7 +146,7 @@ Home.
 - `normalizeUrl()` drops the scheme (http and https match), lowercases the host, strips `www.` and a trailing dot,
   drops `#hash`, tracking params (`utm_*`, `fbclid`, `gclid`, `ref`, … see `TRACKING_PARAMS`), and trailing
   slashes, and sorts the remaining params. Non-http(s) URLs give `null` (not trackable).
-- A record has a main URL (`url` / `matchKey` / `matchMode`, opened from the title) plus optional `otherUrls`
+- A record has a main URL (`url` / `matchKey` / `matchMode`, listed first) plus optional `otherUrls`
   (`UrlEntry[]`, up to `MAX_URLS` = 10 in total, schema v4); `urlEntries(record)` lists them all. Each URL matches on
   its own; `matchedEntry(record, url)` says which one did (the background uses it so `lastReadUrl` only follows
   series URLs). Editing happens in `RecordForm` rows (`validateUrlRows`: blank extra rows ignored, duplicates of the
@@ -165,7 +166,7 @@ there that isn't in storage.
 
 `storage` (change signal), `unlimitedStorage` (IndexedDB quota), `tabs` (read tab URLs for the badge), `activeTab` (screenshot and script access to the
 current page while the popup is open), `scripting` (read og:image meta), `favicon` (site icons from Chrome's cache via
-`chrome-extension://<id>/_favicon/?pageUrl=…`, see `faviconUrl` and `components/SiteLabel.tsx`; Chrome returns a
+`chrome-extension://<id>/_favicon/?pageUrl=…`, see `faviconUrl` and `components/UrlLink.tsx`; Chrome returns a
 generic globe for sites it has no icon for).
 `optional_host_permissions: ["<all_urls>"]` is requested at runtime for a single origin, only when an og:image
 download is blocked by CORS. Don't add install-time permissions without a strong reason.
@@ -183,6 +184,8 @@ download is blocked by CORS. Don't add install-time permissions without a strong
   3 = large left + two stacked), so card sizes never depend on the image count; clicking an image opens the viewer
   at that index. Grid cards and the popup use it. List rows instead use `<ImageStrip>`: each image as its own
   tile below the text (96px at medium; nothing when the record has no images).
+- On cards the title is plain text; each of the record's URLs is a `<UrlLink>` (site icon + `displayUrl`) under the
+  status line, plus a "Last: …" link for series progress. The no-image placeholder opens `openUrl(record)`.
 - Records may have no images. `<Thumbnail>` then shows a placeholder tinted per site (`siteLabel` + `hueFor`,
   colors from the `--ph-*` tokens): the domain at size "large", its first letter at "small". Never derive the
   placeholder from the title (its first character can be a combining mark, e.g. in Thai).

@@ -14,7 +14,7 @@ export interface UrlRow {
 
 export interface RecordFormValues {
   title: string;
-  /** The first row is the main URL (opened from the title). */
+  /** The first row is the main URL (listed first on the card). */
   urls: UrlRow[];
   status: ReadStatus;
   tags: string;
@@ -203,7 +203,7 @@ function UrlRowEditor({
   return (
     <div className="url-row">
       <div className="url-row-head">
-        <span>{main ? 'Main URL (opened from the title)' : `URL ${index + 1}`}</span>
+        <span>{main ? 'Main URL (listed first)' : `URL ${index + 1}`}</span>
         {onRemove && (
           <button type="button" className="btn btn-small btn-ghost" onClick={onRemove} aria-label={`Remove URL ${index + 1}`}>
             Remove
