@@ -83,6 +83,15 @@ h3 {
   line-height: 1.25;
 }
 
+/* No text below 16px: <small> would shrink to ~83%, and browsers may shrink monospace <code>. */
+small,
+code {
+  font-size: 16px;
+}
+code {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
 button,
 input,
 select,
