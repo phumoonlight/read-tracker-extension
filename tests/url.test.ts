@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hueFor, isTrackingParam, normalizeUrl, siteLabel, suggestPrefix } from '@/lib/url';
+import { faviconUrl, hueFor, isTrackingParam, normalizeUrl, siteLabel, suggestPrefix } from '@/lib/url';
 
 describe('normalizeUrl', () => {
   it.each([
@@ -109,5 +109,15 @@ describe('hueFor', () => {
   });
   it('differs between common sites', () => {
     expect(hueFor('youtube.com')).not.toBe(hueFor('github.com'));
+  });
+});
+
+describe('faviconUrl', () => {
+  it('builds a _favicon URL with the page URL encoded', () => {
+    const u = new URL(faviconUrl('chrome-extension://abc/_favicon/', 'https://x.com/a?b=1&c=2', 32));
+    // (Node reports a null origin for chrome-extension: URLs, so compare the URL without its query.)
+    expect(u.href.split('?')[0]).toBe('chrome-extension://abc/_favicon/');
+    expect(u.searchParams.get('pageUrl')).toBe('https://x.com/a?b=1&c=2');
+    expect(u.searchParams.get('size')).toBe('32');
   });
 });

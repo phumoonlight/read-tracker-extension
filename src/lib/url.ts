@@ -98,3 +98,15 @@ export function hueFor(text: string): number {
   for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
   return Math.abs(h) % 360;
 }
+
+/**
+ * URL of a page's site icon from Chrome's favicon cache (needs the "favicon" permission).
+ * `base` is the extension's `/_favicon/` URL. Chrome answers with a generic globe for
+ * pages it has no icon for. No network request is made.
+ */
+export function faviconUrl(base: string, pageUrl: string, size = 32): string {
+  const u = new URL(base);
+  u.searchParams.set('pageUrl', pageUrl);
+  u.searchParams.set('size', String(size));
+  return u.toString();
+}

@@ -59,6 +59,7 @@ change.
 | `tabs` | Read the current tab's URL to update the badge |
 | `activeTab` | Screenshot the page when you ask for it from the popup |
 | `scripting` | Read the page's og:image tag |
+| `favicon` | Show each site's icon next to its name, from the icons Chrome already has stored (no network requests) |
 | Optional site access | Asked for one site at a time, only if an og:image can't be downloaded otherwise |
 
 ## Other scripts

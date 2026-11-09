@@ -148,7 +148,9 @@ there that isn't in storage.
 ## Permissions
 
 `storage` (change signal), `unlimitedStorage` (IndexedDB quota), `tabs` (read tab URLs for the badge), `activeTab` (screenshot and script access to the
-current page while the popup is open), `scripting` (read og:image meta).
+current page while the popup is open), `scripting` (read og:image meta), `favicon` (site icons from Chrome's cache via
+`chrome-extension://<id>/_favicon/?pageUrl=…`, see `faviconUrl` and `components/SiteLabel.tsx`; Chrome returns a
+generic globe for sites it has no icon for).
 `optional_host_permissions: ["<all_urls>"]` is requested at runtime for a single origin, only when an og:image
 download is blocked by CORS. Don't add install-time permissions without a strong reason.
 

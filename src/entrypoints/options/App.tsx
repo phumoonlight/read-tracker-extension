@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { ConfirmDialog, Dialog } from '@/components/Dialog';
 import { RecordForm, defaultPrefix, type RecordFormResult } from '@/components/RecordForm';
+import { SiteLabel } from '@/components/SiteLabel';
 import { ImageStrip, Thumbnail } from '@/components/Thumbnail';
 import { ImagePicker } from '@/components/ImagePicker';
 import { ImageViewer } from '@/components/ImageViewer';
 import { exportToFile, importFromFile } from '@/lib/backup-io';
 import { decodeFolderFilter, encodeFolderFilter } from '@/lib/folders';
 import { createRecord, openUrl } from '@/lib/records';
-import { siteLabel } from '@/lib/url';
 import {
   countRecords,
   createFolder,
@@ -500,7 +500,8 @@ function Card({
           <span className="status-dot" /> {STATUS_LABEL[record.status]}
           {record.matchMode === 'prefix' && ' · series'}
           {record.readAt && ` · read ${new Date(record.readAt).toLocaleDateString()}`}
-          {layout === 'list' && ` · ${siteLabel(record.url)}`}
+          {' · '}
+          <SiteLabel url={record.url} />
         </div>
         {record.matchMode === 'prefix' && record.lastReadUrl && (
           <div className="card-meta card-last" title={record.lastReadUrl}>
