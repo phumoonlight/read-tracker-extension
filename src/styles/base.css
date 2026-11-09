@@ -22,6 +22,9 @@
   --ph-bg-l: 90%;
   --ph-fg-l: 32%;
 
+  /* Dropdown chevron (muted text colour) */
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2359636e' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
   /* Progress fill of press-and-hold buttons (drawn over the button's own colour) */
   --hold-fill: #ffffff59;
 
@@ -53,6 +56,8 @@
     --ph-fg-l: 78%;
 
     --hold-fill: #0d111766;
+
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%239198a1' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 
     --shadow: 0 1px 3px #0008, 0 8px 24px #0009;
   }
@@ -110,6 +115,17 @@ textarea {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+}
+
+/* Own chevron instead of the native arrow, so it has space from the right edge. */
+select {
+  appearance: none;
+  padding-right: 34px;
+  background-image: var(--chevron);
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px 8px;
+  cursor: pointer;
 }
 
 textarea {
