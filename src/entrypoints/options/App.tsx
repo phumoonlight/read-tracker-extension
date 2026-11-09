@@ -597,11 +597,15 @@ function EditDialog({
 
   return (
     <Dialog title="Manage record" onClose={onClose}>
-      <ImagePicker record={record} onView={setViewing} />
       {viewing !== undefined && (
         <ImageViewer title={record.title} imageIds={record.images} start={viewing} onClose={() => setViewing(undefined)} />
       )}
       <RecordForm
+        footerStart={
+          <button type="button" className="btn btn-small btn-danger-text" onClick={() => setConfirmDelete(true)}>
+            Delete record
+          </button>
+        }
         submitLabel="Save"
         folders={folders}
         // Revisit records keep their last-read time; a status change here would clear it.
@@ -616,12 +620,10 @@ function EditDialog({
         }}
         onCancel={onClose}
         onSubmit={save}
-      />
-      <div className="danger-zone">
-        <button type="button" className="btn btn-small btn-danger" onClick={() => setConfirmDelete(true)}>
-          Delete record
-        </button>
-      </div>
+      >
+        {/* Images save right away (they're not part of Save). */}
+        <ImagePicker record={record} onView={setViewing} />
+      </RecordForm>
       {confirmDelete && (
         // Cancel returns to this dialog; Delete closes both.
         <ConfirmDialog

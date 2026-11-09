@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { matchTag } from '@/lib/match';
 import { computeMatchKey, parseTags, urlEntries } from '@/lib/records';
 import { normalizeUrl, suggestPrefix } from '@/lib/url';
@@ -83,9 +83,23 @@ interface Props {
   hideStatus?: boolean;
   /** Folders to choose from; the picker is hidden when there are none. */
   folders: readonly Folder[];
+  /** Extra content shown after the fields, before the buttons (e.g. the image row). */
+  children?: ReactNode;
+  /** Shown at the left of the button row (e.g. Delete record). */
+  footerStart?: ReactNode;
 }
 
-export function RecordForm({ initial, submitLabel, onSubmit, onCancel, compact, folders, hideStatus }: Props) {
+export function RecordForm({
+  initial,
+  submitLabel,
+  onSubmit,
+  onCancel,
+  compact,
+  folders,
+  hideStatus,
+  children,
+  footerStart,
+}: Props) {
   const [v, setV] = useState(initial);
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
@@ -122,33 +136,37 @@ export function RecordForm({ initial, submitLabel, onSubmit, onCancel, compact, 
     }
   }
 
+  const showFolder = folders.length > 0;
   return (
-    <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <form onSubmit={submit} className="record-form">
       <label className="field">
         <span>Title</span>
         <input type="text" value={v.title} onChange={(e) => set('title', e.target.value)} />
       </label>
 
-      {v.urls.map((row, i) => (
-        <UrlRowEditor
-          key={i}
-          index={i}
-          row={row}
-          onChange={(patch) => setRow(i, patch)}
-          onRemove={v.urls.length > 1 ? () => setV((p) => ({ ...p, urls: p.urls.filter((_, j) => j !== i) })) : undefined}
-        />
-      ))}
-      {v.urls.length < MAX_URLS && (
-        <div>
-          <button
-            type="button"
-            className="btn btn-small btn-ghost"
-            onClick={() => setV((p) => ({ ...p, urls: [...p.urls, newUrlRow()] }))}
-          >
-            + Add URL
-          </button>
-        </div>
-      )}
+      <div className="field">
+        <span>{v.urls.length > 1 ? 'URLs (the first is the main one)' : 'URL'}</span>
+        {v.urls.map((row, i) => (
+          <UrlRowEditor
+            key={i}
+            index={i}
+            row={row}
+            onChange={(patch) => setRow(i, patch)}
+            onRemove={v.urls.length > 1 ? () => setV((p) => ({ ...p, urls: p.urls.filter((_, j) => j !== i) })) : undefined}
+          />
+        ))}
+        {v.urls.length < MAX_URLS && (
+          <div>
+            <button
+              type="button"
+              className="btn btn-small btn-ghost"
+              onClick={() => setV((p) => ({ ...p, urls: [...p.urls, newUrlRow()] }))}
+            >
+              + Add URL
+            </button>
+          </div>
+        )}
+      </div>
 
       {!hideStatus && (
         <div className="field">
@@ -156,22 +174,37 @@ export function RecordForm({ initial, submitLabel, onSubmit, onCancel, compact, 
           <StatusPicker value={v.status} onChange={(s) => set('status', s)} />
         </div>
       )}
-      {folders.length > 0 && <FolderSelect folders={folders} value={v.folderId} onChange={(id) => set('folderId', id)} />}
+
+      {/* Folder and tags side by side. */}
+      {(showFolder || !compact) && (
+        <div className="form-pair">
+          {showFolder && <FolderSelect folders={folders} value={v.folderId} onChange={(id) => set('folderId', id)} />}
+          {!compact && (
+            <label className="field">
+              <span>Tags</span>
+              <input
+                type="text"
+                value={v.tags}
+                placeholder="comma, separated"
+                onChange={(e) => set('tags', e.target.value)}
+              />
+            </label>
+          )}
+        </div>
+      )}
       {!compact && (
-        <>
-          <label className="field">
-            <span>Tags (comma-separated)</span>
-            <input type="text" value={v.tags} onChange={(e) => set('tags', e.target.value)} />
-          </label>
-          <label className="field">
-            <span>Notes</span>
-            <textarea value={v.notes} onChange={(e) => set('notes', e.target.value)} />
-          </label>
-        </>
+        <label className="field">
+          <span>Notes</span>
+          <textarea rows={2} value={v.notes} onChange={(e) => set('notes', e.target.value)} />
+        </label>
       )}
 
+      {children}
+
       {error && <span className="error">{error}</span>}
-      <div className="dialog-actions">
+      <div className="form-footer">
+        {footerStart}
+        <span className="form-footer-spacer" />
         {onCancel && (
           <button type="button" className="btn" onClick={onCancel}>
             Cancel
@@ -201,29 +234,30 @@ function UrlRowEditor({
   const blank = !main && !row.url.trim();
   const matchKey = blank ? undefined : computeMatchKey(row.url, row.matchMode, row.prefix);
   return (
-    <div className="url-row">
-      <div className="url-row-head">
-        <span>{main ? 'Main URL (listed first)' : `URL ${index + 1}`}</span>
+    <div className="url-entry">
+      <div className="url-input-row">
+        <input
+          type="url"
+          required={main}
+          value={row.url}
+          placeholder={main ? 'https://' : 'Another URL (mirror, other site)'}
+          aria-label={main ? 'Main URL' : `URL ${index + 1}`}
+          // The normalized key the badge matches on, for the curious.
+          title={typeof matchKey === 'string' ? `Matches: ${matchKey}` : undefined}
+          onChange={(e) => onChange({ url: e.target.value })}
+        />
         {onRemove && (
-          <button type="button" className="btn btn-small btn-ghost" onClick={onRemove} aria-label={`Remove URL ${index + 1}`}>
-            Remove
+          <button type="button" className="icon-btn" onClick={onRemove} aria-label={`Remove URL ${index + 1}`} title="Remove URL">
+            ×
           </button>
         )}
       </div>
-      <input
-        type="url"
-        required={main}
-        value={row.url}
-        placeholder="https://"
-        aria-label={main ? 'Main URL' : `URL ${index + 1}`}
-        onChange={(e) => onChange({ url: e.target.value })}
-      />
       {/*
         Series (prefix) matching is paused in the UI: new URLs always match their exact page.
         A URL saved earlier as a series keeps working; it can be switched to its exact page.
       */}
       {row.matchMode === 'prefix' && (
-        <div className="row" style={{ fontSize: 16 }}>
+        <div className="row">
           <span className="muted">
             Matches every page under <code>{row.prefix}</code> (series).
           </span>
@@ -232,11 +266,8 @@ function UrlRowEditor({
           </button>
         </div>
       )}
-      {matchKey !== undefined && (
-        <small className="muted" style={{ wordBreak: 'break-all' }}>
-          Match key:{' '}
-          {typeof matchKey === 'string' ? <code>{matchKey}</code> : <span className="error">{matchKey.error}</span>}
-        </small>
+      {matchKey !== undefined && typeof matchKey !== 'string' && row.url.trim() && (
+        <span className="error">{matchKey.error}</span>
       )}
     </div>
   );

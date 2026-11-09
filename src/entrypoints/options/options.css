@@ -296,13 +296,6 @@
   font-size: 16px;
 }
 
-/* Delete lives at the bottom of the Manage dialog, set apart from Save. */
-.danger-zone {
-  display: flex;
-  justify-content: flex-start;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
 
 /* Tag filter chips under the search box */
 .tag-filter {

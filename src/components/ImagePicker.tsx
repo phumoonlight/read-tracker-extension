@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { moveItem, prepareImage } from '@/lib/images';
 import { addImages, removeImage, reorderImages } from '@/lib/storage';
 import { captureVisible, downloadImage, findOgImage, NeedsPermissionError, requestOriginAccess } from '@/lib/tab';
@@ -15,10 +15,11 @@ interface Props {
 }
 
 /**
- * Manage a record's images (up to MAX_IMAGES): tiles to view, drag to reorder (the first
- * is the cover; Alt+Left/Right moves a focused tile) or remove, and sources to add from a
- * file, the clipboard, a tab screenshot or the page's og:image. Images are stored as the
- * original file; only the tile uses a preview.
+ * Manage a record's images (up to MAX_IMAGES) in one compact row: click a tile to view it,
+ * drag to reorder (the first is the cover; Alt+Left/Right moves a focused tile), × to
+ * remove, and a "+" tile to upload. Ctrl+V anywhere adds a copied image (text paste into a
+ * field is left alone). In the popup, Screenshot and og:image buttons are added. Images are
+ * stored as the original file; only the tile uses a preview.
  */
 export function ImagePicker({ record, tab, onChange, onView }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
@@ -85,101 +86,98 @@ export function ImagePicker({ record, tab, onChange, onView }: Props) {
       return [await downloadImage(src, t.id)];
     });
 
-  function onPaste(e: ClipboardEvent) {
-    const files = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/'));
-    if (!files.length) {
-      setError('Clipboard has no image.');
-      return;
-    }
-    e.preventDefault();
-    void run(async () => files.slice(0, Math.max(0, room)));
-  }
+  // Paste an image anywhere (no dedicated paste box). Only image files are taken; a normal
+  // text paste into a field is left alone.
+  const runRef = useRef(run);
+  runRef.current = run;
+  useEffect(() => {
+    if (room <= 0) return;
+    const onPaste = (e: ClipboardEvent) => {
+      // Pasting text into a field (even if the clipboard also holds an image) stays a text paste.
+      const t = e.target as HTMLElement | null;
+      const inTextField = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+      if (inTextField && e.clipboardData?.types.includes('text/plain')) return;
+      const files = [...(e.clipboardData?.files ?? [])].filter((f) => f.type.startsWith('image/'));
+      if (!files.length) return;
+      e.preventDefault();
+      void runRef.current(async () => files.slice(0, room));
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [room]);
 
   return (
     <div className="field">
       <span>
-        Images ({record.images.length}/{MAX_IMAGES})
+        Images <span className="muted image-count">{record.images.length}/{MAX_IMAGES}</span>
       </span>
 
-      {order.length > 0 && (
-        <>
-          <div className="image-tiles">
-            {order.map((id, i) => (
-              <ImageTile
-                key={id}
-                imageId={id}
-                index={i}
-                count={order.length}
-                busy={busy}
-                dragging={dragFrom === i}
-                dropTarget={dragOver === i && dragFrom !== undefined && dragFrom !== i}
-                onView={() => onView(record.images.indexOf(id))}
-                onRemove={() => change(() => removeImage(record.id, id))}
-                onDragStart={(e) => {
-                  e.dataTransfer.effectAllowed = 'move';
-                  // A private type, so dropping onto a text field doesn't paste anything.
-                  e.dataTransfer.setData('application/x-read-tracker-image', id);
-                  setDragFrom(i);
-                }}
-                onDragOver={(e) => {
-                  if (dragFrom === undefined) return; // not one of our tiles (e.g. a file)
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = 'move';
-                  setDragOver(i);
-                }}
-                onDrop={(e) => {
-                  if (dragFrom === undefined) return;
-                  e.preventDefault();
-                  move(dragFrom, i);
-                  endDrag();
-                }}
-                onDragEnd={endDrag}
-                onMoveKey={(d) => {
-                  setKeyMoved(id);
-                  move(i, i + d);
-                }}
-                keepFocus={keyMoved === id}
-              />
-            ))}
-          </div>
-          {order.length > 1 && (
-            <span className="muted" style={{ fontSize: 16 }}>
-              Drag to reorder (or Alt+←/→). The first image is the cover.
-            </span>
-          )}
-        </>
-      )}
+      <div className="image-tiles">
+        {order.map((id, i) => (
+          <ImageTile
+            key={id}
+            imageId={id}
+            index={i}
+            count={order.length}
+            busy={busy}
+            dragging={dragFrom === i}
+            dropTarget={dragOver === i && dragFrom !== undefined && dragFrom !== i}
+            onView={() => onView(record.images.indexOf(id))}
+            onRemove={() => change(() => removeImage(record.id, id))}
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = 'move';
+              // A private type, so dropping onto a text field doesn't paste anything.
+              e.dataTransfer.setData('application/x-read-tracker-image', id);
+              setDragFrom(i);
+            }}
+            onDragOver={(e) => {
+              if (dragFrom === undefined) return; // not one of our tiles (e.g. a file)
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              setDragOver(i);
+            }}
+            onDrop={(e) => {
+              if (dragFrom === undefined) return;
+              e.preventDefault();
+              move(dragFrom, i);
+              endDrag();
+            }}
+            onDragEnd={endDrag}
+            onMoveKey={(d) => {
+              setKeyMoved(id);
+              move(i, i + d);
+            }}
+            keepFocus={keyMoved === id}
+          />
+        ))}
+        {room > 0 && (
+          <button
+            type="button"
+            className="image-add"
+            disabled={busy}
+            onClick={() => fileInput.current?.click()}
+            title="Upload images, or paste one with Ctrl+V"
+            aria-label="Add image"
+          >
+            {busy ? '…' : '+'}
+          </button>
+        )}
+      </div>
 
-      {room > 0 ? (
-        <>
-          <div className="row">
-            <button type="button" className="btn btn-small" disabled={busy} onClick={() => fileInput.current?.click()}>
-              Upload
-            </button>
-            {tab && (
-              <>
-                <button
-                  type="button"
-                  className="btn btn-small"
-                  disabled={busy}
-                  onClick={() => run(async () => [await captureVisible(tab.windowId)])}
-                >
-                  Screenshot
-                </button>
-                <button type="button" className="btn btn-small" disabled={busy} onClick={() => fromOgImage(tab)}>
-                  og:image
-                </button>
-              </>
-            )}
-          </div>
-          <div className="paste-zone" tabIndex={0} onPaste={onPaste} role="textbox" aria-label="Paste an image here">
-            Click here and press Ctrl+V to paste an image
-          </div>
-        </>
-      ) : (
-        <span className="muted" style={{ fontSize: 16 }}>
-          Maximum reached. Remove an image to add another.
-        </span>
+      {tab && room > 0 && (
+        <div className="row">
+          <button
+            type="button"
+            className="btn btn-small btn-ghost"
+            disabled={busy}
+            onClick={() => run(async () => [await captureVisible(tab.windowId)])}
+          >
+            + Screenshot
+          </button>
+          <button type="button" className="btn btn-small btn-ghost" disabled={busy} onClick={() => fromOgImage(tab)}>
+            + og:image
+          </button>
+        </div>
       )}
 
       <input
@@ -199,7 +197,6 @@ export function ImagePicker({ record, tab, onChange, onView }: Props) {
           void run(async () => files);
         }}
       />
-      {busy && <span className="muted">Working…</span>}
       {error && <span className="error">{error}</span>}
       {needsOrigin && tab && (
         <button
@@ -277,22 +274,22 @@ function ImageTile({
           }
         }}
         aria-label={`View image ${index + 1} of ${count}${index === 0 ? ' (cover)' : ''}`}
+        title={count > 1 ? 'Click to view. Drag to reorder; the first image is the cover.' : 'Click to view'}
         style={canDrag ? { cursor: 'grab' } : undefined}
       >
         {/* draggable=false: drag the tile, not the image file itself. */}
         {url ? <img className="thumb" src={url} alt="" draggable={false} /> : <div className="thumb" />}
       </button>
-      <div className="image-tile-actions">
-        <button
-          type="button"
-          className="btn btn-small btn-ghost"
-          disabled={busy}
-          onClick={onRemove}
-          aria-label={`Remove image ${index + 1}`}
-        >
-          Remove
-        </button>
-      </div>
+      <button
+        type="button"
+        className="image-remove"
+        disabled={busy}
+        onClick={onRemove}
+        aria-label={`Remove image ${index + 1}`}
+        title="Remove"
+      >
+        ×
+      </button>
     </div>
   );
 }
