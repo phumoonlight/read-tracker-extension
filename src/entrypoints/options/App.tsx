@@ -62,7 +62,6 @@ type Modal =
   | { kind: 'edit'; id: string }
   | { kind: 'view'; recordId: string; index: number }
   | { kind: 'new' }
-  | { kind: 'delete'; record: ReadingRecord }
   | { kind: 'folder-new' }
   | { kind: 'folder-rename'; folder: Folder }
   | { kind: 'folder-delete'; folder: Folder; count: number }
@@ -329,7 +328,6 @@ export function App() {
                 originalImages={usesOriginalImages(imageSize)}
                 onEdit={() => setModal({ kind: 'edit', id: r.id })}
                 onView={(index) => setModal({ kind: 'view', recordId: r.id, index })}
-                onDelete={() => setModal({ kind: 'delete', record: r })}
                 onTag={resetting(setTag)}
               />
             ))}
@@ -361,7 +359,7 @@ export function App() {
               const created = createRecord({ ...v, prefix: v.matchKey });
               if ('error' in created) throw new Error(created.error);
               await putRecord(created);
-              // Continue in the edit dialog so images can be added.
+              // Continue in the Manage dialog so images can be added.
               setModal({ kind: 'edit', id: created.id });
             }}
           />
@@ -383,20 +381,7 @@ export function App() {
         <RecordViewer recordId={modal.recordId} index={modal.index} onClose={() => setModal(undefined)} />
       )}
 
-      {modal?.kind === 'delete' && (
-        <ConfirmDialog
-          title="Delete record?"
-          message={
-            <>
-              “{modal.record.title}” and its images will be removed. This can't be undone (unless you have a
-              backup).
-            </>
-          }
-          confirmLabel="Delete"
-          onClose={() => setModal(undefined)}
-          onConfirm={() => deleteRecord(modal.record.id)}
-        />
-      )}
+
 
       {modal?.kind === 'folder-new' && (
         <FolderNameDialog
@@ -485,7 +470,6 @@ function Card({
   originalImages,
   onEdit,
   onView,
-  onDelete,
   onTag,
 }: {
   record: ReadingRecord;
@@ -497,10 +481,19 @@ function Card({
   onEdit: () => void;
   /** Open the viewer at this image index. */
   onView: (index: number) => void;
-  onDelete: () => void;
   onTag: (t: string) => void;
 }) {
   const href = openUrl(record);
+  const readNow = (
+    <button
+      type="button"
+      className="btn btn-small btn-primary read-now"
+      onClick={() => void markReadNow(record.id)}
+      title="Record that you read it now; it moves to the end of the list"
+    >
+      Read now
+    </button>
+  );
   return (
     <article className={`card card-${layout}`} data-status={record.status}>
       {layout === 'grid' && (
@@ -547,21 +540,15 @@ function Card({
             ))}
           </div>
         )}
-        {layout === 'list' && record.images.length > 0 && (
-          // List rows: each image as its own tile, below the text.
-          <ImageStrip record={record} onOpen={onView} original={originalImages} />
-        )}
       </div>
+      {/* List rows: Read now sits in the middle column, images span the row below the text. */}
+      {layout === 'list' && revisit && <div className="card-center">{readNow}</div>}
+      {layout === 'list' && record.images.length > 0 && (
+        <ImageStrip record={record} onOpen={onView} original={originalImages} />
+      )}
       <div className="card-actions">
         {revisit ? (
-          <button
-            type="button"
-            className="btn btn-small btn-primary read-now"
-            onClick={() => void markReadNow(record.id)}
-            title="Record that you read it now; it moves to the end of the list"
-          >
-            Read now
-          </button>
+          layout === 'grid' && readNow
         ) : (
           <select
             value={record.status}
@@ -580,11 +567,8 @@ function Card({
             ))}
           </select>
         )}
-        <button type="button" className="btn btn-small" onClick={onEdit}>
-          Edit
-        </button>
-        <button type="button" className="btn btn-small btn-ghost" onClick={onDelete} aria-label={`Delete ${record.title}`}>
-          Delete
+        <button type="button" className="btn btn-small" onClick={onEdit} aria-label={`Manage ${record.title}`}>
+          Manage
         </button>
       </div>
     </article>
@@ -608,6 +592,7 @@ function EditDialog({
   // so the image tiles stay current. The form keeps its own unsaved edits.
   const [record, setRecord] = useState<ReadingRecord | null>();
   const [viewing, setViewing] = useState<number>();
+  const [confirmDelete, setConfirmDelete] = useState(false);
   useEffect(() => {
     let stale = false;
     void getRecord(id).then((r) => {
@@ -621,7 +606,7 @@ function EditDialog({
   if (record === undefined) return null;
   if (record === null) {
     return (
-      <Dialog title="Edit record" onClose={onClose}>
+      <Dialog title="Manage record" onClose={onClose}>
         <p className="muted">This record no longer exists.</p>
       </Dialog>
     );
@@ -643,7 +628,7 @@ function EditDialog({
   }
 
   return (
-    <Dialog title="Edit record" onClose={onClose}>
+    <Dialog title="Manage record" onClose={onClose}>
       <ImagePicker record={record} onView={setViewing} />
       {viewing !== undefined && (
         <ImageViewer title={record.title} imageIds={record.images} start={viewing} onClose={() => setViewing(undefined)} />
@@ -666,6 +651,28 @@ function EditDialog({
         onCancel={onClose}
         onSubmit={save}
       />
+      <div className="danger-zone">
+        <button type="button" className="btn btn-small btn-danger" onClick={() => setConfirmDelete(true)}>
+          Delete record
+        </button>
+      </div>
+      {confirmDelete && (
+        // Cancel returns to this dialog; Delete closes both.
+        <ConfirmDialog
+          title="Delete record?"
+          message={
+            <>
+              “{record.title}” and its images will be removed. This can't be undone (unless you have a backup).
+            </>
+          }
+          confirmLabel="Delete"
+          onClose={() => setConfirmDelete(false)}
+          onConfirm={async () => {
+            await deleteRecord(id);
+            onClose();
+          }}
+        />
+      )}
     </Dialog>
   );
 }

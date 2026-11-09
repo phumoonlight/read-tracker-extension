@@ -24,7 +24,7 @@ src/
   entrypoints/
     background.ts        service worker: badge per tab, series progress (lastReadUrl)
     popup/               toolbar popup: current page state, add, status, folder, images
-    options/             full list page (options_ui, open_in_tab): folder bar, grid/list views, search, filters, edit, delete, backup
+    options/             full list page (options_ui, open_in_tab): folder bar, grid/list views, search, filters, Manage dialog (edit + delete), backup
   components/            shared React UI (RecordForm, ImagePicker, ImageViewer, Thumbnail (cover), StatusPicker, Dialog)
   lib/                   framework-free logic (only db.ts / storage.ts / tab.ts / images.ts touch browser APIs)
     types.ts             ReadingRecord, Folder, SCHEMA_VERSION, BackupFile
@@ -58,7 +58,8 @@ Read modes (`readMode?` on `Folder` and `HomeSettings`; absent = `status`): **St
 **Revisit** is for things read again and again: cards show "Read now" (`markReadNow`: status `read`, `readAt` = now)
 and "Last read …" instead of a status, the list is always least recently read first (`queryRecords` sort `revisit`
 over the `readOrder` index `[_readSort, createdAt]`, where the derived `_readSort` = `readAt ?? 0`, so never-read
-records come first), and the status/sort filters and the Edit dialog's status picker are hidden. Settings changes
+records come first), and the status/sort filters and the Manage dialog's status picker are hidden. In list rows Read now sits in the centre
+column (`.card-center`; rows are a 3-column grid `body | center | actions` with images on a second row). Settings changes
 go through `updateFolderSettings` / `updateHomeSettings`, which merge and store defaults as absent.
 
 `Folder`: `id`, `name`, `imageSize?` (`small` | `medium` | `large` | `xlarge`; absent = medium), `readMode?`, `createdAt`,

@@ -38,6 +38,8 @@ change.
 
 - **Add a page:** click the toolbar icon, check the title, choose **This page** or **Series (prefix)**, pick a
   status and click **Add current page**.
+- **Manage a record:** click **Manage** on its card (or in the popup) to edit its details, folder and images.
+  **Delete record** is at the bottom of that dialog and asks for confirmation.
 - **Change status, folder or images:** open the popup on a page that is in your list.
 - **View images:** click a card's image in the full list (or an image tile) to open the full-size viewer; use
   the arrow keys to step through a record's images, or **Open original** to see it in a tab.
@@ -50,7 +52,7 @@ change.
   read. **Revisit** is for things you come back to again and again: each record gets a **Read now** button that
   records when you last read it, the list always shows the least recently read first (never read at the top), and
   after **Read now** the record moves to the bottom to wait its turn. Deleting a folder keeps its records (they move to
-  Home). Move a record by choosing a folder (or Home) in its Edit dialog or in the popup. The list remembers which
+  Home). Move a record by choosing a folder (or Home) in its **Manage** dialog or in the popup. The list remembers which
   place you had open. Search and filters apply within the open place.
 - **Backup:** in the full list, use **Export JSON** and **Import JSON** at the bottom. When the same record exists
   in both places, the copy that was edited most recently is kept.

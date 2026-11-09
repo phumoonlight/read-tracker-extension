@@ -215,7 +215,7 @@ function CurrentRecord({
 
       <div className="row">
         <button type="button" className="btn" onClick={() => openList(`#edit=${record.id}`)}>
-          Edit details
+          Manage
         </button>
       </div>
     </>
