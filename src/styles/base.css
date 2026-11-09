@@ -22,6 +22,9 @@
   --ph-bg-l: 90%;
   --ph-fg-l: 32%;
 
+  /* Progress fill of press-and-hold buttons (drawn over the button's own colour) */
+  --hold-fill: #ffffff59;
+
   --radius: 8px;
   --radius-sm: 6px;
   --shadow: 0 1px 3px #1f232814, 0 8px 24px #1f23281a;
@@ -49,6 +52,8 @@
     --ph-sat: 35%;
     --ph-bg-l: 22%;
     --ph-fg-l: 78%;
+
+    --hold-fill: #0d111766;
 
     --shadow: 0 1px 3px #0008, 0 8px 24px #0009;
   }
@@ -446,4 +451,27 @@ dialog.viewer {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
+}
+
+/* Press-and-hold button: a fill sweeps across while held (duration from --hold-ms). */
+.hold-button {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.hold-fill {
+  position: absolute;
+  inset: 0;
+  width: 0;
+  background: var(--hold-fill);
+  pointer-events: none;
+}
+.hold-button.is-holding .hold-fill {
+  width: 100%;
+  transition: width var(--hold-ms, 1000ms) linear;
+}
+.hold-label {
+  position: relative;
 }

@@ -3,6 +3,7 @@ import { ConfirmDialog, Dialog } from '@/components/Dialog';
 import { RecordForm, newUrlRow, urlRowsFor, type RecordFormResult } from '@/components/RecordForm';
 import { SiteLabel } from '@/components/SiteLabel';
 import { ImageStrip, Thumbnail } from '@/components/Thumbnail';
+import { HoldButton } from '@/components/HoldButton';
 import { ImagePicker } from '@/components/ImagePicker';
 import { ImageViewer } from '@/components/ImageViewer';
 import { exportToFile, importFromFile } from '@/lib/backup-io';
@@ -188,7 +189,7 @@ export function App() {
   const openFolder = isFolderId(activeFolder) ? folders.find((f) => f.id === activeFolder) : undefined;
   const placeSettings = isFolderId(activeFolder) ? openFolder : home;
   const imageSize: ImageSize = placeSettings?.imageSize ?? 'medium';
-  // Revisit: "Read now" instead of statuses, always least recently read first.
+  // Revisit: "Update read" instead of statuses, always least recently read first.
   const revisit = placeSettings?.readMode === 'revisit';
 
   // If the selected tag disappears (last record with it deleted or retagged), stop filtering by it.
@@ -486,7 +487,7 @@ function Card({
 }: {
   record: ReadingRecord;
   layout: ViewMode;
-  /** Revisit place: show last read time and a "Read now" button instead of the status. */
+  /** Revisit place: show last read time and an "Update read" button instead of the status. */
   revisit: boolean;
   /** Large display sizes: show original files instead of the small previews. */
   originalImages: boolean;
@@ -496,15 +497,14 @@ function Card({
   onTag: (t: string) => void;
 }) {
   const href = openUrl(record);
-  const readNow = (
-    <button
-      type="button"
-      className="btn btn-small btn-primary read-now"
-      onClick={() => void markReadNow(record.id)}
-      title="Record that you read it now; it moves to the end of the list"
+  const updateRead = (
+    <HoldButton
+      className="btn btn-small btn-primary update-read"
+      onConfirm={() => markReadNow(record.id)}
+      title="Press and hold to record that you read it now; it then moves to the end of the list"
     >
-      Read now
-    </button>
+      Update read
+    </HoldButton>
   );
   return (
     <article className={`card card-${layout}`} data-status={record.status}>
@@ -557,14 +557,14 @@ function Card({
           </div>
         )}
       </div>
-      {/* List rows: Read now sits in the middle column, images span the row below the text. */}
-      {layout === 'list' && revisit && <div className="card-center">{readNow}</div>}
+      {/* List rows: Update read sits in the middle column, images span the row below the text. */}
+      {layout === 'list' && revisit && <div className="card-center">{updateRead}</div>}
       {layout === 'list' && record.images.length > 0 && (
         <ImageStrip record={record} onOpen={onView} original={originalImages} />
       )}
       <div className="card-actions">
         {revisit ? (
-          layout === 'grid' && readNow
+          layout === 'grid' && updateRead
         ) : (
           <select
             value={record.status}
@@ -825,7 +825,7 @@ function FolderBar({
               title={
                 m === 'status'
                   ? 'Status (default): mark records unread, reading or read'
-                  : 'Revisit: a "Read now" button records when you last read it; least recently read comes first'
+                  : 'Revisit: hold "Update read" to record when you last read it; least recently read comes first'
               }
             >
               {READ_MODE_LABEL[m]}

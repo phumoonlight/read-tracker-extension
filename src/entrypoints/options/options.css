@@ -118,7 +118,7 @@
 }
 
 /*
- * List rows: text | middle (Read now in Revisit) | buttons, with images on a second
+ * List rows: text | middle (Update read in Revisit) | buttons, with images on a second
  * row spanning the width. The two outer columns share the space equally, so the
  * middle column sits at the centre of the row.
  */
@@ -177,7 +177,7 @@
 }
 
 @media (max-width: 600px) {
-  /* Narrow screens: text, Read now, images, then buttons, stacked. */
+  /* Narrow screens: text, Update read, images, then buttons, stacked. */
   .card-list {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: 'body' 'center' 'images' 'actions';
@@ -293,8 +293,8 @@
   font-size: 12px;
 }
 
-/* Grid cards in Revisit: Read now fills the space the status picker used. */
-.card-grid .card-actions .read-now {
+/* Grid cards in Revisit: Update read fills the space the status picker used. */
+.card-grid .card-actions .update-read {
   flex: 1;
 }
 

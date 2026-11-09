@@ -55,10 +55,10 @@ unique), `folderId?`, `notes?`, `images` (ids, max `MAX_IMAGES` = 3, first = cov
 `hasThumbnail` with `images`, mapping an old thumbnail to image id `legacyImageId(recordId)` = `legacy-<recordId>`).
 
 Read modes (`readMode?` on `Folder` and `HomeSettings`; absent = `status`): **Status** is unread / reading / read.
-**Revisit** is for things read again and again: cards show "Read now" (`markReadNow`: status `read`, `readAt` = now)
+**Revisit** is for things read again and again: cards show a press-and-hold "Update read" button (`HoldButton`, `HOLD_MS` = 1 s; `markReadNow`: status `read`, `readAt` = now)
 and "Last read …" instead of a status, the list is always least recently read first (`queryRecords` sort `revisit`
 over the `readOrder` index `[_readSort, createdAt]`, where the derived `_readSort` = `readAt ?? 0`, so never-read
-records come first), and the status/sort filters and the Manage dialog's status picker are hidden. In list rows Read now sits in the centre
+records come first), and the status/sort filters and the Manage dialog's status picker are hidden. In list rows Update read sits in the centre
 column (`.card-center`; rows are a 3-column grid `body | center | actions` with images on a second row). Settings changes
 go through `updateFolderSettings` / `updateHomeSettings`, which merge and store defaults as absent.
 

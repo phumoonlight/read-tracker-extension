@@ -520,7 +520,7 @@ export async function updateFolderSettings(id: string, patch: PlaceSettings): Pr
 export const setFolderImageSize = (id: string, size: ImageSize) => updateFolderSettings(id, { imageSize: size });
 
 /**
- * Revisit mode's "Read now": stamp readAt with the current time (and mark it read).
+ * Revisit mode's "Update read": stamp readAt with the current time (and mark it read).
  * The record then sorts to the end of its Revisit list.
  */
 export const markReadNow = (id: string) =>

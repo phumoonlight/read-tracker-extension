@@ -79,7 +79,7 @@ interface Props {
   onCancel?: () => void;
   /** Hide tags and notes to keep the popup compact. */
   compact?: boolean;
-  /** Hide the status picker (records in a Revisit place are read with "Read now" instead). */
+  /** Hide the status picker (records in a Revisit place are read with "Update read" instead). */
   hideStatus?: boolean;
   /** Folders to choose from; the picker is hidden when there are none. */
   folders: readonly Folder[];

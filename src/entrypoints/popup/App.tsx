@@ -3,6 +3,7 @@ import { browser, type Browser } from 'wxt/browser';
 import { FolderSelect, RecordForm, newUrlRow } from '@/components/RecordForm';
 import { StatusPicker } from '@/components/StatusPicker';
 import { Thumbnail } from '@/components/Thumbnail';
+import { HoldButton } from '@/components/HoldButton';
 import { ImagePicker } from '@/components/ImagePicker';
 import { createRecord } from '@/lib/records';
 import {
@@ -171,16 +172,16 @@ function CurrentRecord({
         <div className="field">
           <span>{record.readAt ? `Last read ${formatDateTime(record.readAt)}` : 'Not read yet'}</span>
           <div className="row">
-            <button
-              type="button"
+            <HoldButton
               className="btn btn-primary"
-              onClick={async () => {
+              title="Press and hold to record that you read it now; it then moves to the end of the list"
+              onConfirm={async () => {
                 const next = await markReadNow(record.id);
                 if (next) onChange(next);
               }}
             >
-              Read now
-            </button>
+              Update read
+            </HoldButton>
           </div>
         </div>
       ) : (

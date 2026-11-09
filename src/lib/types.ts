@@ -88,7 +88,7 @@ export interface HomeSettings {
 /**
  * How a place (Home or a folder) tracks reading:
  * - 'status': unread / reading / read (the default).
- * - 'revisit': things you come back to repeatedly. A "Read now" button stamps readAt,
+ * - 'revisit': things you come back to repeatedly. Holding "Update read" stamps readAt,
  *   and the list is always least recently read first (never read at the top).
  */
 export type ReadMode = 'status' | 'revisit';
