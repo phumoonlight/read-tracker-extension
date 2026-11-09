@@ -386,3 +386,8 @@
   font-weight: 400;
   text-align: center;
 }
+
+/* Mark read / Mark unread in a row's centre column */
+.toggle-read {
+  font-weight: 700;
+}

@@ -4,7 +4,6 @@ import { RecordForm, newUrlRow, urlRowsFor, type RecordFormResult } from '@/comp
 import { UrlLink } from '@/components/UrlLink';
 import { ImageStrip } from '@/components/Thumbnail';
 import { HoldButton } from '@/components/HoldButton';
-import { StatusPicker } from '@/components/StatusPicker';
 import { ImagePicker } from '@/components/ImagePicker';
 import { ImageViewer } from '@/components/ImageViewer';
 import { decodeFolderFilter, encodeFolderFilter } from '@/lib/folders';
@@ -536,7 +535,17 @@ function Card({
         {revisit ? (
           updateRead
         ) : (
-          <StatusPicker value={record.status} onChange={(s) => void updateRecord(record.id, (r) => statusChange(r, s))} />
+          // One button: moves the record to the other tab.
+          <button
+            type="button"
+            className={`btn btn-small toggle-read${record.status === 'unread' ? ' btn-primary' : ''}`}
+            onClick={() => {
+              const next = record.status === 'unread' ? 'read' : 'unread';
+              void updateRecord(record.id, (r) => statusChange(r, next));
+            }}
+          >
+            {record.status === 'unread' ? 'Mark read' : 'Mark unread'}
+          </button>
         )}
       </div>
       {record.images.length > 0 && <ImageStrip record={record} onOpen={onView} original={originalImages} />}
