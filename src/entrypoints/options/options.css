@@ -75,22 +75,27 @@
 .card-links {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px 12px;
+  gap: 4px 6px;
   min-width: 0;
 }
+/* Each URL as an outlined chip */
 .url-link {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   max-width: 100%;
   min-width: 0;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
   font-size: 12px;
+  line-height: 1.4;
   color: var(--text-muted);
   text-decoration: none;
 }
 .url-link:hover {
+  border-color: var(--accent);
   color: var(--accent);
-  text-decoration: underline;
 }
 .url-link-text {
   overflow: hidden;
