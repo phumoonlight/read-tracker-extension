@@ -159,7 +159,7 @@ download is blocked by CORS. Don't add install-time permissions without a strong
 - `<Thumbnail>` (the cover) shows all of a record's images as a mosaic in one 16:10 box (1 full, 2 side by side,
   3 = large left + two stacked), so card sizes never depend on the image count; clicking an image opens the viewer
   at that index. Grid cards and the popup use it. List rows instead use `<ImageStrip>`: each image as its own
-  96px tile between the text and the actions (nothing when the record has no images).
+  tile below the text (96px at medium; nothing when the record has no images).
 - Records may have no images. `<Thumbnail>` then shows a placeholder tinted per site (`siteLabel` + `hueFor`,
   colors from the `--ph-*` tokens): the domain at size "large", its first letter at "small". Never derive the
   placeholder from the title (its first character can be a combining mark, e.g. in Thai).

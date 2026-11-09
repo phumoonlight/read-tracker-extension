@@ -127,11 +127,12 @@
   flex: 1;
 }
 
-/* List rows: images as separate tiles between the text and the actions */
+/* List rows: images as separate tiles below the text (wrapping if the row is narrow) */
 .image-strip {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  flex-shrink: 0;
+  margin-top: 4px;
 }
 /* Scoped under .image-strip so these win over the shared .thumb-button / .mosaic-cell
    rules regardless of stylesheet order. */
@@ -162,6 +163,9 @@
   }
   .image-strip .image-strip-cell {
     width: calc((100% - 12px) / 3);
+  }
+  .image-strip {
+    flex-wrap: nowrap;
   }
   .card-list .card-actions select {
     flex: 1;

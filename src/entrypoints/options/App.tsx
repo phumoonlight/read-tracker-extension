@@ -509,11 +509,11 @@ function Card({
             ))}
           </div>
         )}
+        {layout === 'list' && record.images.length > 0 && (
+          // List rows: each image as its own tile, below the text.
+          <ImageStrip record={record} onOpen={onView} original={originalImages} />
+        )}
       </div>
-      {layout === 'list' && record.images.length > 0 && (
-        // List rows: each image as its own tile, between the text and the actions.
-        <ImageStrip record={record} onOpen={onView} original={originalImages} />
-      )}
       <div className="card-actions">
         <select
           value={record.status}
