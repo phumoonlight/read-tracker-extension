@@ -164,7 +164,7 @@ function CurrentRecord({
   return (
     <>
       <div className="popup-body">
-        <div>
+        <div className="popup-record-info">
           <div className="current-title">{record.title}</div>
           {/* Relative time ("10 min ago"); the exact date and time are in the tooltip. */}
           <div
