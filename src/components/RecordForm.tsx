@@ -192,14 +192,15 @@ export function RecordForm({
           )}
         </div>
       )}
+      {children}
+
+      {/* Notes last: they're only shown here, not on the list. */}
       {!compact && (
         <label className="field">
           <span>Notes</span>
           <textarea rows={2} value={v.notes} onChange={(e) => set('notes', e.target.value)} />
         </label>
       )}
-
-      {children}
 
       {error && <span className="error">{error}</span>}
       <div className="form-footer">
