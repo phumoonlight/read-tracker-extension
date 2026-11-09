@@ -164,42 +164,40 @@
   justify-self: end;
 }
 
-/* List rows: images as separate tiles below the text, on one line; scrolls sideways if too wide */
+/*
+ * List rows: images as separate tiles below the text, always on one line inside the row
+ * (no scrolling). Each tile has a fixed height (--tile-h, set per image size below) and
+ * the image's own width while they fit; when they don't, tiles shrink (wider ones more)
+ * and the image is cropped to fill its tile (object-fit: cover). The viewer shows it whole.
+ * Scoped under .list .image-strip so these win over the shared .thumb-button /
+ * .mosaic-cell rules regardless of stylesheet order.
+ */
 .image-strip {
   display: flex;
   flex-wrap: nowrap;
   gap: 6px;
   margin-top: 4px;
-  overflow-x: auto;
-  /* A grid item would otherwise grow to fit all tiles instead of scrolling. */
+  overflow: hidden;
+  /* A grid item would otherwise grow to fit all tiles instead of staying in the row. */
   min-width: 0;
-  /* Room for the scrollbar under the tiles. */
-  padding-bottom: 4px;
-  scrollbar-width: thin;
 }
 .list .image-strip .image-strip-cell {
-  flex-shrink: 0;
-}
-/*
- * Image tiles: a fixed height (--tile-h, set per image size below) and the image's own
- * width, so the whole image shows, uncropped. Very wide images are capped at the row
- * width and fitted inside. Scoped under .list .image-strip so these win over the shared
- * .thumb-button / .mosaic-cell rules regardless of stylesheet order.
- */
-.list .image-strip .image-strip-cell {
+  flex: 0 1 auto;
+  min-width: 0;
   width: auto;
   height: var(--tile-h);
-  max-width: 100%;
-  /* Space held while the image loads. */
-  min-width: calc(var(--tile-h) * 0.6);
   aspect-ratio: auto;
   border-radius: var(--radius-sm);
+}
+/* Space held while an image loads (the tile is empty until then). */
+.list .image-strip .image-strip-cell:empty {
+  min-width: calc(var(--tile-h) * 0.6);
 }
 .list .image-strip .image-strip-cell img {
   width: auto;
   height: 100%;
   max-width: 100%;
-  object-fit: contain;
+  object-fit: cover;
 }
 .card-list .card-body {
   gap: 4px;
