@@ -429,3 +429,21 @@ dialog.viewer {
   flex-shrink: 0;
   border-radius: 2px;
 }
+
+/* One URL in the record form */
+.url-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.url-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}

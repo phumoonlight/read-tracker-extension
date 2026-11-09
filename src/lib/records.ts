@@ -1,5 +1,5 @@
 import { normalizeUrl } from './url';
-import type { MatchMode, ReadingRecord, ReadStatus } from './types';
+import type { MatchMode, ReadingRecord, ReadStatus, UrlEntry } from './types';
 
 export interface NewRecordInput {
   title: string;
@@ -12,6 +12,8 @@ export interface NewRecordInput {
   notes?: string;
   /** Omit for Home (no folder, the default). */
   folderId?: string;
+  /** Extra URLs (already validated, with match keys). */
+  otherUrls?: UrlEntry[];
 }
 
 /** True for absolute http(s) URLs: the only kind a record may link to. */
@@ -48,6 +50,7 @@ export function createRecord(input: NewRecordInput): ReadingRecord | { error: st
     tags: normalizeTags(input.tags ?? []),
     notes: input.notes?.trim() || undefined,
     ...(input.folderId ? { folderId: input.folderId } : {}),
+    ...(input.otherUrls?.length ? { otherUrls: input.otherUrls } : {}),
     images: [],
     createdAt: now,
     updatedAt: now,
@@ -61,8 +64,16 @@ export function normalizeTags(tags: string[]): string[] {
 
 export const parseTags = (text: string) => normalizeTags(text.split(','));
 
-/** The URL to open for a record: the last chapter for an in-progress series, else the entered URL. */
-export const openUrl = (r: ReadingRecord) => (r.matchMode === 'prefix' && r.lastReadUrl) || r.url;
+/** Every URL of a record, main one first. */
+export function urlEntries(r: Pick<ReadingRecord, 'url' | 'matchMode' | 'matchKey' | 'otherUrls'>): UrlEntry[] {
+  return [{ url: r.url, matchMode: r.matchMode, matchKey: r.matchKey }, ...(r.otherUrls ?? [])];
+}
+
+/** True if any of the record's URLs is a series prefix. */
+export const hasSeries = (r: ReadingRecord) => urlEntries(r).some((e) => e.matchMode === 'prefix');
+
+/** The URL to open for a record: the last chapter for an in-progress series, else the main URL. */
+export const openUrl = (r: ReadingRecord) => (hasSeries(r) && r.lastReadUrl) || r.url;
 
 /** "Nov 9, 2026, 2:03 PM" in the user's locale: for last-read times. */
 export const formatDateTime = (ms: number) =>

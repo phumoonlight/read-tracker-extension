@@ -4,9 +4,9 @@ import { legacyImageId } from './types';
  * The extension's IndexedDB database. The extension origin is shared, so the popup,
  * the list page and the background worker all open the same database.
  *
- * Stores (DB version 5):
+ * Stores (DB version 6):
  *   records     keyPath "id"; rows are ReadingRecord plus derived index fields (see storage.ts toRow)
- *               indexes: matchKey, updatedAt, createdAt, title (_title), status ([_rank, updatedAt]),
+ *               indexes: matchKeys (v6, multiEntry over all URLs; replaced matchKey), updatedAt, createdAt, title (_title), status ([_rank, updatedAt]),
  *                        tags (multiEntry), folderId (v3; records without a folder are not in it),
  *               readOrder ([_readSort, createdAt], v5)
  *   folders     keyPath "id"; Folder (v3)
@@ -18,7 +18,7 @@ import { legacyImageId } from './types';
  * SCHEMA_VERSION (types.ts) and is migrated lazily, see records-db.ts.
  */
 export const DB_NAME = 'read-tracker';
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 
 export const RECORDS = 'records';
 /** Removed in DB v4; only referenced by upgrade(). */
@@ -37,6 +37,7 @@ export const IDX = {
   folderId: 'folderId',
   recordId: 'recordId',
   readOrder: 'readOrder',
+  matchKeys: 'matchKeys',
 } as const;
 
 function upgrade(db: IDBDatabase, tx: IDBTransaction, oldVersion: number) {
@@ -76,21 +77,38 @@ function upgrade(db: IDBDatabase, tx: IDBTransaction, oldVersion: number) {
     };
   }
   if (oldVersion < 5) {
-    // Revisit order: least recently read first, never read (0) first of all, ties by age.
-    // Fill the derived _readSort field on existing rows so they appear in the index.
-    const records = tx.objectStore(RECORDS);
-    records.createIndex(IDX.readOrder, ['_readSort', 'createdAt']);
-    const cur = records.openCursor();
-    cur.onsuccess = () => {
-      const c = cur.result;
-      if (!c) return;
-      const row = c.value as { readAt?: unknown; _readSort?: unknown };
-      if (typeof row._readSort !== 'number') {
-        c.update({ ...row, _readSort: typeof row.readAt === 'number' ? row.readAt : 0 });
-      }
-      c.continue();
-    };
+    // Revisit order: least recently read first, never read (_readSort 0) first, ties by age.
+    tx.objectStore(RECORDS).createIndex(IDX.readOrder, ['_readSort', 'createdAt']);
   }
+  if (oldVersion < 6) {
+    // Records can have several URLs: one multiEntry index over "mode|key" tags of all of
+    // them (see matchTag in match.ts) replaces the single matchKey index.
+    const records = tx.objectStore(RECORDS);
+    records.deleteIndex(IDX.matchKey);
+    records.createIndex(IDX.matchKeys, '_matchKeys', { multiEntry: true });
+  }
+  if (oldVersion >= 2 && oldVersion < 6) backfillDerivedFields(tx);
+}
+
+/**
+ * Fill derived index fields that older rows lack, in ONE pass (two cursors updating the
+ * same rows in one upgrade would overwrite each other's changes). Must match toRow() in
+ * storage.ts; the next ordinary write recomputes them anyway.
+ */
+function backfillDerivedFields(tx: IDBTransaction) {
+  const cur = tx.objectStore(RECORDS).openCursor();
+  cur.onsuccess = () => {
+    const c = cur.result;
+    if (!c) return;
+    const row = c.value as Record<string, unknown>;
+    c.update({
+      ...row,
+      _readSort: typeof row.readAt === 'number' ? row.readAt : 0,
+      // Pre-v6 rows have only the main URL.
+      _matchKeys: [`${row.matchMode === 'exact' ? 'e' : 'p'}|${String(row.matchKey)}`],
+    });
+    c.continue();
+  };
 }
 
 let dbPromise: Promise<IDBDatabase> | undefined;

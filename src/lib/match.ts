@@ -1,4 +1,5 @@
-import type { ReadingRecord } from './types';
+import { urlEntries } from './records';
+import type { MatchMode, ReadingRecord, UrlEntry } from './types';
 
 /**
  * True when `url` (normalized) falls under `prefix` (normalized).
@@ -19,7 +20,6 @@ export function prefixMatches(url: string, prefix: string): boolean {
  * Every matchKey that could match `url`, longest first: the URL itself, then the URL cut
  * before each "/" or "?" (the same boundaries prefixMatches accepts).
  * "site.com/a/b?x=1" -> ["site.com/a/b?x=1", "site.com/a/b", "site.com/a", "site.com"].
- * Looking these up on the matchKey index finds a match without loading every record.
  */
 export function candidateKeys(url: string): string[] {
   const keys = [url];
@@ -30,38 +30,64 @@ export function candidateKeys(url: string): string[] {
 }
 
 /**
- * Pick the record for `url` from index lookups of its candidateKeys().
- * Same rules as findMatch: an exact record on the full URL wins, otherwise the
- * longest prefix record.
+ * Index key for one URL entry: mode and key together ("e|site.com/a", "p|site.com/novel"),
+ * so one multiEntry index over all of a record's URLs answers both kinds of lookup.
+ */
+export const matchTag = (mode: MatchMode, key: string) => `${mode === 'exact' ? 'e' : 'p'}|${key}`;
+
+/** All index tags of a record (one per URL). */
+export const recordMatchTags = (r: ReadingRecord) => [
+  ...new Set(urlEntries(r).map((e) => matchTag(e.matchMode, e.matchKey))),
+];
+
+/** The tags to look up for a page: its exact tag, then a prefix tag per candidate key (longest first). */
+export function lookupTags(url: string): string[] {
+  return [matchTag('exact', url), ...candidateKeys(url).map((k) => matchTag('prefix', k))];
+}
+
+/**
+ * Pick the record for `url` from index lookups of lookupTags(url).
+ * Same rules as findMatch: an exact URL wins, otherwise the longest prefix.
  */
 export function chooseMatch(
   url: string,
-  hitsByKey: ReadonlyMap<string, readonly ReadingRecord[]>,
+  hitsByTag: ReadonlyMap<string, readonly ReadingRecord[]>,
 ): ReadingRecord | undefined {
-  const exact = hitsByKey.get(url)?.find((r) => r.matchMode === 'exact');
-  if (exact) return exact;
-  for (const key of candidateKeys(url)) {
-    const prefix = hitsByKey.get(key)?.find((r) => r.matchMode === 'prefix');
-    if (prefix) return prefix;
+  for (const tag of lookupTags(url)) {
+    const hit = hitsByTag.get(tag)?.[0];
+    if (hit) return hit;
   }
   return undefined;
 }
 
+/** Which of a record's URLs matches `url` (exact first, then the longest prefix), if any. */
+export function matchedEntry(record: ReadingRecord, url: string): UrlEntry | undefined {
+  const entries = urlEntries(record);
+  const exact = entries.find((e) => e.matchMode === 'exact' && e.matchKey === url);
+  if (exact) return exact;
+  let best: UrlEntry | undefined;
+  for (const e of entries) {
+    if (e.matchMode === 'prefix' && prefixMatches(url, e.matchKey) && (!best || e.matchKey.length > best.matchKey.length)) {
+      best = e;
+    }
+  }
+  return best;
+}
+
 /**
  * Reference implementation over a full list (used by tests to check chooseMatch).
- * An exact match wins over any prefix match; among prefix records the longest matchKey wins.
+ * An exact URL on any record wins over any prefix; among prefixes the longest wins.
  */
 export function findMatch(
   records: Iterable<ReadingRecord>,
   normalizedUrl: string,
 ): ReadingRecord | undefined {
-  let best: ReadingRecord | undefined;
+  let best: { record: ReadingRecord; length: number } | undefined;
   for (const r of records) {
-    if (r.matchMode === 'exact') {
-      if (r.matchKey === normalizedUrl) return r;
-    } else if (prefixMatches(normalizedUrl, r.matchKey)) {
-      if (!best || r.matchKey.length > best.matchKey.length) best = r;
-    }
+    const e = matchedEntry(r, normalizedUrl);
+    if (!e) continue;
+    if (e.matchMode === 'exact') return r;
+    if (!best || e.matchKey.length > best.length) best = { record: r, length: e.matchKey.length };
   }
-  return best;
+  return best?.record;
 }

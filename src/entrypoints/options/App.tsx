@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { ConfirmDialog, Dialog } from '@/components/Dialog';
-import { RecordForm, defaultPrefix, type RecordFormResult } from '@/components/RecordForm';
+import { RecordForm, newUrlRow, urlRowsFor, type RecordFormResult } from '@/components/RecordForm';
 import { SiteLabel } from '@/components/SiteLabel';
 import { ImageStrip, Thumbnail } from '@/components/Thumbnail';
 import { ImagePicker } from '@/components/ImagePicker';
 import { ImageViewer } from '@/components/ImageViewer';
 import { exportToFile, importFromFile } from '@/lib/backup-io';
 import { decodeFolderFilter, encodeFolderFilter } from '@/lib/folders';
-import { createRecord, formatDateTime, openUrl } from '@/lib/records';
+import { createRecord, formatDateTime, hasSeries, openUrl, urlEntries } from '@/lib/records';
+import { siteLabel } from '@/lib/url';
 import {
   countRecords,
   createFolder,
@@ -345,9 +346,7 @@ export function App() {
             folders={folders}
             initial={{
               title: '',
-              url: '',
-              matchMode: 'exact',
-              prefix: '',
+              urls: [newUrlRow()],
               status: 'unread',
               tags: '',
               notes: '',
@@ -463,6 +462,19 @@ function LoadMore({ onLoad, pageKey }: { onLoad: () => void; pageKey: unknown })
   );
 }
 
+/** One URL per distinct site of a record (main URL first), for the site icons on its card. */
+function sites(record: ReadingRecord): string[] {
+  const seen = new Set<string>();
+  return urlEntries(record)
+    .map((e) => e.url)
+    .filter((url) => {
+      const s = siteLabel(url);
+      if (seen.has(s)) return false;
+      seen.add(s);
+      return true;
+    });
+}
+
 function Card({
   record,
   layout,
@@ -521,12 +533,16 @@ function Card({
               <span className="status-dot" /> {STATUS_LABEL[record.status]}
             </>
           )}
-          {record.matchMode === 'prefix' && ' · series'}
+          {hasSeries(record) && ' · series'}
           {!revisit && record.readAt && ` · read ${new Date(record.readAt).toLocaleDateString()}`}
-          {' · '}
-          <SiteLabel url={record.url} />
+          {sites(record).map((url) => (
+            <span key={url}>
+              {' · '}
+              <SiteLabel url={url} />
+            </span>
+          ))}
         </div>
-        {record.matchMode === 'prefix' && record.lastReadUrl && (
+        {hasSeries(record) && record.lastReadUrl && (
           <div className="card-meta card-last" title={record.lastReadUrl}>
             Last: {record.lastReadUrl.replace(/^https?:\/\/(www\.)?/, '')}
           </div>
@@ -619,10 +635,12 @@ function EditDialog({
       url: v.url,
       matchMode: v.matchMode,
       matchKey: v.matchKey,
+      otherUrls: v.otherUrls,
       tags: v.tags,
       notes: v.notes,
       folderId: v.folderId,
-      lastReadUrl: v.matchMode === 'prefix' ? r.lastReadUrl : undefined,
+      // Keep series progress only while the record still has a series URL.
+      lastReadUrl: [v, ...v.otherUrls].some((e) => e.matchMode === 'prefix') ? r.lastReadUrl : undefined,
     }));
     onClose();
   }
@@ -640,9 +658,7 @@ function EditDialog({
         hideStatus={(record.folderId ? folders.find((f) => f.id === record.folderId) : home)?.readMode === 'revisit'}
         initial={{
           title: record.title,
-          url: record.url,
-          matchMode: record.matchMode,
-          prefix: record.matchMode === 'prefix' ? record.matchKey : defaultPrefix(record.url),
+          urls: urlRowsFor(record),
           status: record.status,
           tags: record.tags.join(', '),
           notes: record.notes ?? '',

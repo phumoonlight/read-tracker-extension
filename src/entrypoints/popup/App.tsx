@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { browser, type Browser } from 'wxt/browser';
-import { FolderSelect, RecordForm, defaultPrefix } from '@/components/RecordForm';
+import { FolderSelect, RecordForm, newUrlRow } from '@/components/RecordForm';
 import { StatusPicker } from '@/components/StatusPicker';
 import { Thumbnail } from '@/components/Thumbnail';
 import { ImagePicker } from '@/components/ImagePicker';
@@ -14,7 +14,8 @@ import {
   statusChange,
   updateRecord,
 } from '@/lib/storage';
-import { formatDateTime } from '@/lib/records';
+import { formatDateTime, hasSeries } from '@/lib/records';
+import { matchedEntry } from '@/lib/match';
 import { getActiveTab } from '@/lib/tab';
 import { STATUS_LABEL, type Folder, type HomeSettings, type ReadingRecord, type ReadStatus } from '@/lib/types';
 import { normalizeUrl } from '@/lib/url';
@@ -95,9 +96,7 @@ function AddPage({
         submitLabel="Add current page"
         initial={{
           title: tab.title ?? '',
-          url: tab.url,
-          matchMode: 'exact',
-          prefix: defaultPrefix(tab.url),
+          urls: [newUrlRow(tab.url)],
           status: 'unread',
           tags: '',
           notes: '',
@@ -107,7 +106,7 @@ function AddPage({
           const created = createRecord({ ...v, prefix: v.matchKey });
           if ('error' in created) throw new Error(created.error);
           const record: ReadingRecord =
-            created.matchMode === 'prefix' && created.status === 'reading' ? { ...created, lastReadUrl: tab.url } : created;
+            hasSeries(created) && created.status === 'reading' ? { ...created, lastReadUrl: tab.url } : created;
           await putRecord(record);
           onAdded(record);
         }}
@@ -129,6 +128,10 @@ function CurrentRecord({
   home: HomeSettings | undefined;
   onChange: (r: ReadingRecord) => void;
 }) {
+  // Which of the record's URLs this page matched (a record can have several).
+  const tabKey = normalizeUrl(tab.url);
+  const matched = tabKey ? matchedEntry(record, tabKey) : undefined;
+  const viaPrefix = matched?.matchMode === 'prefix';
   // The record's place decides how it is read (Status or Revisit).
   const place = record.folderId ? folders.find((f) => f.id === record.folderId) : home;
   const revisit = place?.readMode === 'revisit';
@@ -143,12 +146,12 @@ function CurrentRecord({
     const next = await updateRecord(record.id, (r) => ({
       ...statusChange(r, status),
       // Starting a series from this page counts as visiting it.
-      ...(r.matchMode === 'prefix' && status === 'reading' ? { lastReadUrl: tab.url } : {}),
+      ...(viaPrefix && status === 'reading' ? { lastReadUrl: tab.url } : {}),
     }));
     if (next) onChange(next);
   }
 
-  const continueUrl = record.matchMode === 'prefix' && record.lastReadUrl !== tab.url ? record.lastReadUrl : undefined;
+  const continueUrl = hasSeries(record) && record.lastReadUrl !== tab.url ? record.lastReadUrl : undefined;
 
   return (
     <>
@@ -158,9 +161,9 @@ function CurrentRecord({
           <div className="current-title">{record.title}</div>
           <div className="current-meta">
             <span className="status-dot" /> {STATUS_LABEL[record.status]}
-            {record.matchMode === 'prefix' && <> · series</>}
+            {viaPrefix && <> · series</>}
           </div>
-          {record.matchMode === 'prefix' && <div className="current-meta">Prefix: {record.matchKey}</div>}
+          {viaPrefix && <div className="current-meta">Prefix: {matched?.matchKey}</div>}
         </div>
       </div>
 

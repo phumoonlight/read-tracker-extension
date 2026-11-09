@@ -1,5 +1,6 @@
 import { browser } from 'wxt/browser';
 import { defineBackground } from 'wxt/utils/define-background';
+import { matchedEntry } from '@/lib/match';
 import { findRecordForUrl, onRecordsChanged, updateRecord } from '@/lib/storage';
 import { normalizeUrl } from '@/lib/url';
 import type { ReadingRecord } from '@/lib/types';
@@ -30,7 +31,16 @@ export default defineBackground(() => {
     });
 
     // Series progress: remember the latest chapter visited while reading.
-    if (visited && url && match?.matchMode === 'prefix' && match.status === 'reading' && match.lastReadUrl !== url) {
+    // (The record may have several URLs: what counts is that this page matched one of its series prefixes.)
+    if (
+      visited &&
+      url &&
+      key &&
+      match &&
+      matchedEntry(match, key)?.matchMode === 'prefix' &&
+      match.status === 'reading' &&
+      match.lastReadUrl !== url
+    ) {
       await updateRecord(match.id, (r) =>
         r.status === 'reading' && r.lastReadUrl !== url ? { lastReadUrl: url } : {},
       );

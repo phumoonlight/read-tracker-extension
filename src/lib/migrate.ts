@@ -16,6 +16,9 @@ const MIGRATIONS: Record<number, (r: RawRecord) => RawRecord> = {
     const images = Array.isArray(r.images) ? r.images : hasThumbnail === true ? [legacyImageId(String(r.id))] : [];
     return { ...rest, images };
   },
+  // v4 adds optional `otherUrls`. Absent means only the main URL, so v3 records are valid.
+  // (Bumped anyway so an older build refuses v4 backups instead of silently dropping URLs.)
+  3: (r) => r,
 };
 
 /** Bring a stored or imported record up to SCHEMA_VERSION. Throws if `fromVersion` is newer than this build. */

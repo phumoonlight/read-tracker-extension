@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { candidateKeys, chooseMatch, findMatch, prefixMatches } from '@/lib/match';
-import type { ReadingRecord } from '@/lib/types';
+import {
+  candidateKeys,
+  chooseMatch,
+  findMatch,
+  lookupTags,
+  matchedEntry,
+  prefixMatches,
+  recordMatchTags,
+} from '@/lib/match';
+import type { ReadingRecord, UrlEntry } from '@/lib/types';
 import { normalizeUrl } from '@/lib/url';
 import { rec } from './fixtures';
 
@@ -78,9 +86,9 @@ describe('candidateKeys', () => {
   });
 });
 
-/** What the matchKey index returns for each candidate key. */
+/** What the multiEntry matchKeys index returns for each lookup tag. */
 function indexHits(records: ReadingRecord[], url: string) {
-  return new Map(candidateKeys(url).map((k) => [k, records.filter((r) => r.matchKey === k)]));
+  return new Map(lookupTags(url).map((t) => [t, records.filter((r) => recordMatchTags(r).includes(t))]));
 }
 
 describe('chooseMatch (index lookup) agrees with findMatch (full scan)', () => {
@@ -127,10 +135,52 @@ describe('chooseMatch (index lookup) agrees with findMatch (full scan)', () => {
         const matchKey = randomKey();
         if (seen.has(matchMode + matchKey)) continue;
         seen.add(matchMode + matchKey);
-        records.push(rec({ matchMode, matchKey }));
+        // Some records get extra URLs (any mode); keys stay distinct per mode across all records.
+        const otherUrls: UrlEntry[] = [];
+        for (let k = rand(3); k > 0; k--) {
+          const mode = rand(2) ? 'exact' : 'prefix';
+          const key = randomKey();
+          if (seen.has(mode + key)) continue;
+          seen.add(mode + key);
+          otherUrls.push({ url: `https://${key}`, matchMode: mode, matchKey: key });
+        }
+        records.push(rec({ matchMode, matchKey, otherUrls }));
       }
       const url = randomKey();
       expect(chooseMatch(url, indexHits(records, url))).toBe(findMatch(records, url));
     }
+  });
+});
+
+describe('records with several URLs', () => {
+  const r = rec({
+    id: 'multi',
+    matchMode: 'exact',
+    matchKey: 'a.com/post',
+    otherUrls: [
+      { url: 'https://mirror.org/post', matchMode: 'exact', matchKey: 'mirror.org/post' },
+      { url: 'https://b.com/series', matchMode: 'prefix', matchKey: 'b.com/series' },
+    ],
+  });
+  const other = rec({ id: 'other', matchMode: 'prefix', matchKey: 'b.com' });
+
+  it('matches on any of its URLs', () => {
+    for (const url of ['a.com/post', 'mirror.org/post', 'b.com/series/ch-2']) {
+      expect(findMatch([r, other], url)).toBe(r);
+      expect(chooseMatch(url, indexHits([r, other], url))).toBe(r);
+    }
+    expect(findMatch([r, other], 'b.com/elsewhere')).toBe(other);
+    expect(findMatch([r], 'c.com')).toBeUndefined();
+  });
+
+  it('reports which URL matched', () => {
+    expect(matchedEntry(r, 'mirror.org/post')?.url).toBe('https://mirror.org/post');
+    expect(matchedEntry(r, 'b.com/series/ch-9')).toMatchObject({ matchMode: 'prefix', matchKey: 'b.com/series' });
+    expect(matchedEntry(r, 'a.com/post')).toMatchObject({ matchMode: 'exact' });
+    expect(matchedEntry(r, 'nowhere.com')).toBeUndefined();
+  });
+
+  it('indexes one tag per distinct URL', () => {
+    expect(recordMatchTags(r).sort()).toEqual(['e|a.com/post', 'e|mirror.org/post', 'p|b.com/series']);
   });
 });

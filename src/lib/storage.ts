@@ -2,7 +2,8 @@ import { browser } from 'wxt/browser';
 import { FOLDERS, IDX, IMAGES, META, RECORDS, req, withTx } from './db';
 import { isPermutation, type NewImage, type StoredImage } from './images';
 import { cleanFolderName, folderNameError, newFolder, sortFolders } from './folders';
-import { candidateKeys, chooseMatch } from './match';
+import { chooseMatch, lookupTags, recordMatchTags } from './match';
+import { urlEntries } from './records';
 import { migrateRecord } from './migrate';
 import {
   MAX_IMAGES,
@@ -36,22 +37,32 @@ interface Row extends ReadingRecord {
   _rank: number;
   /** readAt, or 0 if never read: the Revisit order (least recently read first). */
   _readSort: number;
+  /** "mode|key" tag of every URL (see matchTag): the multiEntry matchKeys index. */
+  _matchKeys: string[];
 }
 
 const RANK: Record<ReadStatus, number> = { unread: 2, reading: 1, read: 0 };
 
 function toRow(r: ReadingRecord): Row {
-  const row: Row = { ...r, _title: r.title.toLocaleLowerCase(), _rank: RANK[r.status], _readSort: r.readAt ?? 0 };
+  const row: Row = {
+    ...r,
+    _title: r.title.toLocaleLowerCase(),
+    _rank: RANK[r.status],
+    _readSort: r.readAt ?? 0,
+    _matchKeys: recordMatchTags(r),
+  };
+  if (!row.otherUrls?.length) delete row.otherUrls;
   // Keep Home (no folder) as an absent property (not stored as undefined).
   if (row.folderId === undefined) delete row.folderId;
   return row;
 }
 
 function fromRow(row: Row): ReadingRecord {
-  const { _title, _rank, _readSort, ...r } = row;
+  const { _title, _rank, _readSort, _matchKeys, ...r } = row;
   void _title;
   void _rank;
   void _readSort;
+  void _matchKeys;
   return r;
 }
 
@@ -154,10 +165,10 @@ export async function getAllRecords(): Promise<ReadingRecord[]> {
 export async function findRecordForUrl(normalizedUrl: string): Promise<ReadingRecord | undefined> {
   await ensureReady();
   return withTx(RECORDS, 'readonly', async (tx) => {
-    const index = tx.objectStore(RECORDS).index(IDX.matchKey);
-    const keys = candidateKeys(normalizedUrl);
-    const hits = await Promise.all(keys.map((k) => req(index.getAll(k)) as Promise<Row[]>));
-    const match = chooseMatch(normalizedUrl, new Map(keys.map((k, i) => [k, hits[i] ?? []])));
+    const index = tx.objectStore(RECORDS).index(IDX.matchKeys);
+    const tags = lookupTags(normalizedUrl);
+    const hits = await Promise.all(tags.map((t) => req(index.getAll(t)) as Promise<Row[]>));
+    const match = chooseMatch(normalizedUrl, new Map(tags.map((t, i) => [t, hits[i] ?? []])));
     return match && fromRow(match as Row);
   });
 }
@@ -219,7 +230,10 @@ export async function queryRecords(q: RecordQuery): Promise<{ records: ReadingRe
     (!q.status || r.status === q.status) &&
     (!q.tag || r.tags.includes(q.tag)) &&
     (q.folder === undefined || (r.folderId ?? null) === q.folder) &&
-    (!search || [r._title, r.url.toLowerCase(), (r.notes ?? '').toLowerCase(), ...r.tags].some((s) => s.includes(search)));
+    (!search ||
+      [r._title, ...urlEntries(r).map((e) => e.url.toLowerCase()), (r.notes ?? '').toLowerCase(), ...r.tags].some((s) =>
+        s.includes(search),
+      ));
 
   return withTx(RECORDS, 'readonly', async (tx) => {
     const { index, direction } = SORT_INDEX[q.sort];

@@ -39,6 +39,9 @@ change.
 - **Add a page:** click the toolbar icon, check the title, choose **This page** or **Series (prefix)**, pick a
   status and click **Add current page**.
 - **Manage a record:** click **Manage** on its card (or in the popup) to edit its details, folder and images.
+  A record can have several URLs (up to 10): use **+ Add URL** for a mirror or the same series on another site.
+  Each URL matches on its own (this page, or a series prefix), so the badge shows the record on any of them; the
+  first one is the main URL that the title opens.
   **Delete record** is at the bottom of that dialog and asks for confirmation.
 - **Change status, folder or images:** open the popup on a page that is in your list.
 - **View images:** click a card's image in the full list (or an image tile) to open the full-size viewer; use

@@ -1,14 +1,21 @@
 import { useState, type FormEvent } from 'react';
-import { computeMatchKey, parseTags } from '@/lib/records';
+import { matchTag } from '@/lib/match';
+import { computeMatchKey, parseTags, urlEntries } from '@/lib/records';
 import { normalizeUrl, suggestPrefix } from '@/lib/url';
-import type { Folder, MatchMode, ReadStatus } from '@/lib/types';
+import { MAX_URLS, type Folder, type MatchMode, type ReadingRecord, type ReadStatus, type UrlEntry } from '@/lib/types';
 import { StatusPicker } from './StatusPicker';
 
-export interface RecordFormValues {
-  title: string;
+/** One editable URL: the link itself, how it matches, and the series prefix (prefix mode). */
+export interface UrlRow {
   url: string;
   matchMode: MatchMode;
   prefix: string;
+}
+
+export interface RecordFormValues {
+  title: string;
+  /** The first row is the main URL (opened from the title). */
+  urls: UrlRow[];
   status: ReadStatus;
   tags: string;
   notes: string;
@@ -18,9 +25,12 @@ export interface RecordFormValues {
 
 export interface RecordFormResult {
   title: string;
+  /** Main URL. */
   url: string;
   matchMode: MatchMode;
   matchKey: string;
+  /** The other URLs, validated, with match keys. */
+  otherUrls: UrlEntry[];
   status: ReadStatus;
   tags: string[];
   notes?: string;
@@ -30,6 +40,36 @@ export interface RecordFormResult {
 export function defaultPrefix(url: string): string {
   const n = normalizeUrl(url);
   return n ? suggestPrefix(n) : '';
+}
+
+export const newUrlRow = (url = ''): UrlRow => ({ url, matchMode: 'exact', prefix: defaultPrefix(url) });
+
+/** Form rows for an existing record's URLs. */
+export const urlRowsFor = (r: ReadingRecord): UrlRow[] =>
+  urlEntries(r).map((e) => ({
+    url: e.url,
+    matchMode: e.matchMode,
+    prefix: e.matchMode === 'prefix' ? e.matchKey : defaultPrefix(e.url),
+  }));
+
+/**
+ * Validate the URL rows. Blank rows after the first are ignored. Returns the entries (main
+ * first) or an error naming the row.
+ */
+export function validateUrlRows(rows: readonly UrlRow[]): UrlEntry[] | { error: string } {
+  const entries: UrlEntry[] = [];
+  const seen = new Set<string>();
+  for (const [i, row] of rows.entries()) {
+    if (i > 0 && !row.url.trim()) continue;
+    const label = i === 0 ? 'Main URL' : `URL ${i + 1}`;
+    const key = computeMatchKey(row.url, row.matchMode, row.prefix);
+    if (typeof key !== 'string') return { error: `${label}: ${key.error}` };
+    const tag = matchTag(row.matchMode, key);
+    if (seen.has(tag)) return { error: `${label} matches the same pages as another URL of this record.` };
+    seen.add(tag);
+    entries.push({ url: row.url.trim(), matchMode: row.matchMode, matchKey: key });
+  }
+  return entries;
 }
 
 interface Props {
@@ -50,22 +90,25 @@ export function RecordForm({ initial, submitLabel, onSubmit, onCancel, compact, 
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
   const set = <K extends keyof RecordFormValues>(k: K, value: RecordFormValues[K]) => setV((p) => ({ ...p, [k]: value }));
-
-  const matchKey = computeMatchKey(v.url, v.matchMode, v.prefix);
+  const setRow = (i: number, patch: Partial<UrlRow>) =>
+    setV((p) => ({ ...p, urls: p.urls.map((r, j) => (j === i ? { ...r, ...patch } : r)) }));
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (typeof matchKey !== 'string') {
-      setError(matchKey.error);
+    const entries = validateUrlRows(v.urls);
+    if ('error' in entries) {
+      setError(entries.error);
       return;
     }
+    const [main, ...others] = entries as [UrlEntry, ...UrlEntry[]];
     setSaving(true);
     try {
       await onSubmit({
-        title: v.title.trim() || v.url.trim(),
-        url: v.url.trim(),
-        matchMode: v.matchMode,
-        matchKey,
+        title: v.title.trim() || main.url,
+        url: main.url,
+        matchMode: main.matchMode,
+        matchKey: main.matchKey,
+        otherUrls: others,
         status: v.status,
         tags: parseTags(v.tags),
         notes: v.notes.trim() || undefined,
@@ -85,35 +128,27 @@ export function RecordForm({ initial, submitLabel, onSubmit, onCancel, compact, 
         <span>Title</span>
         <input type="text" value={v.title} onChange={(e) => set('title', e.target.value)} />
       </label>
-      <label className="field">
-        <span>URL</span>
-        <input type="url" required value={v.url} onChange={(e) => set('url', e.target.value)} />
-      </label>
 
-      <div className="field">
-        <span>Match</span>
-        <div className="segmented" role="group" aria-label="Match mode">
-          <button type="button" aria-pressed={v.matchMode === 'exact'} onClick={() => set('matchMode', 'exact')}>
-            This page
-          </button>
+      {v.urls.map((row, i) => (
+        <UrlRowEditor
+          key={i}
+          index={i}
+          row={row}
+          onChange={(patch) => setRow(i, patch)}
+          onRemove={v.urls.length > 1 ? () => setV((p) => ({ ...p, urls: p.urls.filter((_, j) => j !== i) })) : undefined}
+        />
+      ))}
+      {v.urls.length < MAX_URLS && (
+        <div>
           <button
             type="button"
-            aria-pressed={v.matchMode === 'prefix'}
-            onClick={() => setV((p) => ({ ...p, matchMode: 'prefix', prefix: p.prefix || defaultPrefix(p.url) }))}
+            className="btn btn-small btn-ghost"
+            onClick={() => setV((p) => ({ ...p, urls: [...p.urls, newUrlRow()] }))}
           >
-            Series (prefix)
+            + Add URL
           </button>
         </div>
-      </div>
-      {v.matchMode === 'prefix' && (
-        <label className="field">
-          <span>Series prefix: every page under it matches</span>
-          <input type="text" value={v.prefix} onChange={(e) => set('prefix', e.target.value)} />
-        </label>
       )}
-      <small className="muted" style={{ wordBreak: 'break-all' }}>
-        Match key: {typeof matchKey === 'string' ? <code>{matchKey}</code> : <span className="error">{matchKey.error}</span>}
-      </small>
 
       {!hideStatus && (
         <div className="field">
@@ -147,6 +182,67 @@ export function RecordForm({ initial, submitLabel, onSubmit, onCancel, compact, 
         </button>
       </div>
     </form>
+  );
+}
+
+function UrlRowEditor({
+  index,
+  row,
+  onChange,
+  onRemove,
+}: {
+  index: number;
+  row: UrlRow;
+  onChange: (patch: Partial<UrlRow>) => void;
+  onRemove?: () => void;
+}) {
+  const main = index === 0;
+  // Extra rows may be left blank (ignored on save); the main URL is required.
+  const blank = !main && !row.url.trim();
+  const matchKey = blank ? undefined : computeMatchKey(row.url, row.matchMode, row.prefix);
+  return (
+    <div className="url-row">
+      <div className="url-row-head">
+        <span>{main ? 'Main URL (opened from the title)' : `URL ${index + 1}`}</span>
+        {onRemove && (
+          <button type="button" className="btn btn-small btn-ghost" onClick={onRemove} aria-label={`Remove URL ${index + 1}`}>
+            Remove
+          </button>
+        )}
+      </div>
+      <input
+        type="url"
+        required={main}
+        value={row.url}
+        placeholder="https://"
+        aria-label={main ? 'Main URL' : `URL ${index + 1}`}
+        onChange={(e) => onChange({ url: e.target.value })}
+      />
+      <div className="segmented" role="group" aria-label={`Match mode for URL ${index + 1}`}>
+        <button type="button" aria-pressed={row.matchMode === 'exact'} onClick={() => onChange({ matchMode: 'exact' })}>
+          This page
+        </button>
+        <button
+          type="button"
+          aria-pressed={row.matchMode === 'prefix'}
+          onClick={() => onChange({ matchMode: 'prefix', prefix: row.prefix || defaultPrefix(row.url) })}
+        >
+          Series (prefix)
+        </button>
+      </div>
+      {row.matchMode === 'prefix' && (
+        <label className="field">
+          <span>Series prefix: every page under it matches</span>
+          <input type="text" value={row.prefix} onChange={(e) => onChange({ prefix: e.target.value })} />
+        </label>
+      )}
+      {matchKey !== undefined && (
+        <small className="muted" style={{ wordBreak: 'break-all' }}>
+          Match key:{' '}
+          {typeof matchKey === 'string' ? <code>{matchKey}</code> : <span className="error">{matchKey.error}</span>}
+        </small>
+      )}
+    </div>
   );
 }
 

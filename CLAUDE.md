@@ -51,7 +51,7 @@ public/icon/             extension icons
 `ReadingRecord` (src/lib/types.ts): `id` (crypto.randomUUID), `title`, `url` (as entered), `matchKey`,
 `matchMode` ("exact" | "prefix"), `status` ("unread" | "reading" | "read"), `lastReadUrl?`, `tags` (lowercase,
 unique), `folderId?`, `notes?`, `images` (ids, max `MAX_IMAGES` = 3, first = cover), `createdAt`, `updatedAt`,
-`readAt?`. Timestamps are epoch milliseconds. Current `SCHEMA_VERSION` is 3 (v2 added `folderId`; v3 replaced
+`readAt?`, `otherUrls?`. Timestamps are epoch milliseconds. Current `SCHEMA_VERSION` is 4 (v4 added `otherUrls`; v2 added `folderId`; v3 replaced
 `hasThumbnail` with `images`, mapping an old thumbnail to image id `legacyImageId(recordId)` = `legacy-<recordId>`).
 
 Read modes (`readMode?` on `Folder` and `HomeSettings`; absent = `status`): **Status** is unread / reading / read.
@@ -74,10 +74,10 @@ Home or one folder, and search/filters apply within it). Names are trimmed, whit
 and moves them to Home (bumping their `updatedAt`).
 
 Storage: IndexedDB database `read-tracker` (layout in `src/lib/db.ts`, no third-party wrapper):
-- `records` (keyPath `id`): the record plus derived index fields `_title` (lowercased), `_rank` (status sort) and
-  `_readSort` (`readAt ?? 0`, Revisit order).
+- `records` (keyPath `id`): the record plus derived index fields `_title` (lowercased), `_rank` (status sort),
+  `_readSort` (`readAt ?? 0`, Revisit order) and `_matchKeys` (one `mode|key` tag per URL, see `matchTag`).
   `toRow`/`fromRow` in storage.ts add and strip them; they never leave storage.ts.
-  Indexes: `matchKey`, `updatedAt`, `createdAt`, `title`, `status` (`[_rank, updatedAt]`), `readOrder`
+  Indexes: `matchKeys` (multiEntry over `_matchKeys`, DB v6; replaced `matchKey`), `updatedAt`, `createdAt`, `title`, `status` (`[_rank, updatedAt]`), `readOrder`
   (`[_readSort, createdAt]`, DB v5), `tags` (multiEntry),
   `folderId` (records without a folder are not in it). `toRow` drops an undefined `folderId` so it is never stored.
 - `folders` (keyPath `id`): Folder. Same change signal as records.
@@ -95,8 +95,9 @@ Storage: IndexedDB database `read-tracker` (layout in `src/lib/db.ts`, no third-
   `moveLegacyStorage()` copies them in and deletes them on first use.
 
 How data is read:
-- Badge and popup: `findRecordForUrl()` looks up `candidateKeys(url)` (the URL cut at each `/` or `?`) on the
-  `matchKey` index. No full load. `chooseMatch` must agree with `findMatch`; a randomized test checks it.
+- Badge and popup: `findRecordForUrl()` looks up `lookupTags(url)` (the exact tag `e|<url>`, then `p|<key>` for each
+  of `candidateKeys(url)`, the URL cut at each `/` or `?`) on the `matchKeys` index. No full load. `chooseMatch` must
+  agree with `findMatch`; a randomized test (with multi-URL records) checks it.
 - List page: `queryRecords()` walks the sort index, filters rows as it goes (search, status, tag, folder), and stops
   after `limit` matches (60 per page, more on scroll). Cover previews load only when a card nears the viewport;
   originals load only in the viewer.
@@ -144,7 +145,12 @@ Home.
 - `normalizeUrl()` drops the scheme (http and https match), lowercases the host, strips `www.` and a trailing dot,
   drops `#hash`, tracking params (`utm_*`, `fbclid`, `gclid`, `ref`, … see `TRACKING_PARAMS`), and trailing
   slashes, and sorts the remaining params. Non-http(s) URLs give `null` (not trackable).
-- Exact records match when `matchKey === normalizeUrl(tabUrl)`.
+- A record has a main URL (`url` / `matchKey` / `matchMode`, opened from the title) plus optional `otherUrls`
+  (`UrlEntry[]`, up to `MAX_URLS` = 10 in total, schema v4); `urlEntries(record)` lists them all. Each URL matches on
+  its own; `matchedEntry(record, url)` says which one did (the background uses it so `lastReadUrl` only follows
+  series URLs). Editing happens in `RecordForm` rows (`validateUrlRows`: blank extra rows ignored, duplicates of the
+  same mode+key rejected).
+- An exact URL matches when its `matchKey === normalizeUrl(tabUrl)`.
 - Prefix records match on a path boundary (`prefixMatches`): `site.com/a` covers `site.com/a/...` and
   `site.com/a?...`, not `site.com/abc`. An exact match beats any prefix; otherwise the longest prefix wins.
 

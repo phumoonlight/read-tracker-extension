@@ -6,6 +6,7 @@ import {
   FOLDER_NAME_MAX,
   IMAGE_SIZES,
   MAX_IMAGES,
+  MAX_URLS,
   SCHEMA_VERSION,
   STATUSES,
   legacyImageId,
@@ -59,6 +60,20 @@ function assertRecord(r: unknown, i: number): asserts r is ReadingRecord {
   if (r.notes !== undefined && typeof r.notes !== 'string') throw bad('notes');
   if (r.readAt !== undefined && typeof r.readAt !== 'number') throw bad('readAt');
   if (r.folderId !== undefined && (typeof r.folderId !== 'string' || !r.folderId)) throw bad('folderId');
+  if (r.otherUrls !== undefined) {
+    const ok =
+      Array.isArray(r.otherUrls) &&
+      r.otherUrls.length < MAX_URLS &&
+      r.otherUrls.every(
+        (e) =>
+          isObj(e) &&
+          isHttpUrl(e.url) &&
+          (e.matchMode === 'exact' || e.matchMode === 'prefix') &&
+          typeof e.matchKey === 'string' &&
+          e.matchKey !== '',
+      );
+    if (!ok) throw bad('otherUrls');
+  }
 }
 
 /** Unknown sizes (e.g. from a newer build) fall back to the default rather than failing the import. */

@@ -38,3 +38,10 @@ describe('migrateRecord', () => {
     expect(() => migrateRecord({}, SCHEMA_VERSION + 1)).toThrow(/supports up to/);
   });
 });
+
+describe('v3 -> v4 (otherUrls)', () => {
+  it('leaves records unchanged (otherUrls is optional)', () => {
+    const r = rec({ images: [] });
+    expect(migrateRecord({ ...r } as unknown as Record<string, unknown>, 3)).toEqual(r);
+  });
+});

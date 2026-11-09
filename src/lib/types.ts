@@ -1,5 +1,5 @@
 /** Bump when the stored record shape changes, and add a step in migrate.ts. */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export type MatchMode = 'exact' | 'prefix';
 export type ReadStatus = 'unread' | 'reading' | 'read';
@@ -24,6 +24,11 @@ export interface ReadingRecord {
   /** Prefix records only: the raw URL of the last matching page visited while status was "reading". */
   lastReadUrl?: string;
   tags: string[];
+  /**
+   * More URLs for the same thing (e.g. a mirror, or the series on another site). Each matches
+   * on its own like the main url / matchKey / matchMode above. Added in schema v4.
+   */
+  otherUrls?: UrlEntry[];
   /** Folder the record is grouped in; undefined = Home (no folder, the default). Added in schema v2. */
   folderId?: string;
   notes?: string;
@@ -103,3 +108,13 @@ export const MAX_IMAGES = 3;
 export const legacyImageId = (recordId: string) => `legacy-${recordId}`;
 
 export const BACKUP_FORMAT = 'read-tracker-backup';
+
+/** One URL of a record and how it matches (the main URL is url / matchKey / matchMode on the record). */
+export interface UrlEntry {
+  url: string;
+  matchMode: MatchMode;
+  matchKey: string;
+}
+
+/** Most URLs a record can have, main URL included. */
+export const MAX_URLS = 10;

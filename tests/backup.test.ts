@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildBackup, parseBackup, planImport } from '@/lib/backup';
-import { BACKUP_FORMAT, MAX_IMAGES, SCHEMA_VERSION, legacyImageId, type BackupImage } from '@/lib/types';
+import { BACKUP_FORMAT, MAX_IMAGES, MAX_URLS, SCHEMA_VERSION, legacyImageId, type BackupImage } from '@/lib/types';
 import { rec } from './fixtures';
 
 const IMG = 'data:image/webp;base64,AAAA';
@@ -155,6 +155,18 @@ describe('parseBackup (validation)', () => {
       ],
     });
     expect(parseBackup(text).images).toEqual([img('c', 'r')]);
+  });
+
+  it('validates extra URLs', () => {
+    const bad = (otherUrls: unknown) =>
+      JSON.stringify({ format: BACKUP_FORMAT, version: SCHEMA_VERSION, records: [{ ...rec(), otherUrls }], images: [] });
+    const ok = { url: 'https://b.com/x', matchMode: 'exact', matchKey: 'b.com/x' };
+    expect(parseBackup(bad([ok])).records[0]?.otherUrls).toEqual([ok]);
+    expect(() => parseBackup(bad('x'))).toThrow(/"otherUrls"/);
+    expect(() => parseBackup(bad([{ ...ok, url: 'javascript:alert(1)' }]))).toThrow(/"otherUrls"/);
+    expect(() => parseBackup(bad([{ ...ok, matchMode: 'fuzzy' }]))).toThrow(/"otherUrls"/);
+    expect(() => parseBackup(bad([{ ...ok, matchKey: '' }]))).toThrow(/"otherUrls"/);
+    expect(() => parseBackup(bad(Array.from({ length: MAX_URLS }, () => ok)))).toThrow(/"otherUrls"/);
   });
 
   it('rejects records with an invalid images list', () => {
