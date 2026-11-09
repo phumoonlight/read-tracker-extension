@@ -163,7 +163,8 @@ download is blocked by CORS. Don't add install-time permissions without a strong
 - Records may have no images. `<Thumbnail>` then shows a placeholder tinted per site (`siteLabel` + `hueFor`,
   colors from the `--ph-*` tokens): the domain at size "large", its first letter at "small". Never derive the
   placeholder from the title (its first character can be a combining mark, e.g. in Thai).
-- `localStorage` is only for per-browser UI conveniences (the grid/list choice, key `read-tracker:view`), always
-  wrapped in try/catch. Data goes in IndexedDB.
+- `localStorage` is only for per-browser UI conveniences, always wrapped in try/catch: the grid/list choice
+  (`read-tracker:view`) and the open folder (`read-tracker:folder`, encoded by `encodeFolderFilter`; a folder that no
+  longer exists falls back to All once folders have loaded). Data goes in IndexedDB.
 - Ask before adding dependencies. The project deliberately uses its own IndexedDB layer (`lib/db.ts`), and unit
   tests cover only pure code (there is no IndexedDB in Node without adding `fake-indexeddb`).

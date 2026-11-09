@@ -25,3 +25,16 @@ export function newFolder(name: string): Folder {
 
 export const sortFolders = (folders: readonly Folder[]) =>
   [...folders].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
+/**
+ * Which records the list shows: undefined = all, null = no folder, string = that folder's id.
+ * Stored as text with a prefix on ids so a folder id can never be read as "all" / "none".
+ */
+export const encodeFolderFilter = (f: string | null | undefined) =>
+  f === undefined ? 'all' : f === null ? 'none' : `f:${f}`;
+
+export function decodeFolderFilter(s: string | null): string | null | undefined {
+  if (s === 'none') return null;
+  if (s?.startsWith('f:') && s.length > 2) return s.slice(2);
+  return undefined; // 'all', missing or unrecognised
+}

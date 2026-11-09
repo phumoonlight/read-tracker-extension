@@ -5,6 +5,7 @@ import { ImageStrip, Thumbnail } from '@/components/Thumbnail';
 import { ImagePicker } from '@/components/ImagePicker';
 import { ImageViewer } from '@/components/ImageViewer';
 import { exportToFile, importFromFile } from '@/lib/backup-io';
+import { decodeFolderFilter, encodeFolderFilter } from '@/lib/folders';
 import { createRecord, openUrl } from '@/lib/records';
 import { siteLabel } from '@/lib/url';
 import {
@@ -99,6 +100,32 @@ function useViewMode(): [ViewMode, (v: ViewMode) => void] {
   return [view, set];
 }
 
+const NO_FOLDERS: Folder[] = [];
+const FOLDER_KEY = 'read-tracker:folder';
+
+/**
+ * The open folder, remembered per browser so a reload reopens it (a convenience;
+ * falls back to All if storage is unavailable or the folder no longer exists).
+ */
+function useStoredFolder(): [FolderFilter, (f: FolderFilter) => void] {
+  const [folder, setFolder] = useState<FolderFilter>(() => {
+    try {
+      return decodeFolderFilter(localStorage.getItem(FOLDER_KEY));
+    } catch {
+      return ALL;
+    }
+  });
+  const set = (f: FolderFilter) => {
+    setFolder(f);
+    try {
+      localStorage.setItem(FOLDER_KEY, encodeFolderFilter(f));
+    } catch {
+      // storage blocked: keep the in-memory choice
+    }
+  };
+  return [folder, set];
+}
+
 /** Bumps whenever any record changes in any context. */
 function useRevision(): number {
   const [revision, setRevision] = useState(0);
@@ -117,9 +144,11 @@ export function App() {
   const [page, setPage] = useState<{ records: ReadingRecord[]; hasMore: boolean }>();
   const [total, setTotal] = useState<number>();
   const [allTags, setAllTags] = useState<string[]>([]);
-  const [folders, setFolders] = useState<Folder[]>([]);
+  // undefined until first loaded, so a remembered folder isn't mistaken for a deleted one.
+  const [loadedFolders, setFolders] = useState<Folder[]>();
+  const folders = loadedFolders ?? NO_FOLDERS;
   const [counts, setCounts] = useState<Map<string, number>>(new Map());
-  const [folder, setFolder] = useState<FolderFilter>(ALL);
+  const [folder, setFolder] = useStoredFolder();
   const [modal, setModal] = useState<Modal>();
   const [view, setView] = useViewMode();
 
@@ -140,7 +169,8 @@ export function App() {
   }, [revision]);
 
   // If the selected folder was deleted (here or in another window), go back to All.
-  const activeFolder: FolderFilter = !isFolderId(folder) || folders.some((f) => f.id === folder) ? folder : ALL;
+  const activeFolder: FolderFilter =
+    !isFolderId(folder) || loadedFolders === undefined || folders.some((f) => f.id === folder) ? folder : ALL;
   const folderName = new Map(folders.map((f) => [f.id, f.name]));
   // The open folder's image size; All / No folder use the default.
   const imageSize: ImageSize = (isFolderId(activeFolder) && folders.find((f) => f.id === activeFolder)?.imageSize) || 'medium';

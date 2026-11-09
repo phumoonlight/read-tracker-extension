@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { cleanFolderName, folderNameError, newFolder, sortFolders } from '@/lib/folders';
+import {
+  cleanFolderName,
+  decodeFolderFilter,
+  encodeFolderFilter,
+  folderNameError,
+  newFolder,
+  sortFolders,
+} from '@/lib/folders';
 import { FOLDER_NAME_MAX, type Folder } from '@/lib/types';
 
 const folder = (id: string, name: string): Folder => ({ id, name, createdAt: 1, updatedAt: 1 });
@@ -41,5 +48,18 @@ describe('folder names', () => {
       'beta',
       'gamma',
     ]);
+  });
+});
+
+describe('folder filter encoding', () => {
+  it('round-trips all, no folder and folder ids', () => {
+    for (const f of [undefined, null, 'abc', 'all', 'none', 'f:x']) {
+      expect(decodeFolderFilter(encodeFolderFilter(f))).toBe(f);
+    }
+  });
+  it('treats missing or unknown values as all', () => {
+    expect(decodeFolderFilter(null)).toBeUndefined();
+    expect(decodeFolderFilter('garbage')).toBeUndefined();
+    expect(decodeFolderFilter('f:')).toBeUndefined();
   });
 });
