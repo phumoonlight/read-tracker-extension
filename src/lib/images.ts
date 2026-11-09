@@ -86,17 +86,17 @@ export function sniffImageType(b: Uint8Array): string | undefined {
   return undefined;
 }
 
-/** Preview: PREVIEW_WIDTH wide at most (never upscaled), cropped from the top if very tall, WebP. */
+/**
+ * Preview: the whole image scaled to fit within PREVIEW_WIDTH × PREVIEW_MAX_HEIGHT (never
+ * upscaled, never cropped, so tiles can show the full image), WebP.
+ */
 async function scaleForPreview(bitmap: ImageBitmap): Promise<Blob> {
-  const scale = Math.min(1, PREVIEW_WIDTH / bitmap.width);
-  const width = Math.max(1, Math.round(bitmap.width * scale));
-  const height = Math.min(Math.max(1, Math.round(bitmap.height * scale)), PREVIEW_MAX_HEIGHT);
-  const srcHeight = Math.min(bitmap.height, Math.round(height / scale));
-  const canvas = new OffscreenCanvas(width, height);
+  const { width: w, height: h } = previewSize(bitmap.width, bitmap.height);
+  const canvas = new OffscreenCanvas(w, h);
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas 2D context unavailable');
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(bitmap, 0, 0, bitmap.width, srcHeight, 0, 0, width, height);
+  ctx.drawImage(bitmap, 0, 0, w, h);
   return canvas.convertToBlob({ type: 'image/webp', quality: PREVIEW_QUALITY });
 }
 
@@ -128,4 +128,10 @@ export function isPermutation(current: readonly string[], next: readonly string[
   if (current.length !== next.length || new Set(next).size !== next.length) return false;
   const have = new Set(current);
   return next.every((id) => have.has(id));
+}
+
+/** Size of a preview: fits within PREVIEW_WIDTH × PREVIEW_MAX_HEIGHT, keeps the aspect ratio, never upscales. */
+export function previewSize(width: number, height: number): { width: number; height: number } {
+  const scale = Math.min(1, PREVIEW_WIDTH / width, PREVIEW_MAX_HEIGHT / height);
+  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isPermutation, moveItem, sniffImageType } from '@/lib/images';
+import { isPermutation, moveItem, previewSize, sniffImageType } from '@/lib/images';
 
 const bytes = (...xs: (number | string)[]) =>
   new Uint8Array(xs.flatMap((x) => (typeof x === 'string' ? [...x].map((c) => c.charCodeAt(0)) : [x])));
@@ -52,5 +52,16 @@ describe('isPermutation', () => {
     expect(isPermutation(['a', 'b'], ['a', 'b', 'c'])).toBe(false);
     expect(isPermutation(['a', 'b'], ['a', 'a'])).toBe(false);
     expect(isPermutation(['a', 'b'], ['a', 'x'])).toBe(false);
+  });
+});
+
+describe('previewSize', () => {
+  it('fits within 480 x 900, keeping the aspect ratio (never cropping)', () => {
+    expect(previewSize(1920, 1080)).toEqual({ width: 480, height: 270 });
+    // Very tall (e.g. a full-page screenshot): limited by height, whole image kept.
+    expect(previewSize(1000, 5000)).toEqual({ width: 180, height: 900 });
+  });
+  it('never upscales', () => {
+    expect(previewSize(300, 200)).toEqual({ width: 300, height: 200 });
   });
 });

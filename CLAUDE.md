@@ -66,8 +66,8 @@ go through `updateFolderSettings` / `updateHomeSettings`, which merge and store 
 `Folder`: `id`, `name`, `imageSize?` (`small` | `medium` | `large` | `xlarge`; absent = medium), `readMode?`, `createdAt`,
 `updatedAt`. `imageSize` applies while that folder is open. Home has no Folder record: its size is `HomeSettings` in the `meta`
 store (key `home`, `getHomeSettings` / `setHomeImageSize`), exported as `home` in backups and merged newer-wins.
-Home can't be renamed or deleted. In either place, the list's image tile width scales with it
-(72 / 96 / 160 / 240 px), and at large/xlarge tiles show original files instead of previews
+Home can't be renamed or deleted. In either place, the list's image tile height scales with it
+(60 / 120 / 240 / 360 px; width follows each image's aspect ratio, so images are never cropped), and at large/xlarge tiles show original files instead of previews
 (`usesOriginalImages`). Set it with `setFolderImageSize`; unknown values in backups fall back to medium. Folders are flat and a record is in at most one folder;
 `folderId` absent = the record is in **Home**, the default place (there is no "All" view: the list always shows
 Home or one folder, and search/filters apply within it). Names are trimmed, whitespace-collapsed, at most
@@ -83,7 +83,7 @@ Storage: IndexedDB database `read-tracker` (layout in `src/lib/db.ts`, no third-
   `folderId` (records without a folder are not in it). `toRow` drops an undefined `folderId` so it is never stored.
 - `folders` (keyPath `id`): Folder. Same change signal as records.
 - `images` (keyPath `id`, index `recordId`): `StoredImage` = the original file Blob, never resized or re-encoded
-  (the viewer shows it at full resolution), plus a ≤480px WebP `preview` used only for covers and tiles. Change
+  (the viewer shows it at full resolution), plus a WebP `preview` (whole image fitted within 480 × 900) used only for covers and small tiles. Change
   images only through `addImages` / `removeImage` / `reorderImages` (drag to sort in `ImagePicker`; first = cover; a stale order
   is ignored) (they update the record's `images` list in the
   same transaction); `deleteRecord` removes a record's images. Files over 25 MB are rejected (`prepareImage`).
@@ -182,7 +182,9 @@ download is blocked by CORS. Don't add install-time permissions without a strong
   an `await`: controlled inputs are reset to the old value by then (this broke the card status picker once).
 - The list page has one layout: rows (there used to be a grid view; its stored choice `read-tracker:view` is
   removed on load). Each row is a 3-column grid `body | center | actions` with images on a second row via
-  `<ImageStrip>` (each image its own tile, 96px at medium; nothing when the record has no images).
+  `<ImageStrip>` (each image its own tile: fixed height `--tile-h` per image size, natural width, `object-fit:
+  contain`, so the whole image shows; nothing when the record has no images). Previews are scaled to fit
+  480 × 900 without cropping (`previewSize`).
 - `<Thumbnail>` (a 16:10 cover mosaic of all images: 1 full, 2 side by side, 3 = large left + two stacked) is used
   only by the popup now; clicking an image opens the viewer at that index.
 - In rows the title is plain text; each of the record's URLs is a `<UrlLink>` (site icon + `displayUrl`) under the

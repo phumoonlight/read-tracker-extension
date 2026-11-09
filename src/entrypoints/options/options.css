@@ -161,13 +161,26 @@
   gap: 6px;
   margin-top: 4px;
 }
-/* Scoped under .image-strip so these win over the shared .thumb-button / .mosaic-cell
-   rules regardless of stylesheet order. */
-.image-strip .image-strip-cell {
-  width: 96px;
-  height: auto;
-  aspect-ratio: 16 / 10;
+/*
+ * Image tiles: a fixed height (--tile-h, set per image size below) and the image's own
+ * width, so the whole image shows, uncropped. Very wide images are capped at the row
+ * width and fitted inside. Scoped under .list .image-strip so these win over the shared
+ * .thumb-button / .mosaic-cell rules regardless of stylesheet order.
+ */
+.list .image-strip .image-strip-cell {
+  width: auto;
+  height: var(--tile-h);
+  max-width: 100%;
+  /* Space held while the image loads. */
+  min-width: calc(var(--tile-h) * 0.6);
+  aspect-ratio: auto;
   border-radius: var(--radius-sm);
+}
+.list .image-strip .image-strip-cell img {
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  object-fit: contain;
 }
 .card-list .card-body {
   gap: 4px;
@@ -185,12 +198,6 @@
   }
   .card-list .card-actions {
     justify-self: stretch;
-  }
-  .image-strip .image-strip-cell {
-    width: calc((100% - 12px) / 3);
-  }
-  .image-strip {
-    flex-wrap: nowrap;
   }
   .card-list .card-actions select {
     flex: 1;
@@ -259,19 +266,24 @@
   opacity: 0.75;
 }
 
-/* Per-place image size (data-size on .list; medium is the default above). */
-.list[data-size='small'] .image-strip .image-strip-cell {
-  width: 72px;
+/* Per-place image size: tile height (data-size on .list). */
+.list {
+  --tile-h: 120px;
 }
-.list[data-size='large'] .image-strip .image-strip-cell {
-  width: 160px;
+.list[data-size='small'] {
+  --tile-h: 60px;
 }
-.list[data-size='xlarge'] .image-strip .image-strip-cell {
-  width: 240px;
+.list[data-size='large'] {
+  --tile-h: 240px;
+}
+.list[data-size='xlarge'] {
+  --tile-h: 360px;
 }
 @media (max-width: 600px) {
-  .list[data-size] .image-strip .image-strip-cell {
-    width: calc((100% - 12px) / 3);
+  /* Phones: cap the big sizes so a tile doesn't fill the screen. */
+  .list[data-size='large'],
+  .list[data-size='xlarge'] {
+    --tile-h: 160px;
   }
 }
 
