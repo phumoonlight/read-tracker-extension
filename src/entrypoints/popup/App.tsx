@@ -136,7 +136,7 @@ function CurrentRecord({
   return (
     <>
       <div className="current" data-status={record.status}>
-        <Thumbnail record={record} />
+        <Thumbnail record={record} size="small" />
         <div>
           <div className="current-title">{record.title}</div>
           <div className="current-meta">

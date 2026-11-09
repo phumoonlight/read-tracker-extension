@@ -41,13 +41,22 @@
 }
 
 .card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  padding: 10px;
+  min-width: 0;
+}
+
+.card-thumb {
+  display: block;
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
 .card-title {
@@ -55,6 +64,11 @@
   overflow-wrap: anywhere;
   color: var(--text);
   text-decoration: none;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
 }
 .card-title:hover {
   text-decoration: underline;
@@ -73,16 +87,67 @@
 }
 
 .card-actions {
-  margin-top: auto;
   display: flex;
   gap: 6px;
   align-items: center;
 }
 .card-actions select {
   width: auto;
-  flex: 1;
   padding: 3px 6px;
   font-size: 12px;
+}
+
+/* Grid layout: image on top, actions pinned to the bottom so rows line up. */
+.card-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.card-grid .card-actions {
+  margin-top: auto;
+}
+.card-grid .card-actions select {
+  flex: 1;
+}
+
+/* List layout: one row per record, small image on the left. */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card-list {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+}
+.card-list .card-body {
+  gap: 4px;
+}
+.card-list .card-title {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.card-list .card-last {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 600px) {
+  .card-list {
+    grid-template-columns: 80px minmax(0, 1fr);
+    align-items: start;
+  }
+  .card-list .card-actions {
+    grid-column: 1 / -1;
+  }
+  .card-list .card-actions select {
+    flex: 1;
+  }
 }
 
 .empty {

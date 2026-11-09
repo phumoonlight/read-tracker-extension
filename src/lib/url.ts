@@ -82,3 +82,19 @@ export function suggestPrefix(normalized: string): string {
   const cut = noQuery.lastIndexOf('/');
   return cut === -1 ? noQuery : noQuery.slice(0, cut);
 }
+
+/** Short site label for display: lowercase host without "www.", or "" if the URL is invalid. */
+export function siteLabel(url: string): string {
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
+  } catch {
+    return '';
+  }
+}
+
+/** Stable hue (0–359) for a string, used to tint placeholders per site. */
+export function hueFor(text: string): number {
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+  return Math.abs(h) % 360;
+}

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { getThumbnail } from '@/lib/thumbnails';
+import { hueFor, siteLabel } from '@/lib/url';
 import type { ReadingRecord } from '@/lib/types';
 
 /**
@@ -65,17 +66,28 @@ function useNearViewport<T extends Element>(margin = '400px') {
   return [ref, near] as const;
 }
 
-/** Card thumbnail; the image is loaded only when the card scrolls near the viewport. */
-export function Thumbnail({ record }: { record: ReadingRecord }) {
+/**
+ * Record thumbnail; the image is loaded only when it scrolls near the viewport.
+ * Without an image it shows a placeholder tinted per site: the domain name at
+ * "large" size, the domain's first letter at "small" size (popup, list rows).
+ * The domain is used rather than the title, whose first character may be a
+ * combining mark in some scripts (e.g. Thai).
+ */
+export function Thumbnail({ record, size = 'large' }: { record: ReadingRecord; size?: 'large' | 'small' }) {
   const [ref, near] = useNearViewport<HTMLDivElement>();
   const url = useThumbnailUrl(record, near);
+  const site = siteLabel(record.url);
   return (
     <div ref={ref}>
       {url ? (
         <img className="thumb" src={url} alt="" />
       ) : (
-        <div className="thumb thumb-empty" aria-hidden="true">
-          {(record.title.trim()[0] ?? '?').toUpperCase()}
+        <div
+          className={`thumb thumb-empty thumb-${size}`}
+          style={{ '--hue': hueFor(site) } as CSSProperties}
+          aria-hidden="true"
+        >
+          {size === 'large' ? <span className="thumb-site">{site || 'No image'}</span> : (site[0] ?? '?').toUpperCase()}
         </div>
       )}
     </div>

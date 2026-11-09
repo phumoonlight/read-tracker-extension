@@ -17,6 +17,11 @@
   --status-reading: #bf6a02;
   --status-read: #1a7f37;
 
+  /* Thumbnail placeholder: hsl(var(--hue) <sat> <lightness>), hue set per site. */
+  --ph-sat: 55%;
+  --ph-bg-l: 90%;
+  --ph-fg-l: 32%;
+
   --radius: 8px;
   --radius-sm: 6px;
   --shadow: 0 1px 3px #1f232814, 0 8px 24px #1f23281a;
@@ -40,6 +45,10 @@
     --status-unread: #4493f8;
     --status-reading: #d29922;
     --status-read: #3fb950;
+
+    --ph-sat: 35%;
+    --ph-bg-l: 22%;
+    --ph-fg-l: 78%;
 
     --shadow: 0 1px 3px #0008, 0 8px 24px #0009;
   }
@@ -237,9 +246,23 @@ textarea {
 .thumb-empty {
   display: grid;
   place-items: center;
-  color: var(--text-muted);
-  font-size: 28px;
+  padding: 8px;
+  background: hsl(var(--hue, 210) var(--ph-sat) var(--ph-bg-l));
+  color: hsl(var(--hue, 210) var(--ph-sat) var(--ph-fg-l));
   font-weight: 600;
+  user-select: none;
+}
+.thumb-large {
+  font-size: 15px;
+}
+.thumb-small {
+  font-size: 22px;
+}
+.thumb-site {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .paste-zone {

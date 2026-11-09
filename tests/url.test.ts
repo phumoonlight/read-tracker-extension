@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isTrackingParam, normalizeUrl, suggestPrefix } from '@/lib/url';
+import { hueFor, isTrackingParam, normalizeUrl, siteLabel, suggestPrefix } from '@/lib/url';
 
 describe('normalizeUrl', () => {
   it.each([
@@ -84,5 +84,30 @@ describe('suggestPrefix', () => {
   it('falls back to the host', () => {
     expect(suggestPrefix('site.com/article')).toBe('site.com');
     expect(suggestPrefix('site.com')).toBe('site.com');
+  });
+});
+
+describe('siteLabel', () => {
+  it('returns the host without www.', () => {
+    expect(siteLabel('https://www.YouTube.com/watch?v=1')).toBe('youtube.com');
+    expect(siteLabel('http://blog.example.com:8080/a')).toBe('blog.example.com');
+  });
+  it('returns an empty string for invalid input', () => {
+    expect(siteLabel('not a url')).toBe('');
+  });
+});
+
+describe('hueFor', () => {
+  it('is stable and in range', () => {
+    expect(hueFor('youtube.com')).toBe(hueFor('youtube.com'));
+    for (const s of ['', 'a', 'youtube.com', 'x'.repeat(500)]) {
+      const h = hueFor(s);
+      expect(h).toBeGreaterThanOrEqual(0);
+      expect(h).toBeLessThan(360);
+      expect(Number.isInteger(h)).toBe(true);
+    }
+  });
+  it('differs between common sites', () => {
+    expect(hueFor('youtube.com')).not.toBe(hueFor('github.com'));
   });
 });

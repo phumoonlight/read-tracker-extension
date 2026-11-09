@@ -5,6 +5,7 @@ import { Thumbnail } from '@/components/Thumbnail';
 import { ThumbnailPicker } from '@/components/ThumbnailPicker';
 import { exportToFile, importFromFile } from '@/lib/backup-io';
 import { createRecord, openUrl } from '@/lib/records';
+import { siteLabel } from '@/lib/url';
 import {
   countRecords,
   createFolder,
@@ -61,6 +62,29 @@ function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
+type ViewMode = 'grid' | 'list';
+const VIEW_KEY = 'read-tracker:view';
+
+/** Grid or list layout, remembered per browser (a convenience; falls back to grid if storage is unavailable). */
+function useViewMode(): [ViewMode, (v: ViewMode) => void] {
+  const [view, setView] = useState<ViewMode>(() => {
+    try {
+      return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
+  const set = (v: ViewMode) => {
+    setView(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      // storage blocked: keep the in-memory choice
+    }
+  };
+  return [view, set];
+}
+
 /** Bumps whenever any record changes in any context. */
 function useRevision(): number {
   const [revision, setRevision] = useState(0);
@@ -83,6 +107,7 @@ export function App() {
   const [counts, setCounts] = useState<Map<string, number>>(new Map());
   const [folder, setFolder] = useState<FolderFilter>(ALL);
   const [modal, setModal] = useState<Modal>();
+  const [view, setView] = useViewMode();
 
   useEffect(() => {
     // The popup links here with #edit=<id>.
@@ -143,6 +168,13 @@ export function App() {
           <span className="muted">
             {page && total !== undefined ? `${page.records.length}${page.hasMore ? '+' : ''} shown of ${total}` : ''}
           </span>
+          <div className="segmented" role="group" aria-label="Layout">
+            {(['grid', 'list'] as const).map((m) => (
+              <button key={m} type="button" aria-pressed={view === m} onClick={() => setView(m)}>
+                {m === 'grid' ? 'Grid' : 'List'}
+              </button>
+            ))}
+          </div>
           <button type="button" className="btn btn-primary" onClick={() => setModal({ kind: 'new' })}>
             New record
           </button>
@@ -209,11 +241,12 @@ export function App() {
         </div>
       ) : (
         <>
-          <div className="grid">
+          <div className={view === 'list' ? 'list' : 'grid'}>
             {page.records.map((r) => (
               <Card
                 key={r.id}
                 record={r}
+                layout={view}
                 folderName={activeFolder === ALL && r.folderId ? folderName.get(r.folderId) : undefined}
                 onEdit={() => setModal({ kind: 'edit', id: r.id })}
                 onDelete={() => setModal({ kind: 'delete', record: r })}
@@ -362,46 +395,52 @@ function LoadMore({ onLoad, pageKey }: { onLoad: () => void; pageKey: unknown })
 
 function Card({
   record,
+  layout,
   folderName,
   onEdit,
   onDelete,
   onTag,
 }: {
   record: ReadingRecord;
+  layout: ViewMode;
   /** Shown when the list spans folders (the "All" view). */
   folderName?: string;
   onEdit: () => void;
   onDelete: () => void;
   onTag: (t: string) => void;
 }) {
+  const href = openUrl(record);
   return (
-    <article className="card" data-status={record.status}>
-      <a href={openUrl(record)} target="_blank" rel="noreferrer">
-        <Thumbnail record={record} />
+    <article className={`card card-${layout}`} data-status={record.status}>
+      <a className="card-thumb" href={href} target="_blank" rel="noreferrer" tabIndex={-1} aria-hidden="true">
+        <Thumbnail record={record} size={layout === 'list' ? 'small' : 'large'} />
       </a>
-      <a className="card-title" href={openUrl(record)} target="_blank" rel="noreferrer">
-        {record.title}
-      </a>
-      <div className="card-meta">
-        <span className="status-dot" /> {STATUS_LABEL[record.status]}
-        {record.matchMode === 'prefix' && ' · series'}
-        {record.readAt && ` · read ${new Date(record.readAt).toLocaleDateString()}`}
+      <div className="card-body">
+        <a className="card-title" href={href} target="_blank" rel="noreferrer" title={record.title}>
+          {record.title}
+        </a>
+        <div className="card-meta">
+          <span className="status-dot" /> {STATUS_LABEL[record.status]}
+          {record.matchMode === 'prefix' && ' · series'}
+          {record.readAt && ` · read ${new Date(record.readAt).toLocaleDateString()}`}
+          {layout === 'list' && ` · ${siteLabel(record.url)}`}
+        </div>
+        {folderName && <div className="card-meta">In {folderName}</div>}
+        {record.matchMode === 'prefix' && record.lastReadUrl && (
+          <div className="card-meta card-last" title={record.lastReadUrl}>
+            Last: {record.lastReadUrl.replace(/^https?:\/\/(www\.)?/, '')}
+          </div>
+        )}
+        {record.tags.length > 0 && (
+          <div className="card-tags">
+            {record.tags.map((t) => (
+              <button key={t} type="button" className="tag" style={{ border: 0, cursor: 'pointer' }} onClick={() => onTag(t)}>
+                {t}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-      {folderName && <div className="card-meta">In {folderName}</div>}
-      {record.matchMode === 'prefix' && record.lastReadUrl && (
-        <div className="card-meta" title={record.lastReadUrl}>
-          Last: {record.lastReadUrl.replace(/^https?:\/\/(www\.)?/, '')}
-        </div>
-      )}
-      {record.tags.length > 0 && (
-        <div className="card-tags">
-          {record.tags.map((t) => (
-            <button key={t} type="button" className="tag" style={{ border: 0, cursor: 'pointer' }} onClick={() => onTag(t)}>
-              {t}
-            </button>
-          ))}
-        </div>
-      )}
       <div className="card-actions">
         <select
           value={record.status}

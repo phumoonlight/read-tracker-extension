@@ -24,7 +24,7 @@ src/
   entrypoints/
     background.ts        service worker: badge per tab, series progress (lastReadUrl)
     popup/               toolbar popup: current page state, add, status, thumbnail
-    options/             full list page (options_ui, open_in_tab): folder bar, grid, search, filters, edit, delete, backup
+    options/             full list page (options_ui, open_in_tab): folder bar, grid/list views, search, filters, edit, delete, backup
   components/            shared React UI (RecordForm, ThumbnailPicker, Thumbnail, StatusPicker, Dialog)
   lib/                   framework-free logic (only db.ts / storage.ts / tab.ts / thumbnails.ts touch browser APIs)
     types.ts             ReadingRecord, Folder, SCHEMA_VERSION, BackupFile
@@ -138,5 +138,10 @@ download is blocked by CORS. Don't add install-time permissions without a strong
 - Keep `src/lib` free of React. Put pure logic in its own function so it can be tested without browser APIs.
 - Import browser APIs from `wxt/browser` (`browser.*`), not the global `chrome`.
 - Use `<dialog>` (components/Dialog.tsx) for confirmations, never `window.confirm`.
+- Records may have no thumbnail. `<Thumbnail>` then shows a placeholder tinted per site (`siteLabel` + `hueFor`,
+  colors from the `--ph-*` tokens): the domain at size "large", its first letter at "small". Never derive the
+  placeholder from the title (its first character can be a combining mark, e.g. in Thai).
+- `localStorage` is only for per-browser UI conveniences (the grid/list choice, key `read-tracker:view`), always
+  wrapped in try/catch. Data goes in IndexedDB.
 - Ask before adding dependencies. The project deliberately uses its own IndexedDB layer (`lib/db.ts`), and unit
   tests cover only pure code (there is no IndexedDB in Node without adding `fake-indexeddb`).
