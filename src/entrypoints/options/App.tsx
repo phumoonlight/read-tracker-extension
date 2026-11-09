@@ -653,11 +653,11 @@ function FolderBar({
       <div className="folder-chips">
         {chip(HOME, 'Home', homeCount)}
         {folders.map((f) => chip(f.id, f.name, counts.get(f.id) ?? 0))}
-        <button type="button" className="btn btn-small btn-ghost" onClick={onNew}>
+        {/* + New folder and Manage sit together at the right end of the row. */}
+        <button type="button" className="btn btn-small btn-ghost folder-actions-start" onClick={onNew}>
           + New folder
         </button>
-        {/* Pushed to the right end of the row. */}
-        <button type="button" className="btn btn-small folder-manage" onClick={onManage}>
+        <button type="button" className="btn btn-small" onClick={onManage}>
           {selected ? 'Manage folder' : 'Manage Home'}
         </button>
       </div>
