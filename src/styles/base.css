@@ -128,6 +128,48 @@ select {
   cursor: pointer;
 }
 
+/*
+ * Customizable select (Chrome 135+): style the dropdown list itself to match the theme.
+ * Browsers without support keep the native dropdown (with the chevron above).
+ */
+@supports (appearance: base-select) {
+  select,
+  ::picker(select) {
+    appearance: base-select;
+  }
+  /* Keep our chevron (background image); hide the built-in one. */
+  select::picker-icon {
+    display: none;
+  }
+  ::picker(select) {
+    margin-top: 4px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow);
+  }
+  option {
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  option:hover,
+  option:focus-visible {
+    background: var(--surface-2);
+    outline: none;
+  }
+  option:checked {
+    background: var(--accent);
+    color: var(--accent-text);
+  }
+  /* The selected row is already highlighted; no extra checkmark. */
+  option::checkmark {
+    display: none;
+  }
+}
+
 textarea {
   resize: vertical;
   min-height: 60px;
