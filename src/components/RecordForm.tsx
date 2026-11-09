@@ -150,26 +150,27 @@ export function RecordForm({
 
       <div className="field">
         <span>{v.urls.length > 1 ? 'URLs (the first is the main one)' : 'URL'}</span>
-        {v.urls.map((row, i) => (
-          <UrlRowEditor
-            key={i}
-            index={i}
-            row={row}
-            onChange={(patch) => setRow(i, patch)}
-            onRemove={v.urls.length > 1 ? () => setV((p) => ({ ...p, urls: p.urls.filter((_, j) => j !== i) })) : undefined}
-          />
-        ))}
-        {v.urls.length < MAX_URLS && (
-          <div>
+        {/* One bordered table: a row per URL (with its remove cell), then "+ Add URL". */}
+        <div className="url-table">
+          {v.urls.map((row, i) => (
+            <UrlRowEditor
+              key={i}
+              index={i}
+              row={row}
+              onChange={(patch) => setRow(i, patch)}
+              onRemove={v.urls.length > 1 ? () => setV((p) => ({ ...p, urls: p.urls.filter((_, j) => j !== i) })) : undefined}
+            />
+          ))}
+          {v.urls.length < MAX_URLS && (
             <button
               type="button"
-              className="btn btn-small btn-ghost"
+              className="url-table-add"
               onClick={() => setV((p) => ({ ...p, urls: [...p.urls, newUrlRow()] }))}
             >
               + Add URL
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {!hideStatus && (

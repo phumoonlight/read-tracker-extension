@@ -471,15 +471,64 @@ dialog.viewer {
 .form-footer-spacer {
   flex: 1;
 }
+/* URL table: one bordered box, rows divided by lines, no gaps */
+.url-table {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg);
+}
 .url-entry {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+}
+.url-entry + .url-entry,
+.url-table-add {
+  border-top: 1px solid var(--border);
 }
 .url-input-row {
   display: flex;
-  gap: 6px;
-  align-items: center;
+  align-items: stretch;
+}
+.url-table .url-input-row input {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.url-table .url-input-row input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+/* Notes / errors under a URL, inside its row */
+.url-entry > .row,
+.url-entry > .error {
+  padding: 4px 8px 8px;
+}
+/* The remove cell: divided by a line, red X, fills red on hover */
+.url-table .icon-btn {
+  border: 0;
+  border-left: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+.url-table .icon-btn-danger:hover {
+  background: var(--danger);
+  color: var(--danger-text);
+}
+.url-table-add {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  text-align: left;
+  font-size: 16px;
+  cursor: pointer;
+}
+.url-table-add:hover {
+  background: var(--surface-2);
+  color: var(--text);
 }
 .icon-btn {
   flex-shrink: 0;
