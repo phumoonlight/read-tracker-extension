@@ -224,24 +224,6 @@ textarea {
   --dot: var(--status-read);
 }
 
-.tag {
-  display: inline-block;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  color: var(--text-muted);
-  font-size: 12px;
-}
-/* Clickable tag on a record (adds it to the tag filter) */
-.tag-button {
-  border: 0;
-  cursor: pointer;
-}
-.tag-button:hover,
-.tag-button:focus-visible {
-  background: var(--border);
-  color: var(--text);
-}
 
 /* Thumbnail */
 .thumb {
