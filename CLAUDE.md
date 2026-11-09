@@ -40,7 +40,7 @@ src/
     images.ts            StoredImage, getImage/getImagePreview, prepareImage (validate + preview), sniffImageType
     tab.ts               active tab, captureVisibleTab, og:image lookup/download
     records.ts           createRecord, computeMatchKey, tag helpers
-    backup.ts            parseManifest / parseRecordLine / parseImageLine / planImport / buildManifest (pure, unit-tested)
+    backup.ts            parseManifest / parseRecordLine / imagesFromZip / planImport / buildManifest (pure, unit-tested)
     backup-io.ts         export download + import apply (side effects)
     zip.ts               minimal ZIP writer / reader (stored entries, ZIP64, deflate on read), CRC-32
     lines.ts             readLines: stream a text Blob line by line (JSON Lines)
@@ -144,25 +144,26 @@ migrate on import; backups from newer versions are rejected.
 
 ### Backup and images
 
-Backups are **ZIP files** (`lib/zip.ts`, own writer/reader, no dependency). Layout 2 (`BACKUP_LAYOUT`, separate
+Backups are **ZIP files** (`lib/zip.ts`, own writer/reader, no dependency). Layout 3 (`BACKUP_LAYOUT`, separate
 from `SCHEMA_VERSION`):
 - `manifest.json` (`BackupManifest`): format, `layout`, record schema `version`, `exportedAt`, `counts`, `folders`,
   `home`. Read first (`openBackup`), so the Backup page previews counts and rejects newer backups before reading
   records.
-- `records.jsonl`: one record per line. `images.jsonl`: one `{ id, recordId, file }` per line. Both are read as a
-  stream (`lib/lines.ts` `readLines`), never as one string. A bad record line is fatal and names its line
-  (`parseRecordLine`; nothing is written); a bad image line is skipped with an issue (`parseImageLine`).
-- `images/<id>.<ext>` (`imagePath`): original files.
-Layout 1 (the first ZIP backups: one `backup.json`, `parseBackup`) still imports.
+- `records.jsonl`: one record per line, read as a stream (`lib/lines.ts` `readLines`), never as one string. A bad
+  line is fatal and names its line (`parseRecordLine`; nothing is written).
+- `images/<id>.<ext>` (`imagePath`, `imageStem`): original files. There is no image list: on import each id in a
+  record's `images` is looked up by file-name stem among the ZIP's entries (`imageIndex` + `imagesFromZip`; any
+  extension, first record listing an id gets it).
+Older layouts still import and find images the same way: layout 1 (one `backup.json`, `parseBackup`; its `images`
+list is ignored) and layout 2 (also had `images.jsonl`, now ignored).
 
 Import reports what it skipped or changed as `issues` (strings; `planImport` adds folder renames skipped, domain
-clashes, images not in the file or owned by another record, records moved to Home; parsing adds bad image entries
-and invalid folder domains; an image file that can't be read is skipped and taken off its record instead of failing
+clashes, images not in the file or owned by another record, records moved to Home; parsing adds invalid folder
+domains; an image file that can't be read is skipped and taken off its record instead of failing
 the import). The Backup page lists them under a collapsed summary (`describeIssues` caps the list). Entries are stored
 (not compressed) and the archive Blob is assembled from the image Blobs, so export doesn't copy files into memory
 (only a streaming CRC-32 pass); ZIP64 records are written only when needed. The reader takes stored or deflated
-entries (via `DecompressionStream`), so a re-zipped backup imports. `parseBackup` accepts only plain `images/<name>`
-paths (`isImagePath`); an image whose file is missing from the archive is dropped. Only ZIP backups import: the
+entries (via `DecompressionStream`), so a re-zipped backup imports. Only ZIP backups import: the
 old `.json` format (images as data URLs) was removed, so `.json` files are rejected.
 On import, a written record keeps only image ids the file carries for it (or already stored for it); previews are
 rebuilt; stored images the winning copy no longer lists are deleted; an id owned by another local record is never

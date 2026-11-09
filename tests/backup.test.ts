@@ -5,9 +5,9 @@ import {
   buildManifest,
   describeIssues,
   imagePath,
-  isImagePath,
+  imageIndex,
+  imagesFromZip,
   parseBackup,
-  parseImageLine,
   parseManifest,
   parseRecordLine,
   planImport,
@@ -111,7 +111,8 @@ describe('parseBackup (validation)', () => {
     const b = valid();
     const parsed = parseBackup(JSON.stringify(b));
     expect(parsed.records).toEqual(b.records);
-    expect(parsed.images).toEqual([img('i1', 'a')]);
+    // Images come from the ZIP's files, not the file's own list.
+    expect(parsed.images).toEqual([]);
     expect(parsed.version).toBe(SCHEMA_VERSION);
   });
 
@@ -155,21 +156,6 @@ describe('parseBackup (validation)', () => {
     expect(parseBackup(bad({ lastReadUrl: 'https://example.com/ch-2' })).records[0]?.lastReadUrl).toBe(
       'https://example.com/ch-2',
     );
-  });
-
-  it('drops image entries that are malformed or have no safe file path', () => {
-    const text = JSON.stringify({
-      ...valid(),
-      images: [
-        { id: 'a', recordId: 'r', file: '../x.webp' },
-        { id: 'b', recordId: 'r', file: 42 },
-        { id: '', recordId: 'r', file: 'images/x.webp' },
-        { id: 'd', recordId: 'r', dataUrl: IMG },
-        'nope',
-        { id: 'c', recordId: 'r', file: 'images/c.webp' },
-      ],
-    });
-    expect(parseBackup(text).images).toEqual([img('c', 'r')]);
   });
 
   it('imports a "reading" record from an older backup as unread, and rejects it in a current one', () => {
@@ -229,23 +215,30 @@ describe('ZIP backup image paths', () => {
     expect(typeForImagePath('images/x.svg')).toBe('image/svg+xml');
     expect(typeForImagePath('images/x.bin')).toBe('');
   });
-  it('accepts only plain paths under images/', () => {
-    expect(isImagePath('images/a.png')).toBe(true);
-    for (const p of ['a.png', 'images/', 'images/a/b.png', '/images/a.png', 'images/..', 'images\a.png', 42]) {
-      expect(isImagePath(p)).toBe(false);
-    }
+  it('indexes image files directly under images/ by stem', () => {
+    const index = imageIndex(['manifest.json', 'images/a.png', 'images/b', 'images/x/c.png', 'images/a.jpg', 'other/d.png', 'images/']);
+    expect([...index]).toEqual([
+      ['a', 'images/a.png'],
+      ['b', 'images/b'],
+    ]);
   });
-  it('parses images given by file path, dropping unsafe paths', () => {
-    const parsed = parseBackup(
-      JSON.stringify({
-        ...buildBackup([], [], []),
-        images: [
-          { id: 'a', recordId: 'r', file: 'images/a.png' },
-          { id: 'b', recordId: 'r', file: '../../etc/passwd' },
-        ],
-      }),
-    );
-    expect(parsed.images).toEqual([{ id: 'a', recordId: 'r', file: 'images/a.png' }]);
+  it('finds each record\'s images by id; the first record listing an id gets it', () => {
+    const index = imageIndex(['images/i1.png', 'images/i2.webp', 'images/legacy-r.webp']);
+    const records = [
+      rec({ id: 'r', title: 'R', images: ['i1', 'missing', 'legacy-r'] }),
+      rec({ id: 's', title: 'S', images: ['i1', 'i2'] }),
+    ];
+    expect(imagesFromZip(records, index)).toEqual([
+      { id: 'i1', recordId: 'r', file: 'images/i1.png' },
+      { id: 'legacy-r', recordId: 'r', file: 'images/legacy-r.webp' },
+      { id: 'i2', recordId: 's', file: 'images/i2.webp' },
+    ]);
+    // planImport then reports the missing one and the shared one.
+    const plan = planImport([], [], buildBackup(records, [], imagesFromZip(records, index)));
+    expect(plan.issues).toEqual([
+      'Record “R”: image missing is not in the backup, skipped.',
+      'Record “S”: image i1 belongs to another record, skipped.',
+    ]);
   });
 });
 
@@ -282,20 +275,6 @@ describe('ZIP layout 2 (manifest + JSON lines)', () => {
     );
     // Older schema versions migrate.
     expect(parseRecordLine(JSON.stringify({ ...r, status: 'reading' }), 1, 4).status).toBe('unread');
-  });
-  it('skips bad image lines with an issue', () => {
-    const issues: string[] = [];
-    expect(parseImageLine('{"id":"i","recordId":"r","file":"images/i.png"}', 1, issues)).toEqual({
-      id: 'i',
-      recordId: 'r',
-      file: 'images/i.png',
-    });
-    expect(parseImageLine('nope', 2, issues)).toBeUndefined();
-    expect(parseImageLine('{"id":"i","recordId":"r","file":"../i.png"}', 3, issues)).toBeUndefined();
-    expect(issues).toEqual([
-      'images.jsonl line 2: not valid JSON, skipped.',
-      'images.jsonl line 3: image i has no valid file path, skipped.',
-    ]);
   });
 });
 

@@ -61,7 +61,7 @@ change.
   after **Update read** the record moves to the bottom to wait its turn.
 - **Backup:** in the full list, click **Backup** (top right) to open the Backup page with **Export backup** and
   **Import backup**. The export is a `.zip` with `manifest.json` (summary, folders, settings), `records.jsonl` (one
-  record per line), `images.jsonl` and an `images` folder of the original files (any unzip tool can open it).
+  record per line) and an `images` folder of the original files named by image id (any unzip tool can open it).
   Importing shows what the backup contains before anything is changed; when the same record exists in both places,
   the copy that was edited most recently is kept. Anything skipped (e.g. a missing image file) is listed afterwards.
   Older `.json` backups can't be imported.

@@ -1,12 +1,13 @@
 import {
-  BACKUP_IMAGES,
   BACKUP_JSON,
   BACKUP_MANIFEST,
   BACKUP_RECORDS,
   buildManifest,
+  imageIndex,
   imagePath,
+  imageStem,
+  imagesFromZip,
   parseBackup,
-  parseImageLine,
   parseManifest,
   parseRecordLine,
   planImport,
@@ -17,42 +18,36 @@ import {
 import { getImage, prepareImage, type StoredImage } from './images';
 import { readLines } from './lines';
 import { applyImport, getAllRecords, getHomeSettings, listFolders } from './storage';
-import type { BackupFile, BackupImage, ReadingRecord } from './types';
+import type { BackupFile, ReadingRecord } from './types';
 import { createZip, looksLikeZip, readZip, readZipEntry, type ZipEntry, type ZipInput } from './zip';
 
 /**
- * Export everything to a .zip (layout 2):
+ * Export everything to a .zip (layout 3):
  *   manifest.json   format, versions, export time, counts, folders, Home settings
  *   records.jsonl   one record per line
- *   images.jsonl    one { id, recordId, file } per line
- *   images/<id>.ext original image files
+ *   images/<id>.ext original image files (found by id on import: no separate list)
  * Returns the number of records.
  */
 export async function exportToFile(): Promise<number> {
   const [records, folders, home] = await Promise.all([getAllRecords(), listFolders(), getHomeSettings()]);
-  const images: BackupImage[] = [];
   const files: ZipInput[] = [];
-  const used = new Set<string>();
+  const stems = new Set<string>();
   for (const r of records) {
     for (const id of r.images) {
       const img = await getImage(id);
-      if (!img) continue;
-      let path = imagePath(id, img.blob.type);
-      // Ids made filename-safe could collide; keep paths unique.
-      for (let n = 2; used.has(path); n++) path = imagePath(`${id}-${n}`, img.blob.type);
-      used.add(path);
-      images.push({ id, recordId: r.id, file: path });
-      files.push({ name: path, data: img.blob });
+      // One file per id (stems are unique for real ids, which are UUIDs).
+      if (!img || stems.has(imageStem(id))) continue;
+      stems.add(imageStem(id));
+      files.push({ name: imagePath(id, img.blob.type), data: img.blob });
     }
   }
-  const manifest = buildManifest({ records: records.length, images: images.length }, folders, home);
+  const manifest = buildManifest({ records: records.length, images: files.length }, folders, home);
   const json = (v: unknown) => new Blob([JSON.stringify(v, null, 2)], { type: 'application/json' });
   // One Blob part per line: no single giant string.
   const jsonl = (items: unknown[]) => new Blob(items.map(toJsonLine), { type: 'application/x-ndjson' });
   const zip = await createZip([
     { name: BACKUP_MANIFEST, data: json(manifest) },
     { name: BACKUP_RECORDS, data: jsonl(records) },
-    { name: BACKUP_IMAGES, data: jsonl(images) },
     ...files,
   ]);
   download(zip, `read-tracker-backup-${new Date().toISOString().slice(0, 10)}.zip`);
@@ -110,14 +105,6 @@ export async function openBackup(file: File): Promise<OpenedBackup> {
         for await (const { line, lineNo } of readLines(await readZipEntry(file, recordsEntry))) {
           records.push(parseRecordLine(line, lineNo, manifest.version));
         }
-        const images: BackupImage[] = [];
-        const imagesEntry = entries.get(BACKUP_IMAGES);
-        if (imagesEntry) {
-          for await (const { line, lineNo } of readLines(await readZipEntry(file, imagesEntry))) {
-            const img = parseImageLine(line, lineNo, issues);
-            if (img) images.push(img);
-          }
-        }
         if (records.length !== manifest.counts.records) {
           issues.push(
             `${BACKUP_MANIFEST} lists ${manifest.counts.records} records but ${BACKUP_RECORDS} has ${records.length}.`,
@@ -129,7 +116,7 @@ export async function openBackup(file: File): Promise<OpenedBackup> {
           exportedAt: manifest.exportedAt,
           records,
           folders: manifest.folders,
-          images,
+          images: [],
           ...(manifest.home ? { home: manifest.home } : {}),
         };
         return mergeBackup(file, entries, backup, issues);
@@ -143,7 +130,11 @@ export async function openBackup(file: File): Promise<OpenedBackup> {
   const backup = parseBackup(await (await readZipEntry(file, jsonEntry)).text(), openIssues);
   return {
     exportedAt: backup.exportedAt,
-    counts: { records: backup.records.length, folders: backup.folders.length, images: backup.images.length },
+    counts: {
+      records: backup.records.length,
+      folders: backup.folders.length,
+      images: imagesFromZip(backup.records, imageIndex(entries.keys())).length,
+    },
     run: () => mergeBackup(file, entries, { ...backup }, [...openIssues]),
   };
 }
@@ -155,9 +146,9 @@ async function mergeBackup(
   backup: BackupFile,
   issues: string[],
 ): Promise<ImportResult> {
-  // An image whose file is missing from the archive is treated like one the file doesn't carry
-  // (planImport then reports it on its record).
-  backup.images = backup.images.filter((img) => entries.has(img.file));
+  // Each record's images are found by id among the ZIP's files (any layout); an id without
+  // a file is reported by planImport on its record.
+  backup.images = imagesFromZip(backup.records, imageIndex(entries.keys()));
 
   const [records, folders, home] = await Promise.all([getAllRecords(), listFolders(), getHomeSettings()]);
   const plan = planImport(records, folders, backup, home);

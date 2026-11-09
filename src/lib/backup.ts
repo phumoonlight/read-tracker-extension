@@ -127,24 +127,6 @@ function parseFolder(f: unknown, i: number, issues?: string[]): Folder {
   };
 }
 
-/** Path of an image inside a ZIP backup: under images/, no "..", no absolute path. */
-export function isImagePath(v: unknown): v is string {
-  return typeof v === 'string' && /^images\/[^/\\]+$/.test(v) && !v.includes('..');
-}
-
-/** One image entry (images.jsonl line or backup.json item); malformed ones are reported and dropped. */
-export function parseImageEntry(img: unknown, where: string, issues: string[]): BackupImage | undefined {
-  if (!isObj(img) || typeof img.id !== 'string' || !img.id || typeof img.recordId !== 'string') {
-    issues.push(`${where}: not a valid image entry, skipped.`);
-    return undefined;
-  }
-  if (!isImagePath(img.file)) {
-    issues.push(`${where}: image ${img.id} has no valid file path, skipped.`);
-    return undefined;
-  }
-  return { id: img.id, recordId: img.recordId, file: img.file };
-}
-
 /** Check a backup's schema version: older ones are migrated, newer ones are rejected. */
 function checkVersion(version: unknown): number {
   if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
@@ -175,19 +157,14 @@ export function parseBackup(text: string, issues: string[] = []): BackupFile {
   const records = data.records.map((raw, i) => parseRecordValue(raw, `Record #${i + 1}`, version));
   const folders = ((data.folders as unknown[] | undefined) ?? []).map((f, i) => parseFolder(f, i, issues));
   const home = parseHome(data.home);
-  // Entries that are malformed or have an unsafe path are dropped; records then simply lack that image.
-  const images: BackupImage[] = [];
-  (Array.isArray(data.images) ? data.images : []).forEach((img, i) => {
-    const parsed = parseImageEntry(img, `Image #${i + 1}`, issues);
-    if (parsed) images.push(parsed);
-  });
   return {
     format: BACKUP_FORMAT,
     version: SCHEMA_VERSION,
     exportedAt: typeof data.exportedAt === 'number' ? data.exportedAt : 0,
     records,
     folders,
-    images,
+    // Found by id among the ZIP's files on import (imagesFromZip); the file's own list is not needed.
+    images: [],
     ...(home ? { home } : {}),
   };
 }
@@ -200,13 +177,16 @@ function parseRecordValue(raw: unknown, where: string, version: number): Reading
 }
 
 // ---------------------------------------------------------------------------
-// ZIP layout 2: manifest.json + records.jsonl + images.jsonl + images/
+// ZIP layout 3: manifest.json + records.jsonl + images/<id>.<ext>
 
-/** Version of the ZIP's file layout (separate from the record SCHEMA_VERSION). 1 = backup.json only. */
-export const BACKUP_LAYOUT = 2;
+/**
+ * Version of the ZIP's file layout (separate from the record SCHEMA_VERSION).
+ * 1 = backup.json only; 2 added manifest.json, records.jsonl and images.jsonl;
+ * 3 dropped images.jsonl (images are found by id, see imagesFromZip). All still import.
+ */
+export const BACKUP_LAYOUT = 3;
 export const BACKUP_MANIFEST = 'manifest.json';
 export const BACKUP_RECORDS = 'records.jsonl';
-export const BACKUP_IMAGES = 'images.jsonl';
 
 export interface BackupCounts {
   records: number;
@@ -286,18 +266,7 @@ export function parseRecordLine(line: string, lineNo: number, version: number): 
   return parseRecordValue(raw, where, version);
 }
 
-/** One images.jsonl line; a bad line is reported in `issues` and skipped. */
-export function parseImageLine(line: string, lineNo: number, issues: string[]): BackupImage | undefined {
-  const where = `${BACKUP_IMAGES} line ${lineNo}`;
-  try {
-    return parseImageEntry(JSON.parse(line), where, issues);
-  } catch {
-    issues.push(`${where}: not valid JSON, skipped.`);
-    return undefined;
-  }
-}
-
-/** One JSON value per line, newline-terminated (records.jsonl / images.jsonl). */
+/** One JSON value per line, newline-terminated (records.jsonl). */
 export const toJsonLine = (v: unknown) => `${JSON.stringify(v)}\n`;
 
 /** Keep the newest copy per id (a file may repeat an id). */
@@ -473,10 +442,49 @@ const EXTENSIONS: Record<string, string> = {
   'image/svg+xml': 'svg',
 };
 
-/** Path for an image's original file inside a ZIP backup: images/<id>.<ext> (id made filename-safe). */
+/** File name stem for an image id (ids are UUIDs, already safe; anything else is made filename-safe). */
+export const imageStem = (id: string) => id.replace(/[^A-Za-z0-9_-]/g, '_') || 'image';
+
+/** Path for an image's original file inside a ZIP backup: images/<id>.<ext>. */
 export function imagePath(id: string, type: string): string {
-  const safe = id.replace(/[^A-Za-z0-9_-]/g, '_') || 'image';
-  return `images/${safe}.${EXTENSIONS[type] ?? 'bin'}`;
+  return `images/${imageStem(id)}.${EXTENSIONS[type] ?? 'bin'}`;
+}
+
+/**
+ * Index of the image files in a ZIP: name stem -> path, for entries directly under images/
+ * ("images/<stem>" or "images/<stem>.<ext>"). The first file for a stem wins.
+ */
+export function imageIndex(paths: Iterable<string>): Map<string, string> {
+  const index = new Map<string, string>();
+  for (const path of paths) {
+    const m = /^images\/([^/\\]+)$/.exec(path);
+    if (!m) continue;
+    const name = m[1]!;
+    const dot = name.lastIndexOf('.');
+    const stem = dot > 0 ? name.slice(0, dot) : name;
+    if (!index.has(stem)) index.set(stem, path);
+  }
+  return index;
+}
+
+/**
+ * The backup's images: each id a record lists whose file is in the ZIP. An id listed by two
+ * records goes to the first (planImport reports the other). Ids without a file are left out;
+ * planImport reports them on their record.
+ */
+export function imagesFromZip(records: readonly ReadingRecord[], index: ReadonlyMap<string, string>): BackupImage[] {
+  const out: BackupImage[] = [];
+  const seen = new Set<string>();
+  for (const r of records) {
+    for (const id of r.images) {
+      const file = index.get(imageStem(id));
+      if (file && !seen.has(id)) {
+        seen.add(id);
+        out.push({ id, recordId: r.id, file });
+      }
+    }
+  }
+  return out;
 }
 
 /** MIME type for an image path's extension (files from a ZIP have none of their own). */
