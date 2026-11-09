@@ -484,4 +484,5 @@ dialog.viewer {
 }
 .hold-label {
   position: relative;
+  font-weight: 700;
 }
