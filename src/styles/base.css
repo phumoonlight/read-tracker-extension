@@ -7,11 +7,12 @@
   --border: #d0d7de;
   --text: #1f2328;
   --text-muted: #59636e;
-  --accent: #0969da;
+  /* Monochrome primary: near-black in light mode, white in dark mode. */
+  --accent: #1f2328;
   --accent-text: #ffffff;
   --danger: #cf222e;
   --danger-text: #ffffff;
-  --focus: #0969da66;
+  --focus: #1f232880;
 
   --status-unread: #0969da;
   --status-reading: #bf6a02;
@@ -39,11 +40,11 @@
     --border: #30363d;
     --text: #e6edf3;
     --text-muted: #9198a1;
-    --accent: #4493f8;
+    --accent: #ffffff;
     --accent-text: #0d1117;
     --danger: #f85149;
     --danger-text: #0d1117;
-    --focus: #4493f866;
+    --focus: #ffffff99;
 
     --status-unread: #4493f8;
     --status-reading: #d29922;
@@ -142,7 +143,8 @@ textarea {
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--accent);
-  filter: brightness(1.08);
+  /* Dim slightly: brightening does nothing on a white button. */
+  opacity: 0.88;
 }
 .btn-danger {
   background: var(--danger);
