@@ -1,6 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { browser, type Browser } from 'wxt/browser';
-import { FolderSelect } from '@/components/RecordForm';
 import { HoldButton } from '@/components/HoldButton';
 import { matchedEntry } from '@/lib/match';
 import { createRecord, formatDateTime, hasSeries } from '@/lib/records';
@@ -103,7 +102,7 @@ function AddPage({ tab, folders, onAdded }: { tab: ActiveTab; folders: Folder[];
       <div className="popup-body">
         <h2 className="popup-section-title">Add this page</h2>
         <input type="text" value={title} aria-label="Title" placeholder="Title" onChange={(e) => setTitle(e.target.value)} />
-        {folders.length > 0 && <FolderSelect folders={folders} value={folderId} onChange={setFolderId} />}
+        {folders.length > 0 && <FolderChips folders={folders} value={folderId} onChange={setFolderId} />}
         <span className="muted popup-url" title={tab.url}>
           {displayUrl(tab.url)}
         </span>
@@ -192,7 +191,7 @@ function CurrentRecord({
           </button>
         )}
 
-        {folders.length > 0 && <FolderSelect folders={folders} value={record.folderId ?? ''} onChange={setFolder} />}
+        {folders.length > 0 && <FolderChips folders={folders} value={record.folderId ?? ''} onChange={setFolder} />}
 
         {continueUrl && (
           <a
@@ -215,5 +214,34 @@ function CurrentRecord({
         </button>
       </div>
     </>
+  );
+}
+
+/** Folder choice as chips (Home first); no dropdown, so nothing has to fit inside the popup. */
+function FolderChips({
+  folders,
+  value,
+  onChange,
+}: {
+  folders: Folder[];
+  /** '' = Home. */
+  value: string;
+  onChange: (folderId: string) => void;
+}) {
+  // A folder that no longer exists counts as Home.
+  const current = folders.some((f) => f.id === value) ? value : '';
+  const chip = (id: string, name: string) => (
+    <button key={id || 'home'} type="button" className="folder-chip" aria-pressed={current === id} onClick={() => onChange(id)}>
+      {name}
+    </button>
+  );
+  return (
+    <div className="field">
+      <span>Folder</span>
+      <div className="popup-folder-chips" role="group" aria-label="Folder">
+        {chip('', 'Home')}
+        {folders.map((f) => chip(f.id, f.name))}
+      </div>
+    </div>
   );
 }

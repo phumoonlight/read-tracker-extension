@@ -740,3 +740,27 @@ dialog.viewer {
   margin-bottom: 10px;
   word-break: break-all;
 }
+
+/* Folder chip (folder bar on the list page, folder choice in the popup) */
+.folder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.folder-chip:hover {
+  background: var(--surface-2);
+}
+.folder-chip[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
