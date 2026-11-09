@@ -10,6 +10,7 @@ import {
   type Folder,
   type HomeSettings,
   type ImageSize,
+  type ReadMode,
   type ReadingRecord,
   type ReadStatus,
 } from './types';
@@ -33,21 +34,24 @@ interface Row extends ReadingRecord {
   _title: string;
   /** Status sort rank; the status index is walked backwards, so unread (2) comes first. */
   _rank: number;
+  /** readAt, or 0 if never read: the Revisit order (least recently read first). */
+  _readSort: number;
 }
 
 const RANK: Record<ReadStatus, number> = { unread: 2, reading: 1, read: 0 };
 
 function toRow(r: ReadingRecord): Row {
-  const row: Row = { ...r, _title: r.title.toLocaleLowerCase(), _rank: RANK[r.status] };
+  const row: Row = { ...r, _title: r.title.toLocaleLowerCase(), _rank: RANK[r.status], _readSort: r.readAt ?? 0 };
   // Keep Home (no folder) as an absent property (not stored as undefined).
   if (row.folderId === undefined) delete row.folderId;
   return row;
 }
 
 function fromRow(row: Row): ReadingRecord {
-  const { _title, _rank, ...r } = row;
+  const { _title, _rank, _readSort, ...r } = row;
   void _title;
   void _rank;
+  void _readSort;
   return r;
 }
 
@@ -182,7 +186,8 @@ export async function listTags(): Promise<string[]> {
   });
 }
 
-export type SortKey = 'updated' | 'created' | 'title' | 'status';
+/** 'revisit' = least recently read first (used by places in Revisit mode). */
+export type SortKey = 'updated' | 'created' | 'title' | 'status' | 'revisit';
 
 export interface RecordQuery {
   search?: string;
@@ -200,6 +205,7 @@ const SORT_INDEX: Record<SortKey, { index: string; direction: IDBCursorDirection
   created: { index: IDX.createdAt, direction: 'prev' },
   title: { index: IDX.title, direction: 'next' },
   status: { index: IDX.status, direction: 'prev' },
+  revisit: { index: IDX.readOrder, direction: 'next' },
 };
 
 /**
@@ -403,15 +409,29 @@ export async function getHomeSettings(): Promise<HomeSettings | undefined> {
   return withTx(META, 'readonly', (tx) => req(tx.objectStore(META).get(HOME_KEY)) as Promise<HomeSettings | undefined>);
 }
 
-/** Set how big images display in Home ('medium' is stored as absent). */
-export async function setHomeImageSize(size: ImageSize): Promise<void> {
+/** Display settings shared by Home and folders. Defaults are stored as absent. */
+type PlaceSettings = { imageSize?: ImageSize; readMode?: ReadMode };
+
+/** Apply a settings change, dropping fields that are back at their default. */
+function withSettings<T extends PlaceSettings>(current: T, patch: PlaceSettings): T {
+  const next = { ...current, ...patch };
+  if (next.imageSize === 'medium') delete next.imageSize;
+  if (next.readMode === 'status') delete next.readMode;
+  return next;
+}
+
+/** Change Home's settings (merged with the stored ones). */
+export async function updateHomeSettings(patch: PlaceSettings): Promise<void> {
   await ensureReady();
   await withTx(META, 'readwrite', async (tx) => {
-    const settings: HomeSettings = { ...(size === 'medium' ? {} : { imageSize: size }), updatedAt: Date.now() };
-    tx.objectStore(META).put(settings, HOME_KEY);
+    const store = tx.objectStore(META);
+    const current = ((await req(store.get(HOME_KEY))) as HomeSettings | undefined) ?? { updatedAt: 0 };
+    store.put({ ...withSettings(current, patch), updatedAt: Date.now() }, HOME_KEY);
   });
   await notifyChanged();
 }
+
+export const setHomeImageSize = (size: ImageSize) => updateHomeSettings({ imageSize: size });
 
 // ---------------------------------------------------------------------------
 // Folders
@@ -471,19 +491,26 @@ export async function renameFolder(id: string, name: string): Promise<void> {
   await notifyChanged();
 }
 
-/** Set how big images display while a folder is open ('medium' is stored as absent). */
-export async function setFolderImageSize(id: string, size: ImageSize): Promise<void> {
+/** Change a folder's display settings (image size, read mode). Defaults are stored as absent. */
+export async function updateFolderSettings(id: string, patch: PlaceSettings): Promise<void> {
   await ensureReady();
   await withTx(FOLDERS, 'readwrite', async (tx) => {
     const store = tx.objectStore(FOLDERS);
     const current = (await req(store.get(id))) as Folder | undefined;
     if (!current) throw new Error('This folder no longer exists.');
-    const { imageSize: _old, ...rest } = current;
-    void _old;
-    store.put({ ...rest, ...(size === 'medium' ? {} : { imageSize: size }), updatedAt: Date.now() });
+    store.put({ ...withSettings(current, patch), updatedAt: Date.now() });
   });
   await notifyChanged();
 }
+
+export const setFolderImageSize = (id: string, size: ImageSize) => updateFolderSettings(id, { imageSize: size });
+
+/**
+ * Revisit mode's "Read now": stamp readAt with the current time (and mark it read).
+ * The record then sorts to the end of its Revisit list.
+ */
+export const markReadNow = (id: string) =>
+  updateRecord(id, () => ({ status: 'read' as const, readAt: Date.now() }));
 
 /**
  * Delete a folder. Its records are kept and moved to Home (with updatedAt bumped,

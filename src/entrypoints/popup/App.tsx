@@ -5,9 +5,18 @@ import { StatusPicker } from '@/components/StatusPicker';
 import { Thumbnail } from '@/components/Thumbnail';
 import { ImagePicker } from '@/components/ImagePicker';
 import { createRecord } from '@/lib/records';
-import { findRecordForUrl, listFolders, putRecord, statusChange, updateRecord } from '@/lib/storage';
+import {
+  findRecordForUrl,
+  getHomeSettings,
+  listFolders,
+  markReadNow,
+  putRecord,
+  statusChange,
+  updateRecord,
+} from '@/lib/storage';
+import { formatDateTime } from '@/lib/records';
 import { getActiveTab } from '@/lib/tab';
-import { STATUS_LABEL, type Folder, type ReadingRecord, type ReadStatus } from '@/lib/types';
+import { STATUS_LABEL, type Folder, type HomeSettings, type ReadingRecord, type ReadStatus } from '@/lib/types';
 import { normalizeUrl } from '@/lib/url';
 
 type ActiveTab = Browser.tabs.Tab & { id: number; url: string };
@@ -15,7 +24,7 @@ type ActiveTab = Browser.tabs.Tab & { id: number; url: string };
 type State =
   | { kind: 'loading' }
   | { kind: 'untrackable' }
-  | { kind: 'ready'; tab: ActiveTab; record?: ReadingRecord; folders: Folder[] };
+  | { kind: 'ready'; tab: ActiveTab; record?: ReadingRecord; folders: Folder[]; home?: HomeSettings };
 
 const viewHash = (recordId: string, index: number) => `#view=${encodeURIComponent(recordId)}&i=${index}`;
 
@@ -35,8 +44,8 @@ export function App() {
         setState({ kind: 'untrackable' });
         return;
       }
-      const [record, folders] = await Promise.all([findRecordForUrl(key), listFolders()]);
-      setState({ kind: 'ready', tab: tab as ActiveTab, record, folders });
+      const [record, folders, home] = await Promise.all([findRecordForUrl(key), listFolders(), getHomeSettings()]);
+      setState({ kind: 'ready', tab: tab as ActiveTab, record, folders, home });
     })();
   }, []);
 
@@ -58,6 +67,7 @@ export function App() {
             tab={state.tab}
             record={state.record}
             folders={state.folders}
+            home={state.home}
             onChange={(record) => setState({ ...state, record })}
           />
         ) : (
@@ -110,13 +120,18 @@ function CurrentRecord({
   tab,
   record,
   folders,
+  home,
   onChange,
 }: {
   tab: ActiveTab;
   record: ReadingRecord;
   folders: Folder[];
+  home: HomeSettings | undefined;
   onChange: (r: ReadingRecord) => void;
 }) {
+  // The record's place decides how it is read (Status or Revisit).
+  const place = record.folderId ? folders.find((f) => f.id === record.folderId) : home;
+  const revisit = place?.readMode === 'revisit';
   async function setFolder(folderId: string) {
     const next = await updateRecord(record.id, (r) =>
       (r.folderId ?? '') === folderId ? {} : { folderId: folderId || undefined },
@@ -149,10 +164,28 @@ function CurrentRecord({
         </div>
       </div>
 
-      <div className="field">
-        <span>Status</span>
-        <StatusPicker value={record.status} onChange={setStatus} />
-      </div>
+      {revisit ? (
+        <div className="field">
+          <span>{record.readAt ? `Last read ${formatDateTime(record.readAt)}` : 'Not read yet'}</span>
+          <div className="row">
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={async () => {
+                const next = await markReadNow(record.id);
+                if (next) onChange(next);
+              }}
+            >
+              Read now
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="field">
+          <span>Status</span>
+          <StatusPicker value={record.status} onChange={setStatus} />
+        </div>
+      )}
 
       {folders.length > 0 && <FolderSelect folders={folders} value={record.folderId ?? ''} onChange={setFolder} />}
 

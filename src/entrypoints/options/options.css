@@ -263,3 +263,8 @@
   padding: 2px 10px;
   font-size: 12px;
 }
+
+.toolbar-note {
+  align-self: center;
+  font-size: 12px;
+}

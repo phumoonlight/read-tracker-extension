@@ -63,3 +63,7 @@ export const parseTags = (text: string) => normalizeTags(text.split(','));
 
 /** The URL to open for a record: the last chapter for an in-progress series, else the entered URL. */
 export const openUrl = (r: ReadingRecord) => (r.matchMode === 'prefix' && r.lastReadUrl) || r.url;
+
+/** "Nov 9, 2026, 2:03 PM" in the user's locale: for last-read times. */
+export const formatDateTime = (ms: number) =>
+  new Date(ms).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });

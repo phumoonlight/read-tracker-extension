@@ -14,6 +14,7 @@ import {
   type Folder,
   type HomeSettings,
   type ImageSize,
+  type ReadMode,
   type ReadingRecord,
 } from './types';
 
@@ -66,10 +67,19 @@ function parseImageSize(v: unknown): ImageSize | undefined {
 }
 
 /** Home settings from a file; malformed values are dropped (defaults), never fatal. */
+/** Unknown modes fall back to the default ('status'), stored as absent. */
+function parseReadMode(v: unknown): { readMode?: ReadMode } {
+  return v === 'revisit' ? { readMode: 'revisit' } : {};
+}
+
 function parseHome(v: unknown): HomeSettings | undefined {
   if (!isObj(v) || typeof v.updatedAt !== 'number') return undefined;
   const imageSize = parseImageSize(v.imageSize);
-  return { ...(imageSize && imageSize !== 'medium' ? { imageSize } : {}), updatedAt: v.updatedAt };
+  return {
+    ...(imageSize && imageSize !== 'medium' ? { imageSize } : {}),
+    ...parseReadMode(v.readMode),
+    updatedAt: v.updatedAt,
+  };
 }
 
 function parseFolder(f: unknown, i: number): Folder {
@@ -85,6 +95,7 @@ function parseFolder(f: unknown, i: number): Folder {
     id: f.id,
     name,
     ...(imageSize && imageSize !== 'medium' ? { imageSize } : {}),
+    ...parseReadMode(f.readMode),
     createdAt: f.createdAt as number,
     updatedAt: f.updatedAt as number,
   };

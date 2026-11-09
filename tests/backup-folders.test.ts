@@ -140,3 +140,18 @@ describe('Home settings in backups', () => {
     expect(planImport([], [], base(), { updatedAt: 1 }).writeHome).toBeUndefined();
   });
 });
+
+describe('read mode in backups', () => {
+  const base = () => buildBackup([], [], []);
+
+  it('keeps Revisit on folders and Home, drops the default and unknown values', () => {
+    const parse = (readMode: unknown) =>
+      parseBackup(JSON.stringify({ ...base(), folders: [{ ...folder('f', 'A'), readMode }] })).folders[0];
+    expect(parse('revisit')?.readMode).toBe('revisit');
+    expect(parse('status')).not.toHaveProperty('readMode');
+    expect(parse('weird')).not.toHaveProperty('readMode');
+
+    const home = parseBackup(JSON.stringify({ ...base(), home: { readMode: 'revisit', imageSize: 'large', updatedAt: 3 } })).home;
+    expect(home).toEqual({ readMode: 'revisit', imageSize: 'large', updatedAt: 3 });
+  });
+});

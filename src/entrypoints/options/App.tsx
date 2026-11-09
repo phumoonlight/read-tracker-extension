@@ -7,7 +7,7 @@ import { ImagePicker } from '@/components/ImagePicker';
 import { ImageViewer } from '@/components/ImageViewer';
 import { exportToFile, importFromFile } from '@/lib/backup-io';
 import { decodeFolderFilter, encodeFolderFilter } from '@/lib/folders';
-import { createRecord, openUrl } from '@/lib/records';
+import { createRecord, formatDateTime, openUrl } from '@/lib/records';
 import {
   countRecords,
   createFolder,
@@ -21,9 +21,10 @@ import {
   putRecord,
   queryRecords,
   getHomeSettings,
+  markReadNow,
   renameFolder,
-  setFolderImageSize,
-  setHomeImageSize,
+  updateFolderSettings,
+  updateHomeSettings,
   statusChange,
   updateRecord,
   type SortKey,
@@ -32,11 +33,15 @@ import {
   FOLDER_NAME_MAX,
   IMAGE_SIZES,
   IMAGE_SIZE_LABEL,
+  READ_MODES,
+  READ_MODE_LABEL,
   STATUSES,
   STATUS_LABEL,
   usesOriginalImages,
   type Folder,
+  type HomeSettings,
   type ImageSize,
+  type ReadMode,
   type ReadingRecord,
   type ReadStatus,
 } from '@/lib/types';
@@ -44,7 +49,9 @@ import {
 /** Cards loaded per page; more load as the end of the grid scrolls into view. */
 const PAGE = 60;
 
-const SORT_LABEL: Record<SortKey, string> = {
+/** Sorts offered in Status mode (Revisit places always use least recently read first). */
+type ListSort = Exclude<SortKey, 'revisit'>;
+const SORT_LABEL: Record<ListSort, string> = {
   updated: 'Recently updated',
   created: 'Recently added',
   title: 'Title A–Z',
@@ -140,7 +147,7 @@ export function App() {
   const search = useDebounced(query, 200);
   const [status, setStatus] = useState<ReadStatus | 'all'>('all');
   const [tag, setTag] = useState('');
-  const [sort, setSort] = useState<SortKey>('updated');
+  const [sort, setSort] = useState<ListSort>('updated');
   const [limit, setLimit] = useState(PAGE);
   const [page, setPage] = useState<{ records: ReadingRecord[]; hasMore: boolean }>();
   const [total, setTotal] = useState<number>();
@@ -150,7 +157,7 @@ export function App() {
   const folders = loadedFolders ?? NO_FOLDERS;
   const [counts, setCounts] = useState<Map<string, number>>(new Map());
   const [folder, setFolder] = useStoredFolder();
-  const [homeSize, setHomeSize] = useState<ImageSize>('medium');
+  const [home, setHome] = useState<HomeSettings>();
   const [modal, setModal] = useState<Modal>();
   const [view, setView] = useViewMode();
 
@@ -167,7 +174,7 @@ export function App() {
     void countRecords().then(setTotal);
     void listTags().then(setAllTags);
     void listFolders().then(setFolders);
-    void getHomeSettings().then((h) => setHomeSize(h?.imageSize ?? 'medium'));
+    void getHomeSettings().then(setHome);
     void folderCounts().then(setCounts);
   }, [revision]);
 
@@ -177,10 +184,12 @@ export function App() {
   // Home holds every record that isn't in a folder.
   const homeCount = total === undefined ? undefined : Math.max(0, total - [...counts.values()].reduce((a, b) => a + b, 0));
   const placeCount = isFolderId(activeFolder) ? (counts.get(activeFolder) ?? 0) : homeCount;
-  // The open place's image size (Home's lives in its own settings).
-  const imageSize: ImageSize = isFolderId(activeFolder)
-    ? (folders.find((f) => f.id === activeFolder)?.imageSize ?? 'medium')
-    : homeSize;
+  // The open place's settings (Home's live in their own record).
+  const openFolder = isFolderId(activeFolder) ? folders.find((f) => f.id === activeFolder) : undefined;
+  const placeSettings = isFolderId(activeFolder) ? openFolder : home;
+  const imageSize: ImageSize = placeSettings?.imageSize ?? 'medium';
+  // Revisit: "Read now" instead of statuses, always least recently read first.
+  const revisit = placeSettings?.readMode === 'revisit';
 
   // If the selected tag disappears (last record with it deleted or retagged), stop filtering by it.
   const activeTag = tag && allTags.includes(tag) ? tag : '';
@@ -190,10 +199,10 @@ export function App() {
     let stale = false;
     void queryRecords({
       search,
-      status: status === 'all' ? undefined : status,
+      status: revisit || status === 'all' ? undefined : status,
       tag: activeTag || undefined,
       folder: activeFolder,
-      sort,
+      sort: revisit ? 'revisit' : sort,
       limit,
     }).then((p) => {
       if (!stale) setPage(p);
@@ -201,7 +210,7 @@ export function App() {
     return () => {
       stale = true;
     };
-  }, [search, status, activeTag, activeFolder, sort, limit, revision]);
+  }, [search, status, activeTag, activeFolder, sort, revisit, limit, revision]);
 
   // Any filter change starts again from the first page.
   function resetting<T>(set: (v: T) => void) {
@@ -245,8 +254,12 @@ export function App() {
         onNew={() => setModal({ kind: 'folder-new' })}
         onRename={(f) => setModal({ kind: 'folder-rename', folder: f })}
         onDelete={(f) => setModal({ kind: 'folder-delete', folder: f, count: counts.get(f.id) ?? 0 })}
-        homeImageSize={homeSize}
-        onImageSize={(f, size) => void (f ? setFolderImageSize(f.id, size) : setHomeImageSize(size))}
+        home={home}
+        onSettings={(f, patch) => {
+          // Changing mode starts from the first page of the new order.
+          if (patch.readMode) setLimit(PAGE);
+          void (f ? updateFolderSettings(f.id, patch) : updateHomeSettings(patch));
+        }}
       />
 
       <div className="toolbar">
@@ -257,18 +270,20 @@ export function App() {
           onChange={(e) => resetting(setQuery)(e.target.value)}
           aria-label="Search"
         />
-        <select
-          value={status}
-          onChange={(e) => resetting(setStatus)(e.target.value as ReadStatus | 'all')}
-          aria-label="Filter by status"
-        >
-          <option value="all">All statuses</option>
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {STATUS_LABEL[s]}
-            </option>
-          ))}
-        </select>
+        {!revisit && (
+          <select
+            value={status}
+            onChange={(e) => resetting(setStatus)(e.target.value as ReadStatus | 'all')}
+            aria-label="Filter by status"
+          >
+            <option value="all">All statuses</option>
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {STATUS_LABEL[s]}
+              </option>
+            ))}
+          </select>
+        )}
         <select value={activeTag} onChange={(e) => resetting(setTag)(e.target.value)} aria-label="Filter by tag">
           <option value="">All tags</option>
           {allTags.map((t) => (
@@ -277,13 +292,17 @@ export function App() {
             </option>
           ))}
         </select>
-        <select value={sort} onChange={(e) => resetting(setSort)(e.target.value as SortKey)} aria-label="Sort">
-          {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
-            <option key={k} value={k}>
-              {SORT_LABEL[k]}
-            </option>
-          ))}
-        </select>
+        {revisit ? (
+          <span className="muted toolbar-note">Revisit: least recently read first</span>
+        ) : (
+          <select value={sort} onChange={(e) => resetting(setSort)(e.target.value as ListSort)} aria-label="Sort">
+            {(Object.keys(SORT_LABEL) as ListSort[]).map((k) => (
+              <option key={k} value={k}>
+                {SORT_LABEL[k]}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {page === undefined ? (
@@ -306,6 +325,7 @@ export function App() {
                 key={r.id}
                 record={r}
                 layout={view}
+                revisit={revisit}
                 originalImages={usesOriginalImages(imageSize)}
                 onEdit={() => setModal({ kind: 'edit', id: r.id })}
                 onView={(index) => setModal({ kind: 'view', recordId: r.id, index })}
@@ -354,6 +374,7 @@ export function App() {
           id={modal.id}
           revision={revision}
           folders={folders}
+          home={home}
           onClose={() => setModal(undefined)}
         />
       )}
@@ -460,6 +481,7 @@ function LoadMore({ onLoad, pageKey }: { onLoad: () => void; pageKey: unknown })
 function Card({
   record,
   layout,
+  revisit,
   originalImages,
   onEdit,
   onView,
@@ -468,6 +490,8 @@ function Card({
 }: {
   record: ReadingRecord;
   layout: ViewMode;
+  /** Revisit place: show last read time and a "Read now" button instead of the status. */
+  revisit: boolean;
   /** Large display sizes: show original files instead of the small previews. */
   originalImages: boolean;
   onEdit: () => void;
@@ -497,9 +521,15 @@ function Card({
           {record.title}
         </a>
         <div className="card-meta">
-          <span className="status-dot" /> {STATUS_LABEL[record.status]}
+          {revisit ? (
+            record.readAt ? `Last read ${formatDateTime(record.readAt)}` : 'Not read yet'
+          ) : (
+            <>
+              <span className="status-dot" /> {STATUS_LABEL[record.status]}
+            </>
+          )}
           {record.matchMode === 'prefix' && ' · series'}
-          {record.readAt && ` · read ${new Date(record.readAt).toLocaleDateString()}`}
+          {!revisit && record.readAt && ` · read ${new Date(record.readAt).toLocaleDateString()}`}
           {' · '}
           <SiteLabel url={record.url} />
         </div>
@@ -523,22 +553,33 @@ function Card({
         )}
       </div>
       <div className="card-actions">
-        <select
-          value={record.status}
-          aria-label="Status"
-          onChange={(e) => {
-            // Read the value now: the select is controlled, so by the time updateRecord's
-            // callback runs (after an IndexedDB read), React has reset it to the old status.
-            const status = e.target.value as ReadStatus;
-            void updateRecord(record.id, (r) => statusChange(r, status));
-          }}
-        >
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {STATUS_LABEL[s]}
-            </option>
-          ))}
-        </select>
+        {revisit ? (
+          <button
+            type="button"
+            className="btn btn-small btn-primary read-now"
+            onClick={() => void markReadNow(record.id)}
+            title="Record that you read it now; it moves to the end of the list"
+          >
+            Read now
+          </button>
+        ) : (
+          <select
+            value={record.status}
+            aria-label="Status"
+            onChange={(e) => {
+              // Read the value now: the select is controlled, so by the time updateRecord's
+              // callback runs (after an IndexedDB read), React has reset it to the old status.
+              const status = e.target.value as ReadStatus;
+              void updateRecord(record.id, (r) => statusChange(r, status));
+            }}
+          >
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {STATUS_LABEL[s]}
+              </option>
+            ))}
+          </select>
+        )}
         <button type="button" className="btn btn-small" onClick={onEdit}>
           Edit
         </button>
@@ -554,11 +595,13 @@ function EditDialog({
   id,
   revision,
   folders,
+  home,
   onClose,
 }: {
   id: string;
   revision: number;
   folders: Folder[];
+  home: HomeSettings | undefined;
   onClose: () => void;
 }) {
   // Loaded by id (the record may not be on the loaded page) and reloaded on any change,
@@ -608,6 +651,8 @@ function EditDialog({
       <RecordForm
         submitLabel="Save"
         folders={folders}
+        // Revisit records keep their last-read time; a status change here would clear it.
+        hideStatus={(record.folderId ? folders.find((f) => f.id === record.folderId) : home)?.readMode === 'revisit'}
         initial={{
           title: record.title,
           url: record.url,
@@ -683,8 +728,8 @@ function FolderBar({
   onNew,
   onRename,
   onDelete,
-  onImageSize,
-  homeImageSize,
+  onSettings,
+  home,
 }: {
   folders: Folder[];
   counts: Map<string, number>;
@@ -694,11 +739,13 @@ function FolderBar({
   onNew: () => void;
   onRename: (f: Folder) => void;
   onDelete: (f: Folder) => void;
-  /** Folder, or null for Home. */
-  onImageSize: (f: Folder | null, size: ImageSize) => void;
-  homeImageSize: ImageSize;
+  /** Change settings of a folder, or of Home (null). */
+  onSettings: (f: Folder | null, patch: { imageSize?: ImageSize; readMode?: ReadMode }) => void;
+  home: HomeSettings | undefined;
 }) {
   const selected = folders.find((f) => f.id === value);
+  const settings = selected ?? home;
+  const placeName = selected ? selected.name : 'Home';
   const chip = (v: FolderFilter, label: string, count: number | undefined) => (
     <button key={v === HOME ? 'home' : `f-${v}`} type="button" className="folder-chip" aria-pressed={value === v} onClick={() => onChange(v)}>
       {label}
@@ -714,7 +761,7 @@ function FolderBar({
           + New folder
         </button>
       </div>
-      {/* Home can only change its image size; folders can also be renamed and deleted. */}
+      {/* Home can only change its settings; folders can also be renamed and deleted. */}
       <div className="row">
         {selected && (
           <>
@@ -729,20 +776,36 @@ function FolderBar({
         <span className="muted" style={{ fontSize: 12, marginLeft: selected ? 8 : 0 }}>
           Image size
         </span>
-        <div
-          className="segmented size-picker"
-          role="group"
-          aria-label={selected ? `Image size for ${selected.name}` : 'Image size for Home'}
-        >
+        <div className="segmented size-picker" role="group" aria-label={`Image size for ${placeName}`}>
           {IMAGE_SIZES.map((s) => (
             <button
               key={s}
               type="button"
-              aria-pressed={(selected ? (selected.imageSize ?? 'medium') : homeImageSize) === s}
-              onClick={() => onImageSize(selected ?? null, s)}
+              aria-pressed={(settings?.imageSize ?? 'medium') === s}
+              onClick={() => onSettings(selected ?? null, { imageSize: s })}
               title={{ small: 'Small', medium: 'Medium (default)', large: 'Large', xlarge: 'Extra large' }[s]}
             >
               {IMAGE_SIZE_LABEL[s]}
+            </button>
+          ))}
+        </div>
+        <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>
+          Read mode
+        </span>
+        <div className="segmented size-picker" role="group" aria-label={`Read mode for ${placeName}`}>
+          {READ_MODES.map((m) => (
+            <button
+              key={m}
+              type="button"
+              aria-pressed={(settings?.readMode ?? 'status') === m}
+              onClick={() => onSettings(selected ?? null, { readMode: m })}
+              title={
+                m === 'status'
+                  ? 'Status (default): mark records unread, reading or read'
+                  : 'Revisit: a "Read now" button records when you last read it; least recently read comes first'
+              }
+            >
+              {READ_MODE_LABEL[m]}
             </button>
           ))}
         </div>

@@ -39,11 +39,13 @@ interface Props {
   onCancel?: () => void;
   /** Hide tags and notes to keep the popup compact. */
   compact?: boolean;
+  /** Hide the status picker (records in a Revisit place are read with "Read now" instead). */
+  hideStatus?: boolean;
   /** Folders to choose from; the picker is hidden when there are none. */
   folders: readonly Folder[];
 }
 
-export function RecordForm({ initial, submitLabel, onSubmit, onCancel, compact, folders }: Props) {
+export function RecordForm({ initial, submitLabel, onSubmit, onCancel, compact, folders, hideStatus }: Props) {
   const [v, setV] = useState(initial);
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
@@ -113,10 +115,12 @@ export function RecordForm({ initial, submitLabel, onSubmit, onCancel, compact, 
         Match key: {typeof matchKey === 'string' ? <code>{matchKey}</code> : <span className="error">{matchKey.error}</span>}
       </small>
 
-      <div className="field">
-        <span>Status</span>
-        <StatusPicker value={v.status} onChange={(s) => set('status', s)} />
-      </div>
+      {!hideStatus && (
+        <div className="field">
+          <span>Status</span>
+          <StatusPicker value={v.status} onChange={(s) => set('status', s)} />
+        </div>
+      )}
       {folders.length > 0 && <FolderSelect folders={folders} value={v.folderId} onChange={(id) => set('folderId', id)} />}
       {!compact && (
         <>

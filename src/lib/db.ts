@@ -4,10 +4,11 @@ import { legacyImageId } from './types';
  * The extension's IndexedDB database. The extension origin is shared, so the popup,
  * the list page and the background worker all open the same database.
  *
- * Stores (DB version 4):
- *   records     keyPath "id"; rows are ReadingRecord plus derived index fields (see records-db.ts)
+ * Stores (DB version 5):
+ *   records     keyPath "id"; rows are ReadingRecord plus derived index fields (see storage.ts toRow)
  *               indexes: matchKey, updatedAt, createdAt, title (_title), status ([_rank, updatedAt]),
- *                        tags (multiEntry), folderId (v3; records without a folder are not in it)
+ *                        tags (multiEntry), folderId (v3; records without a folder are not in it),
+ *               readOrder ([_readSort, createdAt], v5)
  *   folders     keyPath "id"; Folder (v3)
  *   images      keyPath "id"; StoredImage (original Blob + small preview Blob), index recordId (v4)
  *   thumbnails  removed in v4 (was: record id -> 300px WebP); its blobs became images "legacy-<recordId>"
@@ -17,7 +18,7 @@ import { legacyImageId } from './types';
  * SCHEMA_VERSION (types.ts) and is migrated lazily, see records-db.ts.
  */
 export const DB_NAME = 'read-tracker';
-export const DB_VERSION = 4;
+export const DB_VERSION = 5;
 
 export const RECORDS = 'records';
 /** Removed in DB v4; only referenced by upgrade(). */
@@ -35,6 +36,7 @@ export const IDX = {
   tags: 'tags',
   folderId: 'folderId',
   recordId: 'recordId',
+  readOrder: 'readOrder',
 } as const;
 
 function upgrade(db: IDBDatabase, tx: IDBTransaction, oldVersion: number) {
@@ -71,6 +73,22 @@ function upgrade(db: IDBDatabase, tx: IDBTransaction, oldVersion: number) {
       } else {
         db.deleteObjectStore(THUMBNAILS);
       }
+    };
+  }
+  if (oldVersion < 5) {
+    // Revisit order: least recently read first, never read (0) first of all, ties by age.
+    // Fill the derived _readSort field on existing rows so they appear in the index.
+    const records = tx.objectStore(RECORDS);
+    records.createIndex(IDX.readOrder, ['_readSort', 'createdAt']);
+    const cur = records.openCursor();
+    cur.onsuccess = () => {
+      const c = cur.result;
+      if (!c) return;
+      const row = c.value as { readAt?: unknown; _readSort?: unknown };
+      if (typeof row._readSort !== 'number') {
+        c.update({ ...row, _readSort: typeof row.readAt === 'number' ? row.readAt : 0 });
+      }
+      c.continue();
     };
   }
 }

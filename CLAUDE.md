@@ -54,7 +54,14 @@ unique), `folderId?`, `notes?`, `images` (ids, max `MAX_IMAGES` = 3, first = cov
 `readAt?`. Timestamps are epoch milliseconds. Current `SCHEMA_VERSION` is 3 (v2 added `folderId`; v3 replaced
 `hasThumbnail` with `images`, mapping an old thumbnail to image id `legacyImageId(recordId)` = `legacy-<recordId>`).
 
-`Folder`: `id`, `name`, `imageSize?` (`small` | `medium` | `large` | `xlarge`; absent = medium), `createdAt`,
+Read modes (`readMode?` on `Folder` and `HomeSettings`; absent = `status`): **Status** is unread / reading / read.
+**Revisit** is for things read again and again: cards show "Read now" (`markReadNow`: status `read`, `readAt` = now)
+and "Last read …" instead of a status, the list is always least recently read first (`queryRecords` sort `revisit`
+over the `readOrder` index `[_readSort, createdAt]`, where the derived `_readSort` = `readAt ?? 0`, so never-read
+records come first), and the status/sort filters and the Edit dialog's status picker are hidden. Settings changes
+go through `updateFolderSettings` / `updateHomeSettings`, which merge and store defaults as absent.
+
+`Folder`: `id`, `name`, `imageSize?` (`small` | `medium` | `large` | `xlarge`; absent = medium), `readMode?`, `createdAt`,
 `updatedAt`. `imageSize` applies while that folder is open. Home has no Folder record: its size is `HomeSettings` in the `meta`
 store (key `home`, `getHomeSettings` / `setHomeImageSize`), exported as `home` in backups and merged newer-wins.
 Home can't be renamed or deleted. In either place, grid column width and
@@ -66,9 +73,11 @@ Home or one folder, and search/filters apply within it). Names are trimmed, whit
 and moves them to Home (bumping their `updatedAt`).
 
 Storage: IndexedDB database `read-tracker` (layout in `src/lib/db.ts`, no third-party wrapper):
-- `records` (keyPath `id`): the record plus derived index fields `_title` (lowercased) and `_rank` (status sort).
+- `records` (keyPath `id`): the record plus derived index fields `_title` (lowercased), `_rank` (status sort) and
+  `_readSort` (`readAt ?? 0`, Revisit order).
   `toRow`/`fromRow` in storage.ts add and strip them; they never leave storage.ts.
-  Indexes: `matchKey`, `updatedAt`, `createdAt`, `title`, `status` (`[_rank, updatedAt]`), `tags` (multiEntry),
+  Indexes: `matchKey`, `updatedAt`, `createdAt`, `title`, `status` (`[_rank, updatedAt]`), `readOrder`
+  (`[_readSort, createdAt]`, DB v5), `tags` (multiEntry),
   `folderId` (records without a folder are not in it). `toRow` drops an undefined `folderId` so it is never stored.
 - `folders` (keyPath `id`): Folder. Same change signal as records.
 - `images` (keyPath `id`, index `recordId`): `StoredImage` = the original file Blob, never resized or re-encoded

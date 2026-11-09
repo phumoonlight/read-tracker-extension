@@ -44,6 +44,8 @@ export interface Folder {
   name: string;
   /** How big images display while this folder is open; absent = 'medium'. */
   imageSize?: ImageSize;
+  /** How records here are read; absent = 'status'. */
+  readMode?: ReadMode;
   createdAt: number;
   updatedAt: number;
 }
@@ -73,8 +75,20 @@ export interface BackupFile {
 export interface HomeSettings {
   /** Absent = 'medium'. */
   imageSize?: ImageSize;
+  /** Absent = 'status'. */
+  readMode?: ReadMode;
   updatedAt: number;
 }
+
+/**
+ * How a place (Home or a folder) tracks reading:
+ * - 'status': unread / reading / read (the default).
+ * - 'revisit': things you come back to repeatedly. A "Read now" button stamps readAt,
+ *   and the list is always least recently read first (never read at the top).
+ */
+export type ReadMode = 'status' | 'revisit';
+export const READ_MODES: readonly ReadMode[] = ['status', 'revisit'];
+export const READ_MODE_LABEL: Record<ReadMode, string> = { status: 'Status', revisit: 'Revisit' };
 
 export interface BackupImage {
   id: string;

@@ -45,7 +45,11 @@ change.
 - **Home and folders:** the full list opens on **Home**, which holds every record that isn't in a folder. Click
   **+ New folder** to make one, and click a folder to see its records; **Rename folder**, **Delete folder** and
   **Image size** (S / M / L / XL) appear while it is selected. Home can't be renamed or deleted, but has its own
-  **Image size**. Deleting a folder keeps its records (they move to
+  **Image size**.
+- **Read mode:** each folder (and Home) has **Read mode: Status / Revisit**. Status is the usual unread / reading /
+  read. **Revisit** is for things you come back to again and again: each record gets a **Read now** button that
+  records when you last read it, the list always shows the least recently read first (never read at the top), and
+  after **Read now** the record moves to the bottom to wait its turn. Deleting a folder keeps its records (they move to
   Home). Move a record by choosing a folder (or Home) in its Edit dialog or in the popup. The list remembers which
   place you had open. Search and filters apply within the open place.
 - **Backup:** in the full list, use **Export JSON** and **Import JSON** at the bottom. When the same record exists
