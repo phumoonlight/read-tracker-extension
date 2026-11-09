@@ -41,7 +41,7 @@ export function Dialog({
       }}
     >
       <div className="dialog-body">
-        <h2 style={{ fontSize: 16 }}>{title}</h2>
+        <h2 style={{ fontSize: 20 }}>{title}</h2>
         {children}
       </div>
     </dialog>

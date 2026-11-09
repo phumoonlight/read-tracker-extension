@@ -17,7 +17,7 @@ body {
 }
 
 .popup-header h1 {
-  font-size: 15px;
+  font-size: 20px;
 }
 
 .current {
@@ -33,7 +33,7 @@ body {
 }
 
 .current-meta {
-  font-size: 12px;
+  font-size: 16px;
   color: var(--text-muted);
   overflow-wrap: anywhere;
 }
@@ -43,5 +43,5 @@ body {
   border-radius: var(--radius-sm);
   background: var(--surface);
   border: 1px solid var(--border);
-  font-size: 13px;
+  font-size: 16px;
 }

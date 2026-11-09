@@ -143,7 +143,7 @@ export function ImagePicker({ record, tab, onChange, onView }: Props) {
             ))}
           </div>
           {order.length > 1 && (
-            <span className="muted" style={{ fontSize: 12 }}>
+            <span className="muted" style={{ fontSize: 16 }}>
               Drag to reorder (or Alt+←/→). The first image is the cover.
             </span>
           )}
@@ -177,7 +177,7 @@ export function ImagePicker({ record, tab, onChange, onView }: Props) {
           </div>
         </>
       ) : (
-        <span className="muted" style={{ fontSize: 12 }}>
+        <span className="muted" style={{ fontSize: 16 }}>
           Maximum reached. Remove an image to add another.
         </span>
       )}

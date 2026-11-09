@@ -223,7 +223,7 @@ function UrlRowEditor({
         A URL saved earlier as a series keeps working; it can be switched to its exact page.
       */}
       {row.matchMode === 'prefix' && (
-        <div className="row" style={{ fontSize: 12 }}>
+        <div className="row" style={{ fontSize: 16 }}>
           <span className="muted">
             Matches every page under <code>{row.prefix}</code> (series).
           </span>

@@ -13,11 +13,11 @@
   gap: 6px;
 }
 .page-header h1 {
-  font-size: 22px;
+  font-size: 26px;
 }
 
 .back-link {
-  font-size: 13px;
+  font-size: 16px;
   color: var(--text-muted);
   text-decoration: none;
 }
@@ -36,7 +36,7 @@
   background: var(--surface);
 }
 .backup-section h2 {
-  font-size: 15px;
+  font-size: 20px;
 }
 .backup-section p {
   margin: 0;
