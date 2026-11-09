@@ -57,7 +57,7 @@ unique), `folderId?`, `notes?`, `images` (ids, max `MAX_IMAGES` = 3, first = cov
 `Folder`: `id`, `name`, `imageSize?` (`small` | `medium` | `large` | `xlarge`; absent = medium), `createdAt`,
 `updatedAt`. `imageSize` applies while that folder is open. Home has no Folder record: its size is `HomeSettings` in the `meta`
 store (key `home`, `getHomeSettings` / `setHomeImageSize`), exported as `home` in backups and merged newer-wins.
-Home can't be renamed or deleted: grid column width and
+Home can't be renamed or deleted. In either place, grid column width and
 list tile width scale with it, and at large/xlarge cards show original files instead of previews
 (`usesOriginalImages`). Set it with `setFolderImageSize`; unknown values in backups fall back to medium. Folders are flat and a record is in at most one folder;
 `folderId` absent = the record is in **Home**, the default place (there is no "All" view: the list always shows
