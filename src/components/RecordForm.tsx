@@ -12,7 +12,7 @@ export interface RecordFormValues {
   status: ReadStatus;
   tags: string;
   notes: string;
-  /** '' = no folder. */
+  /** '' = Home (no folder). */
   folderId: string;
 }
 
@@ -67,7 +67,7 @@ export function RecordForm({ initial, submitLabel, onSubmit, onCancel, compact, 
         status: v.status,
         tags: parseTags(v.tags),
         notes: v.notes.trim() || undefined,
-        // A folder deleted while the form was open counts as "no folder".
+        // A folder deleted while the form was open counts as Home.
         folderId: folders.some((f) => f.id === v.folderId) ? v.folderId : undefined,
       });
     } catch (err) {
@@ -146,7 +146,7 @@ export function RecordForm({ initial, submitLabel, onSubmit, onCancel, compact, 
   );
 }
 
-/** Folder picker; '' = no folder. */
+/** Folder picker; '' = Home (no folder). */
 export function FolderSelect({
   folders,
   value,
@@ -158,13 +158,13 @@ export function FolderSelect({
   onChange: (id: string) => void;
   label?: string;
 }) {
-  // An id that is no longer in the list (folder deleted) shows as "No folder".
+  // An id that is no longer in the list (folder deleted) shows as Home.
   const current = folders.some((f) => f.id === value) ? value : '';
   return (
     <label className="field">
       <span>{label}</span>
       <select value={current} onChange={(e) => onChange(e.target.value)}>
-        <option value="">No folder</option>
+        <option value="">Home</option>
         {folders.map((f) => (
           <option key={f.id} value={f.id}>
             {f.name}

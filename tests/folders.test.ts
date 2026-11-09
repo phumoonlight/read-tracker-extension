@@ -52,14 +52,14 @@ describe('folder names', () => {
 });
 
 describe('folder filter encoding', () => {
-  it('round-trips all, no folder and folder ids', () => {
-    for (const f of [undefined, null, 'abc', 'all', 'none', 'f:x']) {
+  it('round-trips Home and folder ids', () => {
+    for (const f of [null, 'abc', 'all', 'none', 'home', 'f:x']) {
       expect(decodeFolderFilter(encodeFolderFilter(f))).toBe(f);
     }
   });
-  it('treats missing or unknown values as all', () => {
-    expect(decodeFolderFilter(null)).toBeUndefined();
-    expect(decodeFolderFilter('garbage')).toBeUndefined();
-    expect(decodeFolderFilter('f:')).toBeUndefined();
+  it('reads older values ("all", "none"), missing and unknown values as Home', () => {
+    for (const s of [null, 'all', 'none', 'home', 'garbage', 'f:']) {
+      expect(decodeFolderFilter(s)).toBeNull();
+    }
   });
 });

@@ -7,7 +7,7 @@ type RawRecord = Record<string, unknown>;
  * To change the record shape: bump SCHEMA_VERSION in types.ts and append a step here.
  */
 const MIGRATIONS: Record<number, (r: RawRecord) => RawRecord> = {
-  // v2 adds optional `folderId`. Absent means "no folder", so v1 records are already valid.
+  // v2 adds optional `folderId`. Absent means Home (no folder), so v1 records are already valid.
   1: (r) => r,
   // v3 replaces `hasThumbnail: boolean` with `images: string[]`. The old thumbnail
   // becomes image `legacy-<id>` (the DB upgrade and parseBackup use the same id).

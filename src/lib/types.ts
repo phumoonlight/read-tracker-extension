@@ -24,7 +24,7 @@ export interface ReadingRecord {
   /** Prefix records only: the raw URL of the last matching page visited while status was "reading". */
   lastReadUrl?: string;
   tags: string[];
-  /** Folder the record is grouped in; undefined = no folder (the default). Added in schema v2. */
+  /** Folder the record is grouped in; undefined = Home (no folder, the default). Added in schema v2. */
   folderId?: string;
   notes?: string;
   /**

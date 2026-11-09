@@ -31,7 +31,7 @@ const RANK: Record<ReadStatus, number> = { unread: 2, reading: 1, read: 0 };
 
 function toRow(r: ReadingRecord): Row {
   const row: Row = { ...r, _title: r.title.toLocaleLowerCase(), _rank: RANK[r.status] };
-  // Keep "no folder" as an absent property (not stored as undefined).
+  // Keep Home (no folder) as an absent property (not stored as undefined).
   if (row.folderId === undefined) delete row.folderId;
   return row;
 }
@@ -456,7 +456,7 @@ export async function setFolderImageSize(id: string, size: ImageSize): Promise<v
 }
 
 /**
- * Delete a folder. Its records are kept and moved to "no folder" (with updatedAt bumped,
+ * Delete a folder. Its records are kept and moved to Home (with updatedAt bumped,
  * so a later import of an older backup does not put them back). One transaction.
  */
 export async function deleteFolder(id: string): Promise<number> {

@@ -8,7 +8,8 @@ stored in the browser.
   `site.com/novel/abc/`). While a series is marked "reading", the extension remembers the last chapter you opened.
 - Attach up to 3 images to each record: upload files, paste an image, screenshot the tab, or use the page's
   og:image. Images are kept at full resolution; click one to view it full size.
-- Group records into folders. New records start in "No folder"; pick a folder when adding or editing.
+- Group records into folders. Records start in **Home** (the default place for records without a folder); pick a
+  folder when adding or editing.
 - Browse everything in a full-page list with folders, search, status and tag filters, and sorting.
 - Back up to a single JSON file (original images included) and import it again later or on another machine.
 
@@ -41,10 +42,11 @@ change.
 - **View images:** click a card's image in the full list (or an image tile) to open the full-size viewer; use
   the arrow keys to step through a record's images, or **Open original** to see it in a tab.
 - **Full list:** click **Open full list** in the popup, or right-click the toolbar icon and choose **Options**.
-- **Folders:** in the full list, click **+ New folder**. Click a folder to see only its records; **Rename folder**
-  and **Delete folder** appear while it is selected, along with **Image size** (S / M / L / XL) to show that
-  folder's images bigger or smaller. Deleting a folder keeps its records (they move to
-  "No folder"). Move a record by choosing a folder in its Edit dialog or in the popup.
+- **Home and folders:** the full list opens on **Home**, which holds every record that isn't in a folder. Click
+  **+ New folder** to make one, and click a folder to see its records; **Rename folder**, **Delete folder** and
+  **Image size** (S / M / L / XL) appear while it is selected. Deleting a folder keeps its records (they move to
+  Home). Move a record by choosing a folder (or Home) in its Edit dialog or in the popup. The list remembers which
+  place you had open. Search and filters apply within the open place.
 - **Backup:** in the full list, use **Export JSON** and **Import JSON** at the bottom. When the same record exists
   in both places, the copy that was edited most recently is kept.
 

@@ -150,7 +150,7 @@ const nameKey = (name: string) => cleanFolderName(name).toLocaleLowerCase();
  *
  * Records: a written record keeps only the image ids that the file carries for it (or
  * that are already stored for it); images of the replaced copy that are no longer listed
- * are deleted. A folderId that names no known folder becomes "no folder".
+ * are deleted. A folderId that names no known folder becomes Home (no folder).
  */
 export function planImport(
   existing: ReadingRecord[],

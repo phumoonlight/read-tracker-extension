@@ -60,12 +60,11 @@ type Modal =
   | undefined;
 
 /**
- * undefined = every record, null = records without a folder, string = that folder's id.
- * (Not sentinel strings: folder ids come from backup files and could be any string.)
+ * The place being shown: null = Home (records without a folder, the default), string =
+ * that folder's id. (Not a sentinel string: folder ids come from backups and could be anything.)
  */
-type FolderFilter = string | null | undefined;
-const ALL = undefined;
-const NONE = null;
+type FolderFilter = string | null;
+const HOME = null;
 const isFolderId = (f: FolderFilter): f is string => typeof f === 'string';
 
 function useDebounced<T>(value: T, ms: number): T {
@@ -104,15 +103,15 @@ const NO_FOLDERS: Folder[] = [];
 const FOLDER_KEY = 'read-tracker:folder';
 
 /**
- * The open folder, remembered per browser so a reload reopens it (a convenience;
- * falls back to All if storage is unavailable or the folder no longer exists).
+ * The open place, remembered per browser so a reload reopens it (a convenience;
+ * falls back to Home if storage is unavailable or the folder no longer exists).
  */
 function useStoredFolder(): [FolderFilter, (f: FolderFilter) => void] {
   const [folder, setFolder] = useState<FolderFilter>(() => {
     try {
       return decodeFolderFilter(localStorage.getItem(FOLDER_KEY));
     } catch {
-      return ALL;
+      return HOME;
     }
   });
   const set = (f: FolderFilter) => {
@@ -168,11 +167,13 @@ export function App() {
     void folderCounts().then(setCounts);
   }, [revision]);
 
-  // If the selected folder was deleted (here or in another window), go back to All.
+  // If the selected folder was deleted (here or in another window), go back to Home.
   const activeFolder: FolderFilter =
-    !isFolderId(folder) || loadedFolders === undefined || folders.some((f) => f.id === folder) ? folder : ALL;
-  const folderName = new Map(folders.map((f) => [f.id, f.name]));
-  // The open folder's image size; All / No folder use the default.
+    !isFolderId(folder) || loadedFolders === undefined || folders.some((f) => f.id === folder) ? folder : HOME;
+  // Home holds every record that isn't in a folder.
+  const homeCount = total === undefined ? undefined : Math.max(0, total - [...counts.values()].reduce((a, b) => a + b, 0));
+  const placeCount = isFolderId(activeFolder) ? (counts.get(activeFolder) ?? 0) : homeCount;
+  // The open folder's image size; Home uses the default.
   const imageSize: ImageSize = (isFolderId(activeFolder) && folders.find((f) => f.id === activeFolder)?.imageSize) || 'medium';
 
   // If the selected tag disappears (last record with it deleted or retagged), stop filtering by it.
@@ -212,7 +213,9 @@ export function App() {
         <h1>Reading list</h1>
         <div className="row">
           <span className="muted">
-            {page && total !== undefined ? `${page.records.length}${page.hasMore ? '+' : ''} shown of ${total}` : ''}
+            {page && placeCount !== undefined
+              ? `${page.records.length}${page.hasMore ? '+' : ''} shown of ${placeCount}`
+              : ''}
           </span>
           <div className="segmented" role="group" aria-label="Layout">
             {(['grid', 'list'] as const).map((m) => (
@@ -230,7 +233,7 @@ export function App() {
       <FolderBar
         folders={folders}
         counts={counts}
-        total={total}
+        homeCount={homeCount}
         value={activeFolder}
         onChange={resetting(setFolder)}
         onNew={() => setModal({ kind: 'folder-new' })}
@@ -282,9 +285,11 @@ export function App() {
         <div className="empty">
           {total === 0
             ? 'Your list is empty. Open a page and use the toolbar button to add it.'
-            : isFolderId(activeFolder) && !search && status === 'all' && !activeTag
-              ? 'This folder is empty. Move records here from their Edit dialog or the popup.'
-              : 'No records match these filters.'}
+            : search || status !== 'all' || activeTag
+              ? 'No records here match these filters.'
+              : isFolderId(activeFolder)
+                ? 'This folder is empty. Move records here from their Edit dialog or the popup.'
+                : 'Home is empty: every record is in a folder.'}
         </div>
       ) : (
         <>
@@ -295,7 +300,6 @@ export function App() {
                 record={r}
                 layout={view}
                 originalImages={usesOriginalImages(imageSize)}
-                folderName={activeFolder === ALL && r.folderId ? folderName.get(r.folderId) : undefined}
                 onEdit={() => setModal({ kind: 'edit', id: r.id })}
                 onView={(index) => setModal({ kind: 'view', recordId: r.id, index })}
                 onDelete={() => setModal({ kind: 'delete', record: r })}
@@ -396,7 +400,7 @@ export function App() {
             modal.count > 0 ? (
               <>
                 “{modal.folder.name}” will be deleted. Its {modal.count} record{modal.count === 1 ? '' : 's'} will be kept
-                and moved to No folder.
+                and moved to Home.
               </>
             ) : (
               <>The empty folder “{modal.folder.name}” will be deleted.</>
@@ -406,7 +410,7 @@ export function App() {
           onClose={() => setModal(undefined)}
           onConfirm={async () => {
             await deleteFolder(modal.folder.id);
-            setFolder(ALL);
+            setFolder(HOME);
           }}
         />
       )}
@@ -450,7 +454,6 @@ function Card({
   record,
   layout,
   originalImages,
-  folderName,
   onEdit,
   onView,
   onDelete,
@@ -460,8 +463,6 @@ function Card({
   layout: ViewMode;
   /** Large display sizes: show original files instead of the small previews. */
   originalImages: boolean;
-  /** Shown when the list spans folders (the "All" view). */
-  folderName?: string;
   onEdit: () => void;
   /** Open the viewer at this image index. */
   onView: (index: number) => void;
@@ -494,7 +495,6 @@ function Card({
           {record.readAt && ` · read ${new Date(record.readAt).toLocaleDateString()}`}
           {layout === 'list' && ` · ${siteLabel(record.url)}`}
         </div>
-        {folderName && <div className="card-meta">In {folderName}</div>}
         {record.matchMode === 'prefix' && record.lastReadUrl && (
           <div className="card-meta card-last" title={record.lastReadUrl}>
             Last: {record.lastReadUrl.replace(/^https?:\/\/(www\.)?/, '')}
@@ -664,7 +664,7 @@ function Backup() {
 function FolderBar({
   folders,
   counts,
-  total,
+  homeCount,
   value,
   onChange,
   onNew,
@@ -674,7 +674,7 @@ function FolderBar({
 }: {
   folders: Folder[];
   counts: Map<string, number>;
-  total: number | undefined;
+  homeCount: number | undefined;
   value: FolderFilter;
   onChange: (v: FolderFilter) => void;
   onNew: () => void;
@@ -682,10 +682,9 @@ function FolderBar({
   onDelete: (f: Folder) => void;
   onImageSize: (f: Folder, size: ImageSize) => void;
 }) {
-  const inFolders = [...counts.values()].reduce((a, b) => a + b, 0);
   const selected = folders.find((f) => f.id === value);
   const chip = (v: FolderFilter, label: string, count: number | undefined) => (
-    <button key={v === ALL ? 'all' : v === NONE ? 'none' : `f-${v}`} type="button" className="folder-chip" aria-pressed={value === v} onClick={() => onChange(v)}>
+    <button key={v === HOME ? 'home' : `f-${v}`} type="button" className="folder-chip" aria-pressed={value === v} onClick={() => onChange(v)}>
       {label}
       {count !== undefined && <span className="folder-count">{count}</span>}
     </button>
@@ -693,8 +692,7 @@ function FolderBar({
   return (
     <nav className="folder-bar" aria-label="Folders">
       <div className="folder-chips">
-        {chip(ALL, 'All', total)}
-        {chip(NONE, 'No folder', total === undefined ? undefined : Math.max(0, total - inFolders))}
+        {chip(HOME, 'Home', homeCount)}
         {folders.map((f) => chip(f.id, f.name, counts.get(f.id) ?? 0))}
         <button type="button" className="btn btn-small btn-ghost" onClick={onNew}>
           + New folder

@@ -10,7 +10,7 @@ export interface NewRecordInput {
   status?: ReadStatus;
   tags?: string[];
   notes?: string;
-  /** Omit for "no folder" (the default). */
+  /** Omit for Home (no folder, the default). */
   folderId?: string;
 }
 

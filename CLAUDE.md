@@ -55,12 +55,13 @@ unique), `folderId?`, `notes?`, `images` (ids, max `MAX_IMAGES` = 3, first = cov
 `hasThumbnail` with `images`, mapping an old thumbnail to image id `legacyImageId(recordId)` = `legacy-<recordId>`).
 
 `Folder`: `id`, `name`, `imageSize?` (`small` | `medium` | `large` | `xlarge`; absent = medium), `createdAt`,
-`updatedAt`. `imageSize` applies while that folder is open (All / No folder use medium): grid column width and
+`updatedAt`. `imageSize` applies while that folder is open (Home uses medium): grid column width and
 list tile width scale with it, and at large/xlarge cards show original files instead of previews
 (`usesOriginalImages`). Set it with `setFolderImageSize`; unknown values in backups fall back to medium. Folders are flat and a record is in at most one folder;
-`folderId` absent = "No folder" (the default for new records). Names are trimmed, whitespace-collapsed, at most
+`folderId` absent = the record is in **Home**, the default place (there is no "All" view: the list always shows
+Home or one folder, and search/filters apply within it). Names are trimmed, whitespace-collapsed, at most
 `FOLDER_NAME_MAX` characters, and unique case-insensitively (`folderNameError`). Deleting a folder keeps its records
-and moves them to No folder (bumping their `updatedAt`).
+and moves them to Home (bumping their `updatedAt`).
 
 Storage: IndexedDB database `read-tracker` (layout in `src/lib/db.ts`, no third-party wrapper):
 - `records` (keyPath `id`): the record plus derived index fields `_title` (lowercased) and `_rank` (status sort).
@@ -124,7 +125,7 @@ re-pointed.
 Backups carry `folders` (absent in v1 files). `planImport` merges folders by id (newer `updatedAt` wins). An incoming
 folder with a new id but the same name as a local one is not created; its records go into the local folder. A newer
 rename that would duplicate another folder's name is skipped. A record `folderId` naming no known folder becomes
-No folder.
+Home.
 
 ## URL matching
 
@@ -165,6 +166,6 @@ download is blocked by CORS. Don't add install-time permissions without a strong
   placeholder from the title (its first character can be a combining mark, e.g. in Thai).
 - `localStorage` is only for per-browser UI conveniences, always wrapped in try/catch: the grid/list choice
   (`read-tracker:view`) and the open folder (`read-tracker:folder`, encoded by `encodeFolderFilter`; a folder that no
-  longer exists falls back to All once folders have loaded). Data goes in IndexedDB.
+  longer exists, or an old "all" value, falls back to Home once folders have loaded). Data goes in IndexedDB.
 - Ask before adding dependencies. The project deliberately uses its own IndexedDB layer (`lib/db.ts`), and unit
   tests cover only pure code (there is no IndexedDB in Node without adding `fake-indexeddb`).
