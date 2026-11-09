@@ -509,12 +509,6 @@ function Card({
           {hasSeries(record) && ' · series'}
           {!revisit && record.readAt && ` · read ${new Date(record.readAt).toLocaleDateString()}`}
         </div>
-        <div className="card-links">
-          {urlEntries(record).map((e) => (
-            <UrlLink key={`${e.matchMode}|${e.matchKey}`} url={e.url} />
-          ))}
-          {hasSeries(record) && record.lastReadUrl && <UrlLink url={record.lastReadUrl} prefix="Last: " />}
-        </div>
         {record.tags.length > 0 && (
           <div className="card-tags">
             {record.tags.map((t) => (
@@ -524,6 +518,12 @@ function Card({
             ))}
           </div>
         )}
+        <div className="card-links">
+          {urlEntries(record).map((e) => (
+            <UrlLink key={`${e.matchMode}|${e.matchKey}`} url={e.url} />
+          ))}
+          {hasSeries(record) && record.lastReadUrl && <UrlLink url={record.lastReadUrl} prefix="Last: " />}
+        </div>
       </div>
       {/* Middle column: Unread / Read buttons, or Update read in Revisit places. Images span the row below. */}
       <div className="card-center">
