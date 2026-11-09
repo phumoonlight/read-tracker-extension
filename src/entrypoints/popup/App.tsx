@@ -181,6 +181,13 @@ function CurrentRecord({
                   : 'Read'
                 : `Unread · added ${formatAgo(record.createdAt)}`}
           </div>
+          {record.tags.length > 0 && (
+            <div className="popup-tags">
+              {record.tags.map((t) => (
+                <span key={t}>#{t}</span>
+              ))}
+            </div>
+          )}
         </div>
 
         {revisit ? (

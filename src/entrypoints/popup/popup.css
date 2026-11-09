@@ -106,3 +106,12 @@ body {
   background: var(--surface-2);
   color: var(--text);
 }
+
+/* The record's tags (read-only here; edited in Manage) */
+.popup-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin-top: 4px;
+  font-size: 16px;
+}
