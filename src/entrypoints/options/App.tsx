@@ -658,9 +658,8 @@ function FolderBar({
         <button type="button" className="btn btn-small btn-ghost" onClick={onNew}>
           + New folder
         </button>
-      </div>
-      <div className="row">
-        <button type="button" className="btn btn-small" onClick={onManage}>
+        {/* Pushed to the right end of the row. */}
+        <button type="button" className="btn btn-small folder-manage" onClick={onManage}>
           {selected ? 'Manage folder' : 'Manage Home'}
         </button>
       </div>

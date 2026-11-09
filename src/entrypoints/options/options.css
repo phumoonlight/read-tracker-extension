@@ -233,6 +233,9 @@
   gap: 6px;
   align-items: center;
 }
+.folder-chips .folder-manage {
+  margin-left: auto;
+}
 
 .folder-chip {
   display: inline-flex;
