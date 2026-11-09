@@ -164,12 +164,21 @@
   justify-self: end;
 }
 
-/* List rows: images as separate tiles below the text (wrapping if the row is narrow) */
+/* List rows: images as separate tiles below the text, on one line; scrolls sideways if too wide */
 .image-strip {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
   margin-top: 4px;
+  overflow-x: auto;
+  /* A grid item would otherwise grow to fit all tiles instead of scrolling. */
+  min-width: 0;
+  /* Room for the scrollbar under the tiles. */
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+.list .image-strip .image-strip-cell {
+  flex-shrink: 0;
 }
 /*
  * Image tiles: a fixed height (--tile-h, set per image size below) and the image's own
