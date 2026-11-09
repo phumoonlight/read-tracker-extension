@@ -1,5 +1,6 @@
 import { normalizeUrl } from './url';
 import type { MatchMode, ReadingRecord, ReadStatus, UrlEntry } from './types';
+import { newId } from './ids';
 
 export interface NewRecordInput {
   title: string;
@@ -41,7 +42,7 @@ export function createRecord(input: NewRecordInput): ReadingRecord | { error: st
   const now = Date.now();
   const status = input.status ?? 'unread';
   return {
-    id: crypto.randomUUID(),
+    id: newId(),
     title: input.title.trim() || input.url,
     url: input.url.trim(),
     matchKey,

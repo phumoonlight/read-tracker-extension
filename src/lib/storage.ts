@@ -16,6 +16,7 @@ import {
   type ReadingRecord,
   type ReadStatus,
 } from './types';
+import { newId } from './ids';
 
 /**
  * Records repository on IndexedDB (see db.ts for the layout).
@@ -374,7 +375,7 @@ export function addImages(recordId: string, added: NewImage[]): Promise<ReadingR
     }
     const now = Date.now();
     const ids = added.map((img) => {
-      const stored: StoredImage = { ...img, id: crypto.randomUUID(), recordId, addedAt: now };
+      const stored: StoredImage = { ...img, id: newId(), recordId, addedAt: now };
       images.put(stored);
       return stored.id;
     });

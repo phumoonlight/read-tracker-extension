@@ -33,7 +33,7 @@ export async function exportToFile(): Promise<number> {
   for (const r of records) {
     for (const id of r.images) {
       const img = await getImage(id);
-      // One file per id (stems are unique for real ids, which are UUIDs).
+      // One file per id (stems are unique for real ids: cuid2s, or UUIDs from before).
       if (!img || stems.has(imageStem(id))) continue;
       stems.add(imageStem(id));
       files.push({ name: imagePath(id, img.blob.type), data: img.blob });

@@ -40,6 +40,7 @@ src/
     images.ts            StoredImage, getImage/getImagePreview, prepareImage (validate + preview), sniffImageType
     tab.ts               active tab, captureVisibleTab, og:image lookup/download
     records.ts           createRecord, computeMatchKey, tag helpers
+    ids.ts               newId(): cuid2 ids for records, folders and images
     backup.ts            parseManifest / parseRecordLine / imagesFromZip / planImport / buildManifest (pure, unit-tested)
     backup-io.ts         export download + import apply (side effects)
     zip.ts               minimal ZIP writer / reader (stored entries, ZIP64, deflate on read), CRC-32
@@ -53,7 +54,7 @@ public/icon/             extension icons
 
 ## Data model
 
-`ReadingRecord` (src/lib/types.ts): `id` (crypto.randomUUID), `title`, `url` (as entered), `matchKey`,
+`ReadingRecord` (src/lib/types.ts): `id` (`newId()` in lib/ids.ts: a cuid2; records made earlier have UUIDs, which stay. Ids are opaque strings, never parse them), `title`, `url` (as entered), `matchKey`,
 `matchMode` ("exact" | "prefix"), `status` ("unread" | "read"), `lastReadUrl?`, `tags` (lowercase,
 unique), `folderId?`, `notes?`, `images` (ids, max `MAX_IMAGES` = 3, first = cover), `createdAt`, `updatedAt`,
 `readAt?`, `otherUrls?`. Timestamps are epoch milliseconds. Current `SCHEMA_VERSION` is 1 (reset before the first
@@ -232,5 +233,5 @@ download is blocked by CORS. Don't add install-time permissions without a strong
   placeholder from the title (its first character can be a combining mark, e.g. in Thai).
 - `localStorage` is only for per-browser UI conveniences, always wrapped in try/catch: the open folder (`read-tracker:folder`, encoded by `encodeFolderFilter`; a folder that no
   longer exists, or an old "all" value, falls back to Home once folders have loaded). Data goes in IndexedDB.
-- Ask before adding dependencies. The project deliberately uses its own IndexedDB layer (`lib/db.ts`), and unit
+- Ask before adding dependencies (approved so far: `@paralleldrive/cuid2` 2.x for ids; 3.x doubles its size). The project deliberately uses its own IndexedDB layer (`lib/db.ts`), and unit
   tests cover only pure code (there is no IndexedDB in Node without adding `fake-indexeddb`).

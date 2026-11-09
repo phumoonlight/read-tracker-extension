@@ -404,7 +404,7 @@ const EXTENSIONS: Record<string, string> = {
   'image/svg+xml': 'svg',
 };
 
-/** File name stem for an image id (ids are UUIDs, already safe; anything else is made filename-safe). */
+/** File name stem for an image id (cuid2s and older UUIDs are already safe; anything else is made filename-safe). */
 export const imageStem = (id: string) => id.replace(/[^A-Za-z0-9_-]/g, '_') || 'image';
 
 /** Path for an image's original file inside a ZIP backup: images/<id>.<ext>. */

@@ -1,4 +1,5 @@
 import { FOLDER_NAME_MAX, type Folder } from './types';
+import { newId } from './ids';
 
 /** Collapse whitespace and trim. Names are compared case-insensitively. */
 export const cleanFolderName = (name: string) => name.replace(/\s+/g, ' ').trim();
@@ -20,7 +21,7 @@ export function folderNameError(name: string, folders: readonly Folder[], except
 
 export function newFolder(name: string): Folder {
   const now = Date.now();
-  return { id: crypto.randomUUID(), name: cleanFolderName(name), createdAt: now, updatedAt: now };
+  return { id: newId(), name: cleanFolderName(name), createdAt: now, updatedAt: now };
 }
 
 export const sortFolders = (folders: readonly Folder[]) =>
