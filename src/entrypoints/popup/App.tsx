@@ -167,7 +167,10 @@ function CurrentRecord({
         <div>
           <div className="current-title">{record.title}</div>
           {/* Relative time ("10 min ago"); the exact date and time are in the tooltip. */}
-          <div className="current-meta" title={record.readAt ? formatDateTime(record.readAt) : undefined}>
+          <div
+            className="current-meta"
+            title={formatDateTime(record.status === 'read' || revisit ? (record.readAt ?? record.createdAt) : record.createdAt)}
+          >
             {revisit
               ? record.readAt
                 ? `Last read ${formatAgo(record.readAt)}`
@@ -176,7 +179,7 @@ function CurrentRecord({
                 ? record.readAt
                   ? `Read ${formatAgo(record.readAt)}`
                   : 'Read'
-                : 'Unread'}
+                : `Unread · added ${formatAgo(record.createdAt)}`}
           </div>
         </div>
 

@@ -513,26 +513,25 @@ function Card({
         <div className="card-title" title={record.title}>
           {record.title}
         </div>
-        {/* The tab already shows Unread / Read, so only the read date (or Revisit's last read) is shown. */}
-        {(revisit || record.status === 'read' || hasSeries(record)) && (
-          <div className="card-meta">
-            {revisit ? (
-              record.readAt ? (
-                <span title={formatDateTime(record.readAt)}>Last read {formatAgo(record.readAt)}</span>
-              ) : (
-                'Not read yet'
-              )
+        {/* The tab already shows Unread / Read, so this line is just the time: when it was read
+            (or last read, in Revisit), or for unread records when it was added. */}
+        <div className="card-meta">
+          {revisit ? (
+            record.readAt ? (
+              <span title={formatDateTime(record.readAt)}>Last read {formatAgo(record.readAt)}</span>
             ) : (
-              record.status === 'read' && (
-                <>
-                  <span className="status-dot" />{' '}
-                  {record.readAt ? <span title={formatDateTime(record.readAt)}>Read {formatAgo(record.readAt)}</span> : 'Read'}
-                </>
-              )
-            )}
-            {hasSeries(record) && (revisit || record.status === 'read' ? ' · series' : 'Series')}
-          </div>
-        )}
+              'Not read yet'
+            )
+          ) : record.status === 'read' ? (
+            <>
+              <span className="status-dot" />{' '}
+              {record.readAt ? <span title={formatDateTime(record.readAt)}>Read {formatAgo(record.readAt)}</span> : 'Read'}
+            </>
+          ) : (
+            <span title={formatDateTime(record.createdAt)}>Added {formatAgo(record.createdAt)}</span>
+          )}
+          {hasSeries(record) && ' · series'}
+        </div>
         {record.tags.length > 0 && (
           <div className="card-tags">
             {record.tags.map((t) => (
