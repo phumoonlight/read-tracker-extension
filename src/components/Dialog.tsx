@@ -1,7 +1,19 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
 
 /** Native modal <dialog>. Rendered only while open; Escape and backdrop clicks call onClose. */
-export function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Dialog({
+  title,
+  onClose,
+  children,
+  className,
+  onKeyDown,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  className?: string;
+  onKeyDown?: (e: KeyboardEvent<HTMLDialogElement>) => void;
+}) {
   const ref = useRef<HTMLDialogElement>(null);
   // Close on backdrop click only if the press also started on the backdrop; otherwise
   // drag-selecting text in a field and releasing outside would close the dialog.
@@ -14,6 +26,8 @@ export function Dialog({ title, onClose, children }: { title: string; onClose: (
     <dialog
       ref={ref}
       aria-label={title}
+      className={className}
+      onKeyDown={onKeyDown}
       onCancel={(e) => {
         e.preventDefault();
         onClose();

@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { ConfirmDialog, Dialog } from '@/components/Dialog';
 import { RecordForm, defaultPrefix, type RecordFormResult } from '@/components/RecordForm';
 import { Thumbnail } from '@/components/Thumbnail';
-import { ThumbnailPicker } from '@/components/ThumbnailPicker';
+import { ImagePicker } from '@/components/ImagePicker';
+import { ImageViewer } from '@/components/ImageViewer';
 import { exportToFile, importFromFile } from '@/lib/backup-io';
 import { createRecord, openUrl } from '@/lib/records';
 import { siteLabel } from '@/lib/url';
@@ -37,6 +38,7 @@ const SORT_LABEL: Record<SortKey, string> = {
 
 type Modal =
   | { kind: 'edit'; id: string }
+  | { kind: 'view'; recordId: string; index: number }
   | { kind: 'new' }
   | { kind: 'delete'; record: ReadingRecord }
   | { kind: 'folder-new' }
@@ -110,12 +112,12 @@ export function App() {
   const [view, setView] = useViewMode();
 
   useEffect(() => {
-    // The popup links here with #edit=<id>.
-    const m = location.hash.match(/^#edit=(.+)$/);
-    if (m?.[1]) {
-      setModal({ kind: 'edit', id: decodeURIComponent(m[1]) });
-      history.replaceState(null, '', location.pathname);
-    }
+    // The popup links here with #edit=<id> or #view=<id>&i=<index>.
+    const edit = location.hash.match(/^#edit=([^&]+)$/);
+    const view = location.hash.match(/^#view=([^&]+)&i=(\d+)$/);
+    if (edit?.[1]) setModal({ kind: 'edit', id: decodeURIComponent(edit[1]) });
+    else if (view?.[1]) setModal({ kind: 'view', recordId: decodeURIComponent(view[1]), index: Number(view[2]) });
+    if (edit || view) history.replaceState(null, '', location.pathname);
   }, []);
 
   useEffect(() => {
@@ -249,6 +251,7 @@ export function App() {
                 layout={view}
                 folderName={activeFolder === ALL && r.folderId ? folderName.get(r.folderId) : undefined}
                 onEdit={() => setModal({ kind: 'edit', id: r.id })}
+                onView={() => setModal({ kind: 'view', recordId: r.id, index: 0 })}
                 onDelete={() => setModal({ kind: 'delete', record: r })}
                 onTag={resetting(setTag)}
               />
@@ -281,7 +284,7 @@ export function App() {
               const created = createRecord({ ...v, prefix: v.matchKey });
               if ('error' in created) throw new Error(created.error);
               await putRecord(created);
-              // Continue in the edit dialog so a thumbnail can be added.
+              // Continue in the edit dialog so images can be added.
               setModal({ kind: 'edit', id: created.id });
             }}
           />
@@ -298,12 +301,16 @@ export function App() {
         />
       )}
 
+      {modal?.kind === 'view' && (
+        <RecordViewer recordId={modal.recordId} index={modal.index} onClose={() => setModal(undefined)} />
+      )}
+
       {modal?.kind === 'delete' && (
         <ConfirmDialog
           title="Delete record?"
           message={
             <>
-              “{modal.record.title}” and its thumbnail will be removed. This can't be undone (unless you have a
+              “{modal.record.title}” and its images will be removed. This can't be undone (unless you have a
               backup).
             </>
           }
@@ -398,6 +405,7 @@ function Card({
   layout,
   folderName,
   onEdit,
+  onView,
   onDelete,
   onTag,
 }: {
@@ -406,15 +414,25 @@ function Card({
   /** Shown when the list spans folders (the "All" view). */
   folderName?: string;
   onEdit: () => void;
+  onView: () => void;
   onDelete: () => void;
   onTag: (t: string) => void;
 }) {
   const href = openUrl(record);
+  const size = layout === 'list' ? 'small' : 'large';
   return (
     <article className={`card card-${layout}`} data-status={record.status}>
-      <a className="card-thumb" href={href} target="_blank" rel="noreferrer" tabIndex={-1} aria-hidden="true">
-        <Thumbnail record={record} size={layout === 'list' ? 'small' : 'large'} />
-      </a>
+      <div className="card-thumb">
+        {record.images.length > 0 ? (
+          // Clicking an image opens the full-resolution viewer.
+          <Thumbnail record={record} size={size} onOpen={onView} />
+        ) : (
+          // No image: the placeholder links to the page, like the title.
+          <a href={href} target="_blank" rel="noreferrer" tabIndex={-1} aria-hidden="true">
+            <Thumbnail record={record} size={size} />
+          </a>
+        )}
+      </div>
       <div className="card-body">
         <a className="card-title" href={href} target="_blank" rel="noreferrer" title={record.title}>
           {record.title}
@@ -476,8 +494,9 @@ function EditDialog({
   onClose: () => void;
 }) {
   // Loaded by id (the record may not be on the loaded page) and reloaded on any change,
-  // so the thumbnail preview stays current. The form keeps its own unsaved edits.
+  // so the image tiles stay current. The form keeps its own unsaved edits.
   const [record, setRecord] = useState<ReadingRecord | null>();
+  const [viewing, setViewing] = useState<number>();
   useEffect(() => {
     let stale = false;
     void getRecord(id).then((r) => {
@@ -514,8 +533,10 @@ function EditDialog({
 
   return (
     <Dialog title="Edit record" onClose={onClose}>
-      <Thumbnail record={record} />
-      <ThumbnailPicker record={record} />
+      <ImagePicker record={record} onView={setViewing} />
+      {viewing !== undefined && (
+        <ImageViewer title={record.title} imageIds={record.images} start={viewing} onClose={() => setViewing(undefined)} />
+      )}
       <RecordForm
         submitLabel="Save"
         folders={folders}
@@ -542,7 +563,7 @@ function Backup() {
     <section className="backup">
       <h2>Backup</h2>
       <p className="muted" style={{ margin: 0 }}>
-        Export everything (thumbnails included) to one JSON file. Importing merges by record id: the copy with the
+        Export everything (original images included) to one JSON file. Importing merges by record id: the copy with the
         newer “updated” time wins.
       </p>
       <div className="row">
@@ -686,4 +707,21 @@ function FolderNameDialog({
       </form>
     </Dialog>
   );
+}
+
+/** Viewer opened from a card or from the popup (#view=...): loads the record by id. */
+function RecordViewer({ recordId, index, onClose }: { recordId: string; index: number; onClose: () => void }) {
+  const [record, setRecord] = useState<ReadingRecord | null>();
+  useEffect(() => {
+    void getRecord(recordId).then((r) => setRecord(r ?? null));
+  }, [recordId]);
+  if (record === undefined) return null;
+  if (!record || record.images.length === 0) {
+    return (
+      <Dialog title="Images" onClose={onClose}>
+        <p className="muted">{record ? 'This record has no images.' : 'This record no longer exists.'}</p>
+      </Dialog>
+    );
+  }
+  return <ImageViewer title={record.title} imageIds={record.images} start={index} onClose={onClose} />;
 }

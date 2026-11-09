@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { buildBackup, parseBackup, planImport } from '@/lib/backup';
-import { BACKUP_FORMAT, SCHEMA_VERSION } from '@/lib/types';
+import { BACKUP_FORMAT, MAX_IMAGES, SCHEMA_VERSION, legacyImageId, type BackupImage } from '@/lib/types';
 import { rec } from './fixtures';
 
 const IMG = 'data:image/webp;base64,AAAA';
+const img = (id: string, recordId: string): BackupImage => ({ id, recordId, dataUrl: IMG });
 
 describe('planImport (merge by id)', () => {
   it('adds records with new ids', () => {
     const incoming = rec({ id: 'new' });
-    const plan = planImport([rec({ id: 'a' })], [], buildBackup([incoming], [], {}));
+    const plan = planImport([rec({ id: 'a' })], [], buildBackup([incoming], [], []));
     expect(plan.write.map((r) => r.id)).toEqual(['new']);
     expect(plan).toMatchObject({ added: 1, updated: 0, skipped: 0 });
   });
@@ -16,73 +17,87 @@ describe('planImport (merge by id)', () => {
   it('replaces a stored record when the incoming one is newer', () => {
     const stored = rec({ id: 'a', title: 'old', updatedAt: 100 });
     const incoming = { ...stored, title: 'new', updatedAt: 200 };
-    const plan = planImport([stored], [], buildBackup([incoming], [], {}));
-    expect(plan.write).toEqual([{ ...incoming, hasThumbnail: false }]);
+    const plan = planImport([stored], [], buildBackup([incoming], [], []));
+    expect(plan.write).toEqual([incoming]);
     expect(plan).toMatchObject({ added: 0, updated: 1, skipped: 0 });
   });
 
   it('keeps the stored record when it is newer', () => {
     const stored = rec({ id: 'a', updatedAt: 300 });
-    const plan = planImport([stored], [], buildBackup([{ ...stored, title: 'stale', updatedAt: 200 }], [], {}));
+    const plan = planImport([stored], [], buildBackup([{ ...stored, title: 'stale', updatedAt: 200 }], [], []));
     expect(plan.write).toEqual([]);
     expect(plan.skipped).toBe(1);
   });
 
   it('keeps the stored record on a tie', () => {
     const stored = rec({ id: 'a', updatedAt: 300 });
-    const plan = planImport([stored], [], buildBackup([{ ...stored, title: 'same age' }], [], {}));
+    const plan = planImport([stored], [], buildBackup([{ ...stored, title: 'same age' }], [], []));
     expect(plan.write).toEqual([]);
     expect(plan.skipped).toBe(1);
   });
 
   it('leaves stored records that are not in the backup untouched', () => {
-    const plan = planImport([rec({ id: 'a' }), rec({ id: 'b' })], [], buildBackup([], [], {}));
+    const plan = planImport([rec({ id: 'a' }), rec({ id: 'b' })], [], buildBackup([], [], []));
     expect(plan.write).toEqual([]);
-    expect(plan.deleteThumbnails).toEqual([]);
+    expect(plan.deleteImages).toEqual([]);
   });
 
-  it('imports thumbnails only for winning records', () => {
-    const stored = rec({ id: 'a', updatedAt: 500, hasThumbnail: true });
-    const winner = rec({ id: 'b', hasThumbnail: true });
-    const loser = { ...stored, updatedAt: 100 };
-    const plan = planImport([stored], [], buildBackup([winner, loser], [], { a: IMG, b: IMG }));
-    expect(plan.putThumbnails).toEqual({ b: IMG });
-    expect(plan.deleteThumbnails).toEqual([]);
+  it('imports images only for winning records', () => {
+    const stored = rec({ id: 'a', updatedAt: 500, images: ['a1'] });
+    const winner = rec({ id: 'b', images: ['b1', 'b2'] });
+    const loser = { ...stored, updatedAt: 100, images: ['a1', 'a9'] };
+    const plan = planImport([stored], [], buildBackup([winner, loser], [], [img('a9', 'a'), img('b1', 'b'), img('b2', 'b')]));
+    expect(plan.putImages.map((i) => i.id)).toEqual(['b1', 'b2']);
+    expect(plan.deleteImages).toEqual([]);
+    expect(plan.write[0]?.images).toEqual(['b1', 'b2']);
   });
 
-  it('sets hasThumbnail from what the file actually contains', () => {
-    const claimsThumb = rec({ id: 'x', hasThumbnail: true });
-    const plan = planImport([], [], buildBackup([claimsThumb], [], {}));
-    expect(plan.write[0]?.hasThumbnail).toBe(false);
-
-    const hasData = rec({ id: 'y', hasThumbnail: false });
-    expect(planImport([], [], buildBackup([hasData], [], { y: IMG })).write[0]?.hasThumbnail).toBe(true);
+  it('drops image ids the file does not carry for that record', () => {
+    const r = rec({ id: 'x', images: ['missing', 'other', 'ok'] });
+    const plan = planImport([], [], buildBackup([r], [], [img('other', 'someone-else'), img('ok', 'x')]));
+    expect(plan.write[0]?.images).toEqual(['ok']);
+    expect(plan.putImages.map((i) => i.id)).toEqual(['ok']);
   });
 
-  it('removes the stored thumbnail when the newer incoming copy has none', () => {
-    const stored = rec({ id: 'a', updatedAt: 100, hasThumbnail: true });
-    const plan = planImport([stored], [], buildBackup([{ ...stored, hasThumbnail: false, updatedAt: 200 }], [], {}));
-    expect(plan.deleteThumbnails).toEqual(['a']);
+  it('keeps already stored images without re-importing them', () => {
+    const stored = rec({ id: 'a', updatedAt: 100, images: ['a1'] });
+    const plan = planImport([stored], [], buildBackup([{ ...stored, updatedAt: 200, images: ['a1', 'a2'] }], [], [img('a2', 'a')]));
+    expect(plan.write[0]?.images).toEqual(['a1', 'a2']);
+    expect(plan.putImages.map((i) => i.id)).toEqual(['a2']);
+  });
+
+  it('deletes stored images the newer incoming copy no longer lists', () => {
+    const stored = rec({ id: 'a', updatedAt: 100, images: ['a1', 'a2'] });
+    const plan = planImport([stored], [], buildBackup([{ ...stored, updatedAt: 200, images: ['a2'] }], [], []));
+    expect(plan.deleteImages).toEqual(['a1']);
+    expect(plan.write[0]?.images).toEqual(['a2']);
+  });
+
+  it("never re-points another record's stored image", () => {
+    const other = rec({ id: 'other', images: ['shared'] });
+    const plan = planImport([other], [], buildBackup([rec({ id: 'x', images: ['shared'] })], [], [img('shared', 'x')]));
+    expect(plan.write[0]?.images).toEqual([]);
+    expect(plan.putImages).toEqual([]);
   });
 
   it('uses the newest copy when the file repeats an id', () => {
     const a1 = rec({ id: 'dup', title: 'first', updatedAt: 100 });
     const a2 = { ...a1, title: 'second', updatedAt: 300 };
     const a3 = { ...a1, title: 'third', updatedAt: 200 };
-    const plan = planImport([], [], buildBackup([a1, a2, a3], [], {}));
+    const plan = planImport([], [], buildBackup([a1, a2, a3], [], []));
     expect(plan.write.map((r) => r.title)).toEqual(['second']);
     expect(plan.added).toBe(1);
   });
 });
 
 describe('parseBackup (validation)', () => {
-  const valid = () => buildBackup([rec({ id: 'a' })], [], { a: IMG });
+  const valid = () => buildBackup([rec({ id: 'a', images: ['i1'] })], [], [img('i1', 'a')]);
 
   it('round-trips a built backup', () => {
     const b = valid();
     const parsed = parseBackup(JSON.stringify(b));
     expect(parsed.records).toEqual(b.records);
-    expect(parsed.thumbnails).toEqual({ a: IMG });
+    expect(parsed.images).toEqual([img('i1', 'a')]);
     expect(parsed.version).toBe(SCHEMA_VERSION);
   });
 
@@ -128,8 +143,44 @@ describe('parseBackup (validation)', () => {
     );
   });
 
-  it('drops thumbnails that are not image data URLs', () => {
-    const text = JSON.stringify({ ...valid(), thumbnails: { a: 'https://evil.example/x.png', b: 42, c: IMG } });
-    expect(parseBackup(text).thumbnails).toEqual({ c: IMG });
+  it('drops image entries that are not image data URLs or are malformed', () => {
+    const text = JSON.stringify({
+      ...valid(),
+      images: [
+        { id: 'a', recordId: 'r', dataUrl: 'https://evil.example/x.png' },
+        { id: 'b', recordId: 'r', dataUrl: 42 },
+        { id: '', recordId: 'r', dataUrl: IMG },
+        'nope',
+        { id: 'c', recordId: 'r', dataUrl: IMG },
+      ],
+    });
+    expect(parseBackup(text).images).toEqual([img('c', 'r')]);
+  });
+
+  it('rejects records with an invalid images list', () => {
+    const bad = (images: unknown) =>
+      JSON.stringify({ format: BACKUP_FORMAT, version: SCHEMA_VERSION, records: [{ ...rec(), images }], images: [] });
+    expect(() => parseBackup(bad('x'))).toThrow(/"images"/);
+    expect(() => parseBackup(bad([1]))).toThrow(/"images"/);
+    expect(() => parseBackup(bad(['a', 'a']))).toThrow(/"images"/);
+    expect(() => parseBackup(bad(Array.from({ length: MAX_IMAGES + 1 }, (_, i) => `i${i}`)))).toThrow(/"images"/);
+  });
+
+  it('converts a v2 backup thumbnail into the record\'s first image', () => {
+    const { images: _drop, ...r } = rec({ id: 'r1' });
+    void _drop;
+    const v2 = {
+      format: BACKUP_FORMAT,
+      version: 2,
+      records: [{ ...r, hasThumbnail: true }, { ...r, id: 'r2', hasThumbnail: false }],
+      folders: [],
+      thumbnails: { r1: IMG, r2: 'https://x' },
+    };
+    const parsed = parseBackup(JSON.stringify(v2));
+    expect(parsed.records.map((x) => x.images)).toEqual([[legacyImageId('r1')], []]);
+    expect(parsed.records[0]).not.toHaveProperty('hasThumbnail');
+    expect(parsed.images).toEqual([{ id: legacyImageId('r1'), recordId: 'r1', dataUrl: IMG }]);
+    // And the merge keeps it.
+    expect(planImport([], [], parsed).write[0]?.images).toEqual([legacyImageId('r1')]);
   });
 });

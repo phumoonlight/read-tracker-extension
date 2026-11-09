@@ -4,9 +4,12 @@ import { isHttpUrl } from './records';
 import {
   BACKUP_FORMAT,
   FOLDER_NAME_MAX,
+  MAX_IMAGES,
   SCHEMA_VERSION,
   STATUSES,
+  legacyImageId,
   type BackupFile,
+  type BackupImage,
   type Folder,
   type ReadingRecord,
 } from './types';
@@ -16,10 +19,10 @@ export interface ImportPlan {
   writeFolders: Folder[];
   /** Records to write (new ids, or incoming copies newer than the stored ones). */
   write: ReadingRecord[];
-  /** Thumbnails to store, by record id (data URLs). */
-  putThumbnails: Record<string, string>;
-  /** Record ids whose stored thumbnail must be removed (the winning copy has none). */
-  deleteThumbnails: string[];
+  /** Images from the file to store (only those of written records, not already stored). */
+  putImages: BackupImage[];
+  /** Stored image ids to delete: images of replaced records that the winning copy no longer lists. */
+  deleteImages: string[];
   added: number;
   updated: number;
   /** Incoming records ignored because the stored copy is the same age or newer. */
@@ -35,7 +38,14 @@ function assertRecord(r: unknown, i: number): asserts r is ReadingRecord {
   if (r.matchMode !== 'exact' && r.matchMode !== 'prefix') throw bad('matchMode');
   if (!STATUSES.includes(r.status as never)) throw bad('status');
   if (!Array.isArray(r.tags) || !r.tags.every((t) => typeof t === 'string')) throw bad('tags');
-  if (typeof r.hasThumbnail !== 'boolean') throw bad('hasThumbnail');
+  if (
+    !Array.isArray(r.images) ||
+    r.images.length > MAX_IMAGES ||
+    !r.images.every((id) => typeof id === 'string' && id) ||
+    new Set(r.images).size !== r.images.length
+  ) {
+    throw bad('images');
+  }
   for (const f of ['createdAt', 'updatedAt'] as const) if (typeof r[f] !== 'number') throw bad(f);
   // Only http(s) links may come in from a file (no javascript:, data:, etc.).
   if (!isHttpUrl(r.url)) throw bad('url');
@@ -74,7 +84,6 @@ export function parseBackup(text: string): BackupFile {
   }
   if (!Array.isArray(data.records)) throw new Error('Backup has no records list.');
   if (data.folders !== undefined && !Array.isArray(data.folders)) throw new Error('Backup has an invalid folders list.');
-  const thumbnails = isObj(data.thumbnails) ? data.thumbnails : {};
 
   const records = data.records.map((raw, i) => {
     if (!isObj(raw)) throw new Error(`Record #${i + 1} is not an object.`);
@@ -83,9 +92,21 @@ export function parseBackup(text: string): BackupFile {
     return r;
   });
   const folders = ((data.folders as unknown[] | undefined) ?? []).map(parseFolder);
-  const cleanThumbs: Record<string, string> = {};
-  for (const [id, url] of Object.entries(thumbnails)) {
-    if (typeof url === 'string' && url.startsWith('data:image/')) cleanThumbs[id] = url;
+  const isImageData = (v: unknown): v is string => typeof v === 'string' && v.startsWith('data:image/');
+  const images: BackupImage[] = [];
+  if (version < 3) {
+    // v1/v2: one thumbnail per record, keyed by record id. Same id as the record migration uses.
+    const thumbnails = isObj(data.thumbnails) ? data.thumbnails : {};
+    for (const [recordId, dataUrl] of Object.entries(thumbnails)) {
+      if (isImageData(dataUrl)) images.push({ id: legacyImageId(recordId), recordId, dataUrl });
+    }
+  } else {
+    // Entries that are malformed or not images are dropped; records then simply lack that image.
+    for (const img of Array.isArray(data.images) ? data.images : []) {
+      if (isObj(img) && typeof img.id === 'string' && img.id && typeof img.recordId === 'string' && isImageData(img.dataUrl)) {
+        images.push({ id: img.id, recordId: img.recordId, dataUrl: img.dataUrl });
+      }
+    }
   }
   return {
     format: BACKUP_FORMAT,
@@ -93,7 +114,7 @@ export function parseBackup(text: string): BackupFile {
     exportedAt: typeof data.exportedAt === 'number' ? data.exportedAt : 0,
     records,
     folders,
-    thumbnails: cleanThumbs,
+    images,
   };
 }
 
@@ -117,8 +138,9 @@ const nameKey = (name: string) => cleanFolderName(name).toLocaleLowerCase();
  * existing folder is not created; its records go into the existing folder. A newer
  * incoming rename that would collide with another folder's name is skipped.
  *
- * Records: hasThumbnail is set from whether the backup carries a thumbnail; a folderId
- * that names no known folder becomes "no folder".
+ * Records: a written record keeps only the image ids that the file carries for it (or
+ * that are already stored for it); images of the replaced copy that are no longer listed
+ * are deleted. A folderId that names no known folder becomes "no folder".
  */
 export function planImport(
   existing: ReadingRecord[],
@@ -128,8 +150,8 @@ export function planImport(
   const plan: ImportPlan = {
     writeFolders: [],
     write: [],
-    putThumbnails: {},
-    deleteThumbnails: [],
+    putImages: [],
+    deleteImages: [],
     added: 0,
     updated: 0,
     skipped: 0,
@@ -170,28 +192,34 @@ export function planImport(
 
   // --- records
   const byId = new Map(existing.map((r) => [r.id, r]));
+  const fileImages = new Map(backup.images.map((img) => [img.id, img]));
+  /** Stored image id -> owning record id (an id is never re-pointed at another record). */
+  const owner = new Map(existing.flatMap((r) => r.images.map((id) => [id, r.id] as const)));
   for (const r of newestById(backup.records).values()) {
     const current = byId.get(r.id);
     if (current && r.updatedAt <= current.updatedAt) {
       plan.skipped++;
       continue;
     }
-    const thumb = backup.thumbnails[r.id];
+    const stored = new Set(current?.images ?? []);
+    const images = r.images.filter(
+      (id) => stored.has(id) || (fileImages.get(id)?.recordId === r.id && !owner.has(id)),
+    );
+    for (const id of images) {
+      const img = fileImages.get(id);
+      if (img && !stored.has(id)) plan.putImages.push(img);
+    }
+    for (const id of stored) if (!images.includes(id)) plan.deleteImages.push(id);
+
     const { folderId, ...rest } = r;
     const resolved = resolveFolder(folderId);
-    plan.write.push({ ...rest, ...(resolved ? { folderId: resolved } : {}), hasThumbnail: !!thumb });
-    if (thumb) plan.putThumbnails[r.id] = thumb;
-    else if (current?.hasThumbnail) plan.deleteThumbnails.push(r.id);
+    plan.write.push({ ...rest, ...(resolved ? { folderId: resolved } : {}), images });
     if (current) plan.updated++;
     else plan.added++;
   }
   return plan;
 }
 
-export function buildBackup(
-  records: ReadingRecord[],
-  folders: Folder[],
-  thumbnails: Record<string, string>,
-): BackupFile {
-  return { format: BACKUP_FORMAT, version: SCHEMA_VERSION, exportedAt: Date.now(), records, folders, thumbnails };
+export function buildBackup(records: ReadingRecord[], folders: Folder[], images: BackupImage[]): BackupFile {
+  return { format: BACKUP_FORMAT, version: SCHEMA_VERSION, exportedAt: Date.now(), records, folders, images };
 }

@@ -12,7 +12,7 @@ export function rec(overrides: Partial<ReadingRecord> = {}): ReadingRecord {
     matchMode: 'exact',
     status: 'unread',
     tags: [],
-    hasThumbnail: false,
+    images: [],
     createdAt: 1000,
     updatedAt: 1000,
     ...overrides,

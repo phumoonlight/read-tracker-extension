@@ -3,7 +3,7 @@ import { browser, type Browser } from 'wxt/browser';
 import { FolderSelect, RecordForm, defaultPrefix } from '@/components/RecordForm';
 import { StatusPicker } from '@/components/StatusPicker';
 import { Thumbnail } from '@/components/Thumbnail';
-import { ThumbnailPicker } from '@/components/ThumbnailPicker';
+import { ImagePicker } from '@/components/ImagePicker';
 import { createRecord } from '@/lib/records';
 import { findRecordForUrl, listFolders, putRecord, statusChange, updateRecord } from '@/lib/storage';
 import { getActiveTab } from '@/lib/tab';
@@ -16,6 +16,8 @@ type State =
   | { kind: 'loading' }
   | { kind: 'untrackable' }
   | { kind: 'ready'; tab: ActiveTab; record?: ReadingRecord; folders: Folder[] };
+
+const viewHash = (recordId: string, index: number) => `#view=${encodeURIComponent(recordId)}&i=${index}`;
 
 const openList = (hash = '') => {
   void browser.tabs.create({ url: browser.runtime.getURL(`/options.html${hash}`) });
@@ -136,7 +138,7 @@ function CurrentRecord({
   return (
     <>
       <div className="current" data-status={record.status}>
-        <Thumbnail record={record} size="small" />
+        <Thumbnail record={record} size="small" onOpen={() => openList(viewHash(record.id, 0))} />
         <div>
           <div className="current-title">{record.title}</div>
           <div className="current-meta">
@@ -170,7 +172,13 @@ function CurrentRecord({
         </div>
       )}
 
-      <ThumbnailPicker record={record} tab={{ id: tab.id, windowId: tab.windowId }} onChange={onChange} />
+      <ImagePicker
+        record={record}
+        tab={{ id: tab.id, windowId: tab.windowId }}
+        onChange={onChange}
+        // Full-size images don't fit the popup: view them on the list page.
+        onView={(i) => openList(viewHash(record.id, i))}
+      />
 
       <div className="row">
         <button type="button" className="btn" onClick={() => openList(`#edit=${record.id}`)}>

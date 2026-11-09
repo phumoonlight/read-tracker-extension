@@ -6,10 +6,11 @@ stored in the browser.
 - The toolbar badge shows whether the current page is in your list: **✓** read, **•** unread or reading.
 - Track a single page, or a whole series with a URL prefix (for example every chapter under
   `site.com/novel/abc/`). While a series is marked "reading", the extension remembers the last chapter you opened.
-- Give each record a thumbnail: upload a file, paste an image, screenshot the tab, or use the page's og:image.
+- Attach up to 3 images to each record: upload files, paste an image, screenshot the tab, or use the page's
+  og:image. Images are kept at full resolution; click one to view it full size.
 - Group records into folders. New records start in "No folder"; pick a folder when adding or editing.
 - Browse everything in a full-page list with folders, search, status and tag filters, and sorting.
-- Back up to a single JSON file (thumbnails included) and import it again later or on another machine.
+- Back up to a single JSON file (original images included) and import it again later or on another machine.
 
 ## Install from source
 
@@ -36,7 +37,9 @@ change.
 
 - **Add a page:** click the toolbar icon, check the title, choose **This page** or **Series (prefix)**, pick a
   status and click **Add current page**.
-- **Change status or thumbnail:** open the popup on a page that is in your list.
+- **Change status, folder or images:** open the popup on a page that is in your list.
+- **View images:** click a card's image in the full list (or an image tile) to open the full-size viewer; use
+  the arrow keys to step through a record's images, or **Open original** to see it in a tab.
 - **Full list:** click **Open full list** in the popup, or right-click the toolbar icon and choose **Options**.
 - **Folders:** in the full list, click **+ New folder**. Click a folder to see only its records; **Rename folder**
   and **Delete folder** appear while it is selected. Deleting a folder keeps its records (they move to

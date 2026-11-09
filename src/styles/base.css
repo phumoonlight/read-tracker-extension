@@ -22,6 +22,10 @@
   --ph-bg-l: 90%;
   --ph-fg-l: 32%;
 
+  /* Badge drawn over images */
+  --overlay-bg: #1f2328cc;
+  --overlay-text: #ffffff;
+
   --radius: 8px;
   --radius-sm: 6px;
   --shadow: 0 1px 3px #1f232814, 0 8px 24px #1f23281a;
@@ -49,6 +53,9 @@
     --ph-sat: 35%;
     --ph-bg-l: 22%;
     --ph-fg-l: 78%;
+
+    --overlay-bg: #0d1117cc;
+    --overlay-text: #e6edf3;
 
     --shadow: 0 1px 3px #0008, 0 8px 24px #0009;
   }
@@ -302,5 +309,80 @@ dialog::backdrop {
 .dialog-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Cover with "+N" badge; clickable when it opens the viewer */
+.thumb-wrap {
+  position: relative;
+}
+.thumb-button {
+  display: block;
+  position: relative;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  border-radius: var(--radius-sm);
+}
+.thumb-more {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--overlay-bg);
+  color: var(--overlay-text);
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* Image tiles in the picker */
+.image-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.image-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.image-tile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.image-tile-actions .btn-small {
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
+/* Full-resolution viewer */
+dialog.viewer {
+  width: min(1400px, calc(100vw - 32px));
+}
+.viewer-stage {
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.viewer-img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 190px);
+  object-fit: contain;
+}
+.viewer-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
   gap: 8px;
 }

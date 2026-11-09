@@ -48,7 +48,7 @@ export function createRecord(input: NewRecordInput): ReadingRecord | { error: st
     tags: normalizeTags(input.tags ?? []),
     notes: input.notes?.trim() || undefined,
     ...(input.folderId ? { folderId: input.folderId } : {}),
-    hasThumbnail: false,
+    images: [],
     createdAt: now,
     updatedAt: now,
     readAt: status === 'read' ? now : undefined,

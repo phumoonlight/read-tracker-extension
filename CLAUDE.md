@@ -23,10 +23,10 @@ Run `npm test` and `npm run compile` before declaring work done.
 src/
   entrypoints/
     background.ts        service worker: badge per tab, series progress (lastReadUrl)
-    popup/               toolbar popup: current page state, add, status, thumbnail
+    popup/               toolbar popup: current page state, add, status, folder, images
     options/             full list page (options_ui, open_in_tab): folder bar, grid/list views, search, filters, edit, delete, backup
-  components/            shared React UI (RecordForm, ThumbnailPicker, Thumbnail, StatusPicker, Dialog)
-  lib/                   framework-free logic (only db.ts / storage.ts / tab.ts / thumbnails.ts touch browser APIs)
+  components/            shared React UI (RecordForm, ImagePicker, ImageViewer, Thumbnail (cover), StatusPicker, Dialog)
+  lib/                   framework-free logic (only db.ts / storage.ts / tab.ts / images.ts touch browser APIs)
     types.ts             ReadingRecord, Folder, SCHEMA_VERSION, BackupFile
     folders.ts           folder name rules (folderNameError), newFolder, sortFolders
     url.ts               normalizeUrl, isTrackingParam, suggestPrefix
@@ -34,7 +34,7 @@ src/
     migrate.ts           migrateRecord + MIGRATIONS table
     db.ts                IndexedDB open/upgrade (stores, indexes, DB_VERSION), withTx/req helpers
     storage.ts           records repository: lookups, paged queries, atomic writes, change signal
-    thumbnails.ts        thumbnail read + canvas resize to 300px WebP
+    images.ts            StoredImage, getImage/getImagePreview, prepareImage (validate + preview), sniffImageType
     tab.ts               active tab, captureVisibleTab, og:image lookup/download
     records.ts           createRecord, computeMatchKey, tag helpers
     backup.ts            parseBackup / planImport / buildBackup (pure, unit-tested)
@@ -50,8 +50,9 @@ public/icon/             extension icons
 
 `ReadingRecord` (src/lib/types.ts): `id` (crypto.randomUUID), `title`, `url` (as entered), `matchKey`,
 `matchMode` ("exact" | "prefix"), `status` ("unread" | "reading" | "read"), `lastReadUrl?`, `tags` (lowercase,
-unique), `folderId?`, `notes?`, `hasThumbnail`, `createdAt`, `updatedAt`, `readAt?`. Timestamps are epoch
-milliseconds. Current `SCHEMA_VERSION` is 2 (v2 added `folderId`).
+unique), `folderId?`, `notes?`, `images` (ids, max `MAX_IMAGES` = 3, first = cover), `createdAt`, `updatedAt`,
+`readAt?`. Timestamps are epoch milliseconds. Current `SCHEMA_VERSION` is 3 (v2 added `folderId`; v3 replaced
+`hasThumbnail` with `images`, mapping an old thumbnail to image id `legacyImageId(recordId)` = `legacy-<recordId>`).
 
 `Folder`: `id`, `name`, `createdAt`, `updatedAt`. Folders are flat and a record is in at most one folder;
 `folderId` absent = "No folder" (the default for new records). Names are trimmed, whitespace-collapsed, at most
@@ -64,8 +65,12 @@ Storage: IndexedDB database `read-tracker` (layout in `src/lib/db.ts`, no third-
   Indexes: `matchKey`, `updatedAt`, `createdAt`, `title`, `status` (`[_rank, updatedAt]`), `tags` (multiEntry),
   `folderId` (records without a folder are not in it). `toRow` drops an undefined `folderId` so it is never stored.
 - `folders` (keyPath `id`): Folder. Same change signal as records.
-- `thumbnails`: record id -> WebP Blob (≤300px wide, ≤600px tall). `hasThumbnail` mirrors whether a Blob exists;
-  change both together with `setThumbnail()`.
+- `images` (keyPath `id`, index `recordId`): `StoredImage` = the original file Blob, never resized or re-encoded
+  (the viewer shows it at full resolution), plus a ≤480px WebP `preview` used only for covers and tiles. Change
+  images only through `addImages` / `removeImage` / `setCoverImage` (they update the record's `images` list in the
+  same transaction); `deleteRecord` removes a record's images. Files over 25 MB are rejected (`prepareImage`).
+  DB v4 converted the old `thumbnails` store (300px WebP per record) into images `legacy-<recordId>` and dropped it;
+  those few stay 300px because the originals were never kept.
 - `meta`: `schemaVersion` (record shape version).
 - `chrome.storage.local` holds only `recordsRevision`, bumped after every write. IndexedDB has no change events;
   `storage.onChanged` reaches every context and wakes the service worker, so this key is the change signal
@@ -76,7 +81,8 @@ How data is read:
 - Badge and popup: `findRecordForUrl()` looks up `candidateKeys(url)` (the URL cut at each `/` or `?`) on the
   `matchKey` index. No full load. `chooseMatch` must agree with `findMatch`; a randomized test checks it.
 - List page: `queryRecords()` walks the sort index, filters rows as it goes (search, status, tag, folder), and stops
-  after `limit` matches (60 per page, more on scroll). Thumbnails load only when a card nears the viewport.
+  after `limit` matches (60 per page, more on scroll). Cover previews load only when a card nears the viewport;
+  originals load only in the viewer.
   Folder counts come from the `folderId` index keys (`folderCounts`), not from record values.
 - `getAllRecords()` is for export/import only.
 
@@ -100,6 +106,14 @@ Rules:
 
 Stored records migrate on first access in each context (`ensureReady` in storage.ts). Backups from older versions
 migrate on import; backups from newer versions are rejected.
+
+### Backup and images
+
+Schema v3 backups carry `images: [{ id, recordId, dataUrl }]` with the original files (so files can be large); v1/v2
+files carried `thumbnails` (record id -> data URL), which `parseBackup` turns into `legacy-<recordId>` images.
+On import, a written record keeps only image ids the file carries for it (or already stored for it); previews are
+rebuilt; stored images the winning copy no longer lists are deleted; an id owned by another local record is never
+re-pointed.
 
 ### Backup and folders
 
@@ -138,7 +152,7 @@ download is blocked by CORS. Don't add install-time permissions without a strong
 - Keep `src/lib` free of React. Put pure logic in its own function so it can be tested without browser APIs.
 - Import browser APIs from `wxt/browser` (`browser.*`), not the global `chrome`.
 - Use `<dialog>` (components/Dialog.tsx) for confirmations, never `window.confirm`.
-- Records may have no thumbnail. `<Thumbnail>` then shows a placeholder tinted per site (`siteLabel` + `hueFor`,
+- Records may have no images. `<Thumbnail>` (the cover) then shows a placeholder tinted per site (`siteLabel` + `hueFor`,
   colors from the `--ph-*` tokens): the domain at size "large", its first letter at "small". Never derive the
   placeholder from the title (its first character can be a combining mark, e.g. in Thai).
 - `localStorage` is only for per-browser UI conveniences (the grid/list choice, key `read-tracker:view`), always

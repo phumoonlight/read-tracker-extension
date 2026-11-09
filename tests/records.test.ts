@@ -43,7 +43,7 @@ describe('createRecord', () => {
       matchKey: 'site.com/a',
       status: 'unread',
       tags: ['b', 'a'],
-      hasThumbnail: false,
+      images: [],
       readAt: undefined,
     });
   });

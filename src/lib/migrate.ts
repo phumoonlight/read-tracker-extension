@@ -1,4 +1,4 @@
-import { SCHEMA_VERSION, type ReadingRecord } from './types';
+import { SCHEMA_VERSION, legacyImageId, type ReadingRecord } from './types';
 
 type RawRecord = Record<string, unknown>;
 
@@ -9,6 +9,13 @@ type RawRecord = Record<string, unknown>;
 const MIGRATIONS: Record<number, (r: RawRecord) => RawRecord> = {
   // v2 adds optional `folderId`. Absent means "no folder", so v1 records are already valid.
   1: (r) => r,
+  // v3 replaces `hasThumbnail: boolean` with `images: string[]`. The old thumbnail
+  // becomes image `legacy-<id>` (the DB upgrade and parseBackup use the same id).
+  2: (r) => {
+    const { hasThumbnail, ...rest } = r;
+    const images = Array.isArray(r.images) ? r.images : hasThumbnail === true ? [legacyImageId(String(r.id))] : [];
+    return { ...rest, images };
+  },
 };
 
 /** Bring a stored or imported record up to SCHEMA_VERSION. Throws if `fromVersion` is newer than this build. */

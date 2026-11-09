@@ -1,9 +1,10 @@
 import { browser } from 'wxt/browser';
-import { FOLDERS, IDX, META, RECORDS, THUMBNAILS, req, withTx } from './db';
+import { FOLDERS, IDX, IMAGES, META, RECORDS, req, withTx } from './db';
+import type { NewImage, StoredImage } from './images';
 import { cleanFolderName, folderNameError, newFolder, sortFolders } from './folders';
 import { candidateKeys, chooseMatch } from './match';
 import { migrateRecord } from './migrate';
-import { SCHEMA_VERSION, type Folder, type ReadingRecord, type ReadStatus } from './types';
+import { MAX_IMAGES, SCHEMA_VERSION, type Folder, type ReadingRecord, type ReadStatus } from './types';
 
 /**
  * Records repository on IndexedDB (see db.ts for the layout).
@@ -287,26 +288,33 @@ export async function updateRecord(
   return result?.record;
 }
 
-/** Delete a record and its thumbnail together. */
+/** Delete a record and all its images together. */
 export async function deleteRecord(id: string): Promise<void> {
   await ensureReady();
-  await withTx([RECORDS, THUMBNAILS], 'readwrite', async (tx) => {
+  await withTx([RECORDS, IMAGES], 'readwrite', async (tx) => {
     tx.objectStore(RECORDS).delete(id);
-    tx.objectStore(THUMBNAILS).delete(id);
+    const images = tx.objectStore(IMAGES);
+    const keys = await req(images.index(IDX.recordId).getAllKeys(id));
+    for (const k of keys) images.delete(k);
   });
   await notifyChanged();
 }
 
-/** Store (or, with null, remove) a record's thumbnail and update hasThumbnail in the same transaction. */
-export async function setThumbnail(id: string, blob: Blob | null): Promise<ReadingRecord | undefined> {
+/**
+ * Read-modify-write a record's image list together with the images store, in one
+ * transaction. `fn` returns the new id list (or throws a user-facing error).
+ */
+async function changeImages(
+  recordId: string,
+  fn: (current: string[], images: IDBObjectStore) => string[],
+): Promise<ReadingRecord | undefined> {
   await ensureReady();
-  const next = await withTx([RECORDS, THUMBNAILS], 'readwrite', async (tx) => {
+  const next = await withTx([RECORDS, IMAGES], 'readwrite', async (tx) => {
     const store = tx.objectStore(RECORDS);
-    const row = (await req(store.get(id))) as Row | undefined;
+    const row = (await req(store.get(recordId))) as Row | undefined;
     if (!row) return undefined;
-    if (blob) tx.objectStore(THUMBNAILS).put(blob, id);
-    else tx.objectStore(THUMBNAILS).delete(id);
-    const updated: ReadingRecord = { ...fromRow(row), hasThumbnail: !!blob, updatedAt: Date.now() };
+    const record = fromRow(row);
+    const updated: ReadingRecord = { ...record, images: fn(record.images, tx.objectStore(IMAGES)), updatedAt: Date.now() };
     store.put(toRow(updated));
     return updated;
   });
@@ -314,23 +322,59 @@ export async function setThumbnail(id: string, blob: Blob | null): Promise<Readi
   return next;
 }
 
+/** Append images (prepared with prepareImage). Throws if the record would exceed MAX_IMAGES. */
+export function addImages(recordId: string, added: NewImage[]): Promise<ReadingRecord | undefined> {
+  return changeImages(recordId, (current, images) => {
+    if (current.length + added.length > MAX_IMAGES) {
+      const left = MAX_IMAGES - current.length;
+      throw new Error(
+        left > 0
+          ? `A record can have at most ${MAX_IMAGES} images; there is room for ${left} more.`
+          : `A record can have at most ${MAX_IMAGES} images. Remove one first.`,
+      );
+    }
+    const now = Date.now();
+    const ids = added.map((img) => {
+      const stored: StoredImage = { ...img, id: crypto.randomUUID(), recordId, addedAt: now };
+      images.put(stored);
+      return stored.id;
+    });
+    return [...current, ...ids];
+  });
+}
+
+export function removeImage(recordId: string, imageId: string): Promise<ReadingRecord | undefined> {
+  return changeImages(recordId, (current, images) => {
+    images.delete(imageId);
+    return current.filter((id) => id !== imageId);
+  });
+}
+
+/** Move an image to the front (the cover shown on cards). */
+export function setCoverImage(recordId: string, imageId: string): Promise<ReadingRecord | undefined> {
+  return changeImages(recordId, (current) =>
+    current.includes(imageId) ? [imageId, ...current.filter((id) => id !== imageId)] : current,
+  );
+}
+
 /**
- * Apply an import in one transaction: write folders and records, put or delete thumbnails.
- * Blobs must be prepared beforehand (no async work is allowed inside the transaction).
+ * Apply an import in one transaction: write folders, images and records, delete
+ * replaced images. Image blobs and previews must be prepared beforehand (no async
+ * work is allowed inside the transaction).
  */
 export async function applyImport(
   folders: Folder[],
   records: ReadingRecord[],
-  putThumbs: Map<string, Blob>,
-  deleteThumbs: string[],
+  putImages: StoredImage[],
+  deleteImageIds: string[],
 ): Promise<void> {
   await ensureReady();
-  await withTx([FOLDERS, RECORDS, THUMBNAILS], 'readwrite', async (tx) => {
+  await withTx([FOLDERS, RECORDS, IMAGES], 'readwrite', async (tx) => {
     const folderStore = tx.objectStore(FOLDERS);
     for (const f of folders) folderStore.put(f);
-    const thumbs = tx.objectStore(THUMBNAILS);
-    for (const [id, blob] of putThumbs) thumbs.put(blob, id);
-    for (const id of deleteThumbs) thumbs.delete(id);
+    const images = tx.objectStore(IMAGES);
+    for (const id of deleteImageIds) images.delete(id);
+    for (const img of putImages) images.put(img);
     const store = tx.objectStore(RECORDS);
     for (const r of records) store.put(toRow(await withValidFolder(tx, r)));
   });
