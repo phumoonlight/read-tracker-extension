@@ -17,7 +17,7 @@ import {
   folderCounts,
   getRecord,
   listFolders,
-  listTags,
+  tagCounts,
   onRecordsChanged,
   putRecord,
   queryRecords,
@@ -132,12 +132,14 @@ export function App() {
   const [query, setQuery] = useState('');
   const search = useDebounced(query, 200);
   const [status, setStatus] = useState<ReadStatus | 'all'>('all');
-  const [tag, setTag] = useState('');
+  /** Selected tag filters (records must have all of them). */
+  const [selTags, setSelTags] = useState<string[]>([]);
   const [sort, setSort] = useState<ListSort>('updated');
   const [limit, setLimit] = useState(PAGE);
   const [page, setPage] = useState<{ records: ReadingRecord[]; hasMore: boolean }>();
   const [total, setTotal] = useState<number>();
-  const [allTags, setAllTags] = useState<string[]>([]);
+  /** Tags used in the open place, with counts. */
+  const [placeTags, setPlaceTags] = useState<[string, number][]>([]);
   // undefined until first loaded, so a remembered folder isn't mistaken for a deleted one.
   const [loadedFolders, setFolders] = useState<Folder[]>();
   const folders = loadedFolders ?? NO_FOLDERS;
@@ -158,7 +160,6 @@ export function App() {
 
   useEffect(() => {
     void countRecords().then(setTotal);
-    void listTags().then(setAllTags);
     void listFolders().then(setFolders);
     void getHomeSettings().then(setHome);
     void folderCounts().then(setCounts);
@@ -178,8 +179,27 @@ export function App() {
   // Only folders can use it; Home is always Status.
   const revisit = openFolder?.readMode === 'revisit';
 
-  // If the selected tag disappears (last record with it deleted or retagged), stop filtering by it.
-  const activeTag = tag && allTags.includes(tag) ? tag : '';
+  // Tags (and counts) of the open place.
+  useEffect(() => {
+    let stale = false;
+    void tagCounts(activeFolder).then((t) => {
+      if (!stale) setPlaceTags(t);
+    });
+    return () => {
+      stale = true;
+    };
+  }, [activeFolder, revision]);
+
+  // A selected tag that isn't used here any more (record changed or moved) stops filtering.
+  const activeTags = selTags.filter((t) => placeTags.some(([pt]) => pt === t));
+  const toggleTag = (t: string) => {
+    setSelTags((cur) => (cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]));
+    setLimit(PAGE);
+  };
+  const addTag = (t: string) => {
+    setSelTags((cur) => (cur.includes(t) ? cur : [...cur, t]));
+    setLimit(PAGE);
+  };
 
   // Load the first `limit` matches. Any change re-runs it; stale responses are dropped.
   useEffect(() => {
@@ -187,7 +207,7 @@ export function App() {
     void queryRecords({
       search,
       status: revisit || status === 'all' ? undefined : status,
-      tag: activeTag || undefined,
+      tags: activeTags,
       folder: activeFolder,
       sort: revisit ? 'revisit' : sort,
       limit,
@@ -197,7 +217,7 @@ export function App() {
     return () => {
       stale = true;
     };
-  }, [search, status, activeTag, activeFolder, sort, revisit, limit, revision]);
+  }, [search, status, activeTags.join('\u0000'), activeFolder, sort, revisit, limit, revision]);
 
   // Any filter change starts again from the first page.
   function resetting<T>(set: (v: T) => void) {
@@ -233,7 +253,11 @@ export function App() {
         counts={counts}
         homeCount={homeCount}
         value={activeFolder}
-        onChange={resetting(setFolder)}
+        onChange={(f) => {
+          // Tag filters belong to the place they were chosen in.
+          setSelTags([]);
+          resetting(setFolder)(f);
+        }}
         onNew={() => setModal({ kind: 'folder-new' })}
         onManage={() => setModal({ kind: 'place' })}
       />
@@ -260,14 +284,6 @@ export function App() {
             ))}
           </select>
         )}
-        <select value={activeTag} onChange={(e) => resetting(setTag)(e.target.value)} aria-label="Filter by tag">
-          <option value="">All tags</option>
-          {allTags.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
         {revisit ? (
           <span className="muted toolbar-note">Revisit: least recently read first</span>
         ) : (
@@ -281,13 +297,15 @@ export function App() {
         )}
       </div>
 
+      <TagFilter tags={placeTags} selected={activeTags} onToggle={toggleTag} onClear={() => resetting(setSelTags)([])} />
+
       {page === undefined ? (
         <p className="muted">Loading…</p>
       ) : page.records.length === 0 ? (
         <div className="empty">
           {total === 0
             ? 'Your list is empty. Open a page and use the toolbar button to add it.'
-            : search || status !== 'all' || activeTag
+            : search || status !== 'all' || activeTags.length > 0
               ? 'No records here match these filters.'
               : isFolderId(activeFolder)
                 ? 'This folder is empty. Move records here from their Edit dialog or the popup.'
@@ -304,7 +322,7 @@ export function App() {
                 originalImages={usesOriginalImages(imageSize)}
                 onEdit={() => setModal({ kind: 'edit', id: r.id })}
                 onView={(index) => setModal({ kind: 'view', recordId: r.id, index })}
-                onTag={resetting(setTag)}
+                onTag={addTag}
               />
             ))}
           </div>
@@ -620,6 +638,59 @@ function EditDialog({
         />
       )}
     </Dialog>
+  );
+}
+
+/** How many tag chips show before "+N more". */
+const TAG_CHIPS_SHOWN = 12;
+
+/**
+ * Tag filter: one chip per tag used in the open place, with its count. Click to select
+ * (several can be selected: records must have all of them), click again to remove.
+ */
+function TagFilter({
+  tags,
+  selected,
+  onToggle,
+  onClear,
+}: {
+  tags: [string, number][];
+  selected: string[];
+  onToggle: (t: string) => void;
+  onClear: () => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  if (tags.length === 0) return null;
+  // Selected tags always stay visible, even when the list is collapsed.
+  const visible = showAll
+    ? tags
+    : tags.filter(([t], i) => i < TAG_CHIPS_SHOWN || selected.includes(t));
+  const hidden = tags.length - visible.length;
+  return (
+    <div className="tag-filter" role="group" aria-label="Filter by tag">
+      <span className="tag-filter-label">Tags</span>
+      {visible.map(([t, n]) => (
+        <button key={t} type="button" className="tag-chip" aria-pressed={selected.includes(t)} onClick={() => onToggle(t)}>
+          {t}
+          <span className="tag-chip-count">{n}</span>
+        </button>
+      ))}
+      {hidden > 0 && (
+        <button type="button" className="btn btn-small btn-ghost" onClick={() => setShowAll(true)}>
+          +{hidden} more
+        </button>
+      )}
+      {showAll && tags.length > TAG_CHIPS_SHOWN && (
+        <button type="button" className="btn btn-small btn-ghost" onClick={() => setShowAll(false)}>
+          Show less
+        </button>
+      )}
+      {selected.length > 0 && (
+        <button type="button" className="btn btn-small btn-ghost" onClick={onClear}>
+          Clear
+        </button>
+      )}
+    </div>
   );
 }
 

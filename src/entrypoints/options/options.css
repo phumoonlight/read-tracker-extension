@@ -21,7 +21,7 @@
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(180px, 2fr) repeat(3, minmax(120px, 1fr));
+  grid-template-columns: minmax(180px, 2fr) repeat(2, minmax(120px, 1fr));
   gap: 8px;
 }
 
@@ -302,4 +302,40 @@
   justify-content: flex-start;
   padding-top: 12px;
   border-top: 1px solid var(--border);
+}
+
+/* Tag filter chips under the search box */
+.tag-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.tag-filter-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-right: 2px;
+}
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 12px;
+  cursor: pointer;
+}
+.tag-chip:hover {
+  background: var(--surface-2);
+}
+.tag-chip[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.tag-chip-count {
+  opacity: 0.7;
 }

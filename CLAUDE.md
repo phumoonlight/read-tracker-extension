@@ -105,6 +105,9 @@ How data is read:
   after `limit` matches (60 per page, more on scroll). Cover previews load only when a card nears the viewport;
   originals load only in the viewer.
   Folder counts come from the `folderId` index keys (`folderCounts`), not from record values.
+- Tag filter: a chip row under the search box (`TagFilter`) lists the tags used in the open place with counts
+  (`tagCounts(place)`, reads that place's records); several can be selected and `queryRecords({ tags })` keeps
+  records that have all of them. Selection resets when switching place.
 - `getAllRecords()` is for export/import only.
 
 Rules:

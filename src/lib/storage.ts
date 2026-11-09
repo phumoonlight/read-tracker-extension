@@ -178,22 +178,22 @@ export async function countRecords(): Promise<number> {
   return withTx(RECORDS, 'readonly', (tx) => req(tx.objectStore(RECORDS).count()));
 }
 
-/** All distinct tags, sorted, read from the tags index keys (no record values loaded). */
-export async function listTags(): Promise<string[]> {
+/**
+ * Tags used in one place (null = Home, or a folder id) with how many records there have
+ * each, sorted by tag. Reads that place's records (small: no image data).
+ */
+export async function tagCounts(place: string | null): Promise<[string, number][]> {
   await ensureReady();
   return withTx(RECORDS, 'readonly', async (tx) => {
-    const tags: string[] = [];
-    await new Promise<void>((resolve, reject) => {
-      const r = tx.objectStore(RECORDS).index(IDX.tags).openKeyCursor(null, 'nextunique');
-      r.onsuccess = () => {
-        const c = r.result;
-        if (!c) return resolve();
-        tags.push(String(c.key));
-        c.continue();
-      };
-      r.onerror = () => reject(r.error);
-    });
-    return tags;
+    const store = tx.objectStore(RECORDS);
+    const rows = (
+      place === null
+        ? ((await req(store.getAll())) as Row[]).filter((r) => r.folderId === undefined)
+        : ((await req(store.index(IDX.folderId).getAll(place))) as Row[])
+    );
+    const counts = new Map<string, number>();
+    for (const r of rows) for (const t of r.tags) counts.set(t, (counts.get(t) ?? 0) + 1);
+    return [...counts].sort(([a], [b]) => a.localeCompare(b));
   });
 }
 
@@ -203,7 +203,8 @@ export type SortKey = 'updated' | 'created' | 'title' | 'status' | 'revisit';
 export interface RecordQuery {
   search?: string;
   status?: ReadStatus;
-  tag?: string;
+  /** Records must have every one of these tags. */
+  tags?: string[];
   /** undefined = every record, null = only records without a folder, string = that folder. */
   folder?: string | null;
   sort: SortKey;
@@ -228,7 +229,7 @@ export async function queryRecords(q: RecordQuery): Promise<{ records: ReadingRe
   const search = q.search?.trim().toLowerCase();
   const matches = (r: Row) =>
     (!q.status || r.status === q.status) &&
-    (!q.tag || r.tags.includes(q.tag)) &&
+    (!q.tags?.length || q.tags.every((t) => r.tags.includes(t))) &&
     (q.folder === undefined || (r.folderId ?? null) === q.folder) &&
     (!search ||
       [r._title, ...urlEntries(r).map((e) => e.url.toLowerCase()), (r.notes ?? '').toLowerCase(), ...r.tags].some((s) =>
