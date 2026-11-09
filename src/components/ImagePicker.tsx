@@ -5,6 +5,7 @@ import { captureVisible, downloadImage, findOgImage, NeedsPermissionError, reque
 import { MAX_IMAGES, type ReadingRecord } from '@/lib/types';
 import { useImageUrl } from './Thumbnail';
 import { XIcon } from './XIcon';
+import { ConfirmDialog } from './Dialog';
 
 interface Props {
   record: ReadingRecord;
@@ -33,6 +34,8 @@ export function ImagePicker({ record, tab, onChange, onView }: Props) {
   const [dragOver, setDragOver] = useState<number>();
   /** Tile moved with Alt+arrow: keep keyboard focus on it after it moves. */
   const [keyMoved, setKeyMoved] = useState<string>();
+  /** Image waiting for the user to confirm its removal. */
+  const [confirmRemove, setConfirmRemove] = useState<string>();
   const room = MAX_IMAGES - record.images.length;
   const order = pendingOrder ?? record.images;
 
@@ -124,7 +127,7 @@ export function ImagePicker({ record, tab, onChange, onView }: Props) {
             dragging={dragFrom === i}
             dropTarget={dragOver === i && dragFrom !== undefined && dragFrom !== i}
             onView={() => onView(record.images.indexOf(id))}
-            onRemove={() => change(() => removeImage(record.id, id))}
+            onRemove={() => setConfirmRemove(id)}
             onDragStart={(e) => {
               e.dataTransfer.effectAllowed = 'move';
               // A private type, so dropping onto a text field doesn't paste anything.
@@ -199,6 +202,20 @@ export function ImagePicker({ record, tab, onChange, onView }: Props) {
         }}
       />
       {error && <span className="error">{error}</span>}
+      {confirmRemove && (
+        <ConfirmDialog
+          title="Remove image?"
+          message={
+            <>
+              <RemovePreview imageId={confirmRemove} />
+              This image will be deleted from the record. This can't be undone (unless you have a backup).
+            </>
+          }
+          confirmLabel="Remove"
+          onClose={() => setConfirmRemove(undefined)}
+          onConfirm={() => change(() => removeImage(record.id, confirmRemove))}
+        />
+      )}
       {needsOrigin && tab && (
         <button
           type="button"
@@ -293,4 +310,10 @@ function ImageTile({
       </button>
     </div>
   );
+}
+
+/** Small preview of the image being removed, shown in the confirmation. */
+function RemovePreview({ imageId }: { imageId: string }) {
+  const url = useImageUrl(imageId);
+  return url ? <img className="remove-preview" src={url} alt="" /> : null;
 }
