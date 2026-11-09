@@ -70,7 +70,8 @@ Storage: IndexedDB database `read-tracker` (layout in `src/lib/db.ts`, no third-
 - `folders` (keyPath `id`): Folder. Same change signal as records.
 - `images` (keyPath `id`, index `recordId`): `StoredImage` = the original file Blob, never resized or re-encoded
   (the viewer shows it at full resolution), plus a ≤480px WebP `preview` used only for covers and tiles. Change
-  images only through `addImages` / `removeImage` / `setCoverImage` (they update the record's `images` list in the
+  images only through `addImages` / `removeImage` / `reorderImages` (drag to sort in `ImagePicker`; first = cover; a stale order
+  is ignored) (they update the record's `images` list in the
   same transaction); `deleteRecord` removes a record's images. Files over 25 MB are rejected (`prepareImage`).
   DB v4 converted the old `thumbnails` store (300px WebP per record) into images `legacy-<recordId>` and dropped it;
   those few stay 300px because the originals were never kept.

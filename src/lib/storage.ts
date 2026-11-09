@@ -1,6 +1,6 @@
 import { browser } from 'wxt/browser';
 import { FOLDERS, IDX, IMAGES, META, RECORDS, req, withTx } from './db';
-import type { NewImage, StoredImage } from './images';
+import { isPermutation, type NewImage, type StoredImage } from './images';
 import { cleanFolderName, folderNameError, newFolder, sortFolders } from './folders';
 import { candidateKeys, chooseMatch } from './match';
 import { migrateRecord } from './migrate';
@@ -350,11 +350,13 @@ export function removeImage(recordId: string, imageId: string): Promise<ReadingR
   });
 }
 
-/** Move an image to the front (the cover shown on cards). */
-export function setCoverImage(recordId: string, imageId: string): Promise<ReadingRecord | undefined> {
-  return changeImages(recordId, (current) =>
-    current.includes(imageId) ? [imageId, ...current.filter((id) => id !== imageId)] : current,
-  );
+/**
+ * Put a record's images in a new order (the first is the cover). `order` must be a
+ * reordering of the current list; if the list changed meanwhile (an image added or
+ * removed elsewhere), nothing is changed.
+ */
+export function reorderImages(recordId: string, order: string[]): Promise<ReadingRecord | undefined> {
+  return changeImages(recordId, (current) => (isPermutation(current, order) ? order : current));
 }
 
 /**

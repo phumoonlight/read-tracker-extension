@@ -22,10 +22,6 @@
   --ph-bg-l: 90%;
   --ph-fg-l: 32%;
 
-  /* Badge drawn over images */
-  --overlay-bg: #1f2328cc;
-  --overlay-text: #ffffff;
-
   --radius: 8px;
   --radius-sm: 6px;
   --shadow: 0 1px 3px #1f232814, 0 8px 24px #1f23281a;
@@ -53,9 +49,6 @@
     --ph-sat: 35%;
     --ph-bg-l: 22%;
     --ph-fg-l: 78%;
-
-    --overlay-bg: #0d1117cc;
-    --overlay-text: #e6edf3;
 
     --shadow: 0 1px 3px #0008, 0 8px 24px #0009;
   }
@@ -312,7 +305,7 @@ dialog::backdrop {
   gap: 8px;
 }
 
-/* Cover with "+N" badge; clickable when it opens the viewer */
+/* Cover; clickable when it opens the viewer */
 .thumb-wrap {
   position: relative;
 }
@@ -325,18 +318,6 @@ dialog::backdrop {
   background: none;
   cursor: zoom-in;
   border-radius: var(--radius-sm);
-}
-.thumb-more {
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: var(--overlay-bg);
-  color: var(--overlay-text);
-  font-size: 11px;
-  font-weight: 600;
-  pointer-events: none;
 }
 
 /* Cover mosaic: every image of a record in one 16:10 area */
@@ -391,6 +372,13 @@ dialog::backdrop {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+}
+.image-tile.is-dragging {
+  opacity: 0.4;
+}
+.image-tile.is-drop-target .thumb-button {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .image-tile-actions {
   display: flex;

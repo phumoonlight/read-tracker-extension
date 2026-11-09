@@ -5,7 +5,7 @@ import { IMAGES, req, withTx } from './db';
  * `blob` is the original file, never re-encoded or resized; the viewer shows it at
  * full resolution. `preview` is a small copy used only for card covers and tiles,
  * so a grid of cards never has to decode full-size files. Writes go through
- * storage.ts (addImages / removeImage / setCoverImage), which keeps the record's
+ * storage.ts (addImages / removeImage / reorderImages), which keeps the record's
  * `images` list in the same transaction.
  */
 export interface StoredImage {
@@ -112,4 +112,20 @@ export function blobToDataUrl(blob: Blob): Promise<string> {
 export async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
   if (!dataUrl.startsWith('data:image/')) throw new Error('Not an image data URL');
   return (await fetch(dataUrl)).blob();
+}
+
+/** Copy of `list` with the item at `from` moved to index `to` (indexes clamped). */
+export function moveItem<T>(list: readonly T[], from: number, to: number): T[] {
+  const out = [...list];
+  if (from < 0 || from >= out.length) return out;
+  const [item] = out.splice(from, 1);
+  out.splice(Math.min(Math.max(0, to), out.length), 0, item as T);
+  return out;
+}
+
+/** True if `next` is a reordering of exactly the ids in `current` (no additions, removals or duplicates). */
+export function isPermutation(current: readonly string[], next: readonly string[]): boolean {
+  if (current.length !== next.length || new Set(next).size !== next.length) return false;
+  const have = new Set(current);
+  return next.every((id) => have.has(id));
 }

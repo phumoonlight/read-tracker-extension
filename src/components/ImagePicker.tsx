@@ -1,6 +1,6 @@
-import { useRef, useState, type ClipboardEvent } from 'react';
-import { prepareImage } from '@/lib/images';
-import { addImages, removeImage, setCoverImage } from '@/lib/storage';
+import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react';
+import { moveItem, prepareImage } from '@/lib/images';
+import { addImages, removeImage, reorderImages } from '@/lib/storage';
 import { captureVisible, downloadImage, findOgImage, NeedsPermissionError, requestOriginAccess } from '@/lib/tab';
 import { MAX_IMAGES, type ReadingRecord } from '@/lib/types';
 import { useImageUrl } from './Thumbnail';
@@ -15,16 +15,36 @@ interface Props {
 }
 
 /**
- * Manage a record's images (up to MAX_IMAGES): tiles to view, make cover or remove,
- * and sources to add from a file, the clipboard, a tab screenshot or the page's
- * og:image. Images are stored as the original file; only the tile uses a preview.
+ * Manage a record's images (up to MAX_IMAGES): tiles to view, drag to reorder (the first
+ * is the cover; Alt+Left/Right moves a focused tile) or remove, and sources to add from a
+ * file, the clipboard, a tab screenshot or the page's og:image. Images are stored as the
+ * original file; only the tile uses a preview.
  */
 export function ImagePicker({ record, tab, onChange, onView }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [needsOrigin, setNeedsOrigin] = useState<string>();
+  /** Order shown while a reorder is being saved, so tiles don't jump back. */
+  const [pendingOrder, setPendingOrder] = useState<string[]>();
+  const [dragFrom, setDragFrom] = useState<number>();
+  const [dragOver, setDragOver] = useState<number>();
+  /** Tile moved with Alt+arrow: keep keyboard focus on it after it moves. */
+  const [keyMoved, setKeyMoved] = useState<string>();
   const room = MAX_IMAGES - record.images.length;
+  const order = pendingOrder ?? record.images;
+
+  function move(from: number, to: number) {
+    if (from === to || to < 0 || to >= order.length) return;
+    const next = moveItem(order, from, to);
+    setPendingOrder(next);
+    void change(() => reorderImages(record.id, next)).finally(() => setPendingOrder(undefined));
+  }
+
+  const endDrag = () => {
+    setDragFrom(undefined);
+    setDragOver(undefined);
+  };
 
   async function run(task: () => Promise<Blob[] | null>) {
     setBusy(true);
@@ -81,20 +101,53 @@ export function ImagePicker({ record, tab, onChange, onView }: Props) {
         Images ({record.images.length}/{MAX_IMAGES})
       </span>
 
-      {record.images.length > 0 && (
-        <div className="image-tiles">
-          {record.images.map((id, i) => (
-            <ImageTile
-              key={id}
-              imageId={id}
-              index={i}
-              busy={busy}
-              onView={() => onView(i)}
-              onCover={() => change(() => setCoverImage(record.id, id))}
-              onRemove={() => change(() => removeImage(record.id, id))}
-            />
-          ))}
-        </div>
+      {order.length > 0 && (
+        <>
+          <div className="image-tiles">
+            {order.map((id, i) => (
+              <ImageTile
+                key={id}
+                imageId={id}
+                index={i}
+                count={order.length}
+                busy={busy}
+                dragging={dragFrom === i}
+                dropTarget={dragOver === i && dragFrom !== undefined && dragFrom !== i}
+                onView={() => onView(record.images.indexOf(id))}
+                onRemove={() => change(() => removeImage(record.id, id))}
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = 'move';
+                  // A private type, so dropping onto a text field doesn't paste anything.
+                  e.dataTransfer.setData('application/x-read-tracker-image', id);
+                  setDragFrom(i);
+                }}
+                onDragOver={(e) => {
+                  if (dragFrom === undefined) return; // not one of our tiles (e.g. a file)
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  setDragOver(i);
+                }}
+                onDrop={(e) => {
+                  if (dragFrom === undefined) return;
+                  e.preventDefault();
+                  move(dragFrom, i);
+                  endDrag();
+                }}
+                onDragEnd={endDrag}
+                onMoveKey={(d) => {
+                  setKeyMoved(id);
+                  move(i, i + d);
+                }}
+                keepFocus={keyMoved === id}
+              />
+            ))}
+          </div>
+          {order.length > 1 && (
+            <span className="muted" style={{ fontSize: 12 }}>
+              Drag to reorder (or Alt+←/→). The first image is the cover.
+            </span>
+          )}
+        </>
       )}
 
       {room > 0 ? (
@@ -166,31 +219,70 @@ export function ImagePicker({ record, tab, onChange, onView }: Props) {
 function ImageTile({
   imageId,
   index,
+  count,
   busy,
+  dragging,
+  dropTarget,
   onView,
-  onCover,
   onRemove,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  onMoveKey,
+  keepFocus,
 }: {
   imageId: string;
   index: number;
+  count: number;
   busy: boolean;
+  dragging: boolean;
+  dropTarget: boolean;
   onView: () => void;
-  onCover: () => void;
   onRemove: () => void;
+  onDragStart: (e: DragEvent) => void;
+  onDragOver: (e: DragEvent) => void;
+  onDrop: (e: DragEvent) => void;
+  onDragEnd: () => void;
+  /** Move this tile left (-1) or right (+1). */
+  onMoveKey: (delta: -1 | 1) => void;
+  /** Re-focus after this tile moves (moving a DOM node can drop focus). */
+  keepFocus: boolean;
 }) {
   const url = useImageUrl(imageId);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (keepFocus) buttonRef.current?.focus();
+  }, [keepFocus, index]);
+  const canDrag = count > 1 && !busy;
   return (
-    <div className="image-tile">
-      <button type="button" className="thumb-button" onClick={onView} aria-label={`View image ${index + 1}`}>
-        {url ? <img className="thumb" src={url} alt="" /> : <div className="thumb" />}
-        {index === 0 && <span className="thumb-more">Cover</span>}
+    <div
+      className={`image-tile${dragging ? ' is-dragging' : ''}${dropTarget ? ' is-drop-target' : ''}`}
+      draggable={canDrag}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+    >
+      <button
+        ref={buttonRef}
+        type="button"
+        className="thumb-button"
+        onClick={onView}
+        onKeyDown={(e: KeyboardEvent) => {
+          if (!canDrag || !e.altKey) return;
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            onMoveKey(e.key === 'ArrowLeft' ? -1 : 1);
+          }
+        }}
+        aria-label={`View image ${index + 1} of ${count}${index === 0 ? ' (cover)' : ''}`}
+        style={canDrag ? { cursor: 'grab' } : undefined}
+      >
+        {/* draggable=false: drag the tile, not the image file itself. */}
+        {url ? <img className="thumb" src={url} alt="" draggable={false} /> : <div className="thumb" />}
       </button>
       <div className="image-tile-actions">
-        {index > 0 && (
-          <button type="button" className="btn btn-small btn-ghost" disabled={busy} onClick={onCover}>
-            Make cover
-          </button>
-        )}
         <button
           type="button"
           className="btn btn-small btn-ghost"
