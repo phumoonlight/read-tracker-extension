@@ -54,7 +54,10 @@ unique), `folderId?`, `notes?`, `images` (ids, max `MAX_IMAGES` = 3, first = cov
 `readAt?`. Timestamps are epoch milliseconds. Current `SCHEMA_VERSION` is 3 (v2 added `folderId`; v3 replaced
 `hasThumbnail` with `images`, mapping an old thumbnail to image id `legacyImageId(recordId)` = `legacy-<recordId>`).
 
-`Folder`: `id`, `name`, `createdAt`, `updatedAt`. Folders are flat and a record is in at most one folder;
+`Folder`: `id`, `name`, `imageSize?` (`small` | `medium` | `large` | `xlarge`; absent = medium), `createdAt`,
+`updatedAt`. `imageSize` applies while that folder is open (All / No folder use medium): grid column width and
+list tile width scale with it, and at large/xlarge cards show original files instead of previews
+(`usesOriginalImages`). Set it with `setFolderImageSize`; unknown values in backups fall back to medium. Folders are flat and a record is in at most one folder;
 `folderId` absent = "No folder" (the default for new records). Names are trimmed, whitespace-collapsed, at most
 `FOLDER_NAME_MAX` characters, and unique case-insensitively (`folderNameError`). Deleting a folder keeps its records
 and moves them to No folder (bumping their `updatedAt`).

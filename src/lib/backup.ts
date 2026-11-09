@@ -4,6 +4,7 @@ import { isHttpUrl } from './records';
 import {
   BACKUP_FORMAT,
   FOLDER_NAME_MAX,
+  IMAGE_SIZES,
   MAX_IMAGES,
   SCHEMA_VERSION,
   STATUSES,
@@ -11,6 +12,7 @@ import {
   type BackupFile,
   type BackupImage,
   type Folder,
+  type ImageSize,
   type ReadingRecord,
 } from './types';
 
@@ -63,7 +65,15 @@ function parseFolder(f: unknown, i: number): Folder {
   const name = cleanFolderName(f.name);
   if (!name || name.length > FOLDER_NAME_MAX) throw bad('name');
   for (const k of ['createdAt', 'updatedAt'] as const) if (typeof f[k] !== 'number') throw bad(k);
-  return { id: f.id, name, createdAt: f.createdAt as number, updatedAt: f.updatedAt as number };
+  // Unknown sizes (e.g. from a newer build) fall back to the default rather than failing the import.
+  const imageSize = IMAGE_SIZES.includes(f.imageSize as ImageSize) ? (f.imageSize as ImageSize) : undefined;
+  return {
+    id: f.id,
+    name,
+    ...(imageSize && imageSize !== 'medium' ? { imageSize } : {}),
+    createdAt: f.createdAt as number,
+    updatedAt: f.updatedAt as number,
+  };
 }
 
 /** Parse and validate a backup file's JSON text. Older schema versions are migrated; newer ones are rejected. */

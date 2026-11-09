@@ -90,10 +90,13 @@ export function Thumbnail({
   record,
   size = 'large',
   onOpen,
+  original = false,
 }: {
   record: ReadingRecord;
   size?: 'large' | 'small';
   onOpen?: (index: number) => void;
+  /** Load the original files instead of the small previews (for large display sizes). */
+  original?: boolean;
 }) {
   const [ref, near] = useNearViewport<HTMLDivElement>();
   const count = record.images.length;
@@ -109,6 +112,7 @@ export function Thumbnail({
               key={id}
               imageId={id}
               enabled={near}
+              original={original}
               label={count === 1 ? 'View image' : `View image ${i + 1} of ${count}`}
               onOpen={onOpen && (() => onOpen(i))}
             />
@@ -123,7 +127,16 @@ export function Thumbnail({
  * A record's images as separate small tiles in a row (list view), each opening the
  * viewer at that image. Previews load only when the row nears the viewport.
  */
-export function ImageStrip({ record, onOpen }: { record: ReadingRecord; onOpen?: (index: number) => void }) {
+export function ImageStrip({
+  record,
+  onOpen,
+  original = false,
+}: {
+  record: ReadingRecord;
+  onOpen?: (index: number) => void;
+  /** Load the original files instead of the small previews (for large display sizes). */
+  original?: boolean;
+}) {
   const [ref, near] = useNearViewport<HTMLDivElement>();
   const count = record.images.length;
   return (
@@ -134,6 +147,7 @@ export function ImageStrip({ record, onOpen }: { record: ReadingRecord; onOpen?:
           className="image-strip-cell"
           imageId={id}
           enabled={near}
+          original={original}
           label={count === 1 ? 'View image' : `View image ${i + 1} of ${count}`}
           onOpen={onOpen && (() => onOpen(i))}
         />
@@ -148,16 +162,18 @@ function MosaicCell({
   label,
   onOpen,
   className = '',
+  original = false,
 }: {
   imageId: string;
   enabled: boolean;
   label: string;
   onOpen?: () => void;
   className?: string;
+  original?: boolean;
 }) {
-  const url = useImageUrl(imageId, { enabled });
+  const url = useImageUrl(imageId, { enabled, original });
   // A missing image leaves an empty (tinted) cell rather than collapsing the layout.
-  const img = url ? <img src={url} alt="" /> : null;
+  const img = url ? <img src={url} alt="" decoding="async" /> : null;
   return onOpen && url ? (
     <button type="button" className={`mosaic-cell thumb-button ${className}`} onClick={onOpen} aria-label={label}>
       {img}

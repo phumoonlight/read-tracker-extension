@@ -42,7 +42,8 @@ change.
   the arrow keys to step through a record's images, or **Open original** to see it in a tab.
 - **Full list:** click **Open full list** in the popup, or right-click the toolbar icon and choose **Options**.
 - **Folders:** in the full list, click **+ New folder**. Click a folder to see only its records; **Rename folder**
-  and **Delete folder** appear while it is selected. Deleting a folder keeps its records (they move to
+  and **Delete folder** appear while it is selected, along with **Image size** (S / M / L / XL) to show that
+  folder's images bigger or smaller. Deleting a folder keeps its records (they move to
   "No folder"). Move a record by choosing a folder in its Edit dialog or in the popup.
 - **Backup:** in the full list, use **Export JSON** and **Import JSON** at the bottom. When the same record exists
   in both places, the copy that was edited most recently is kept.

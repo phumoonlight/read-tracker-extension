@@ -229,3 +229,33 @@
   font-size: 12px;
   opacity: 0.75;
 }
+
+/* Per-folder image size (data-size on .grid / .list; medium is the default above). */
+.grid[data-size='small'] {
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+}
+.grid[data-size='large'] {
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+.grid[data-size='xlarge'] {
+  grid-template-columns: repeat(auto-fill, minmax(min(440px, 100%), 1fr));
+}
+.list[data-size='small'] .image-strip .image-strip-cell {
+  width: 72px;
+}
+.list[data-size='large'] .image-strip .image-strip-cell {
+  width: 160px;
+}
+.list[data-size='xlarge'] .image-strip .image-strip-cell {
+  width: 240px;
+}
+@media (max-width: 600px) {
+  .list[data-size] .image-strip .image-strip-cell {
+    width: calc((100% - 12px) / 3);
+  }
+}
+
+.size-picker button {
+  padding: 2px 10px;
+  font-size: 12px;
+}

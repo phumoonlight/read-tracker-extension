@@ -20,11 +20,23 @@ import {
   putRecord,
   queryRecords,
   renameFolder,
+  setFolderImageSize,
   statusChange,
   updateRecord,
   type SortKey,
 } from '@/lib/storage';
-import { FOLDER_NAME_MAX, STATUSES, STATUS_LABEL, type Folder, type ReadingRecord, type ReadStatus } from '@/lib/types';
+import {
+  FOLDER_NAME_MAX,
+  IMAGE_SIZES,
+  IMAGE_SIZE_LABEL,
+  STATUSES,
+  STATUS_LABEL,
+  usesOriginalImages,
+  type Folder,
+  type ImageSize,
+  type ReadingRecord,
+  type ReadStatus,
+} from '@/lib/types';
 
 /** Cards loaded per page; more load as the end of the grid scrolls into view. */
 const PAGE = 60;
@@ -130,6 +142,8 @@ export function App() {
   // If the selected folder was deleted (here or in another window), go back to All.
   const activeFolder: FolderFilter = !isFolderId(folder) || folders.some((f) => f.id === folder) ? folder : ALL;
   const folderName = new Map(folders.map((f) => [f.id, f.name]));
+  // The open folder's image size; All / No folder use the default.
+  const imageSize: ImageSize = (isFolderId(activeFolder) && folders.find((f) => f.id === activeFolder)?.imageSize) || 'medium';
 
   // If the selected tag disappears (last record with it deleted or retagged), stop filtering by it.
   const activeTag = tag && allTags.includes(tag) ? tag : '';
@@ -192,6 +206,7 @@ export function App() {
         onNew={() => setModal({ kind: 'folder-new' })}
         onRename={(f) => setModal({ kind: 'folder-rename', folder: f })}
         onDelete={(f) => setModal({ kind: 'folder-delete', folder: f, count: counts.get(f.id) ?? 0 })}
+        onImageSize={(f, size) => void setFolderImageSize(f.id, size)}
       />
 
       <div className="toolbar">
@@ -243,12 +258,13 @@ export function App() {
         </div>
       ) : (
         <>
-          <div className={view === 'list' ? 'list' : 'grid'}>
+          <div className={view === 'list' ? 'list' : 'grid'} data-size={imageSize}>
             {page.records.map((r) => (
               <Card
                 key={r.id}
                 record={r}
                 layout={view}
+                originalImages={usesOriginalImages(imageSize)}
                 folderName={activeFolder === ALL && r.folderId ? folderName.get(r.folderId) : undefined}
                 onEdit={() => setModal({ kind: 'edit', id: r.id })}
                 onView={(index) => setModal({ kind: 'view', recordId: r.id, index })}
@@ -403,6 +419,7 @@ function LoadMore({ onLoad, pageKey }: { onLoad: () => void; pageKey: unknown })
 function Card({
   record,
   layout,
+  originalImages,
   folderName,
   onEdit,
   onView,
@@ -411,6 +428,8 @@ function Card({
 }: {
   record: ReadingRecord;
   layout: ViewMode;
+  /** Large display sizes: show original files instead of the small previews. */
+  originalImages: boolean;
   /** Shown when the list spans folders (the "All" view). */
   folderName?: string;
   onEdit: () => void;
@@ -426,7 +445,7 @@ function Card({
         <div className="card-thumb">
           {record.images.length > 0 ? (
             // Clicking an image opens the full-resolution viewer at that image.
-            <Thumbnail record={record} onOpen={onView} />
+            <Thumbnail record={record} onOpen={onView} original={originalImages} />
           ) : (
             // No image: the placeholder links to the page, like the title.
             <a href={href} target="_blank" rel="noreferrer" tabIndex={-1} aria-hidden="true">
@@ -463,7 +482,7 @@ function Card({
       </div>
       {layout === 'list' && record.images.length > 0 && (
         // List rows: each image as its own tile, between the text and the actions.
-        <ImageStrip record={record} onOpen={onView} />
+        <ImageStrip record={record} onOpen={onView} original={originalImages} />
       )}
       <div className="card-actions">
         <select
@@ -621,6 +640,7 @@ function FolderBar({
   onNew,
   onRename,
   onDelete,
+  onImageSize,
 }: {
   folders: Folder[];
   counts: Map<string, number>;
@@ -630,6 +650,7 @@ function FolderBar({
   onNew: () => void;
   onRename: (f: Folder) => void;
   onDelete: (f: Folder) => void;
+  onImageSize: (f: Folder, size: ImageSize) => void;
 }) {
   const inFolders = [...counts.values()].reduce((a, b) => a + b, 0);
   const selected = folders.find((f) => f.id === value);
@@ -657,6 +678,22 @@ function FolderBar({
           <button type="button" className="btn btn-small btn-ghost" onClick={() => onDelete(selected)}>
             Delete folder
           </button>
+          <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>
+            Image size
+          </span>
+          <div className="segmented size-picker" role="group" aria-label="Image size for this folder">
+            {IMAGE_SIZES.map((s) => (
+              <button
+                key={s}
+                type="button"
+                aria-pressed={(selected.imageSize ?? 'medium') === s}
+                onClick={() => onImageSize(selected, s)}
+                title={{ small: 'Small', medium: 'Medium (default)', large: 'Large', xlarge: 'Extra large' }[s]}
+              >
+                {IMAGE_SIZE_LABEL[s]}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </nav>

@@ -42,9 +42,17 @@ export interface ReadingRecord {
 export interface Folder {
   id: string;
   name: string;
+  /** How big images display while this folder is open; absent = 'medium'. */
+  imageSize?: ImageSize;
   createdAt: number;
   updatedAt: number;
 }
+
+export type ImageSize = 'small' | 'medium' | 'large' | 'xlarge';
+export const IMAGE_SIZES: readonly ImageSize[] = ['small', 'medium', 'large', 'xlarge'];
+export const IMAGE_SIZE_LABEL: Record<ImageSize, string> = { small: 'S', medium: 'M', large: 'L', xlarge: 'XL' };
+/** Sizes big enough that card images use the original file instead of the ≤480px preview. */
+export const usesOriginalImages = (size: ImageSize) => size === 'large' || size === 'xlarge';
 
 export const FOLDER_NAME_MAX = 60;
 

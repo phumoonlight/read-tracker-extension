@@ -90,6 +90,23 @@ describe('parseBackup with folders', () => {
     );
   });
 
+  it('keeps a folder image size, drops the default, and ignores unknown values', () => {
+    const base = buildBackup([], [], []);
+    const parse = (imageSize: unknown) =>
+      parseBackup(JSON.stringify({ ...base, folders: [{ ...folder('f', 'A'), imageSize }] })).folders[0];
+    expect(parse('xlarge')?.imageSize).toBe('xlarge');
+    expect(parse('small')?.imageSize).toBe('small');
+    expect(parse('medium')).not.toHaveProperty('imageSize');
+    expect(parse('gigantic')).not.toHaveProperty('imageSize');
+    expect(parse(undefined)).not.toHaveProperty('imageSize');
+  });
+
+  it('merges a newer folder image size like any other folder change', () => {
+    const local = folder('f1', 'Art', 100);
+    const plan = planImport([], [local], buildBackup([], [{ ...folder('f1', 'Art', 200), imageSize: 'large' }], []));
+    expect(plan.writeFolders).toEqual([{ ...folder('f1', 'Art', 200), imageSize: 'large' }]);
+  });
+
   it('rejects a record with an invalid folderId', () => {
     const base = buildBackup([], [], []);
     for (const folderId of [5, '']) {

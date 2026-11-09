@@ -4,7 +4,7 @@ import type { NewImage, StoredImage } from './images';
 import { cleanFolderName, folderNameError, newFolder, sortFolders } from './folders';
 import { candidateKeys, chooseMatch } from './match';
 import { migrateRecord } from './migrate';
-import { MAX_IMAGES, SCHEMA_VERSION, type Folder, type ReadingRecord, type ReadStatus } from './types';
+import { MAX_IMAGES, SCHEMA_VERSION, type Folder, type ImageSize, type ReadingRecord, type ReadStatus } from './types';
 
 /**
  * Records repository on IndexedDB (see db.ts for the layout).
@@ -435,6 +435,20 @@ export async function renameFolder(id: string, name: string): Promise<void> {
     const error = folderNameError(name, all, id);
     if (error) throw new Error(error);
     store.put({ ...current, name: cleanFolderName(name), updatedAt: Date.now() });
+  });
+  await notifyChanged();
+}
+
+/** Set how big images display while a folder is open ('medium' is stored as absent). */
+export async function setFolderImageSize(id: string, size: ImageSize): Promise<void> {
+  await ensureReady();
+  await withTx(FOLDERS, 'readwrite', async (tx) => {
+    const store = tx.objectStore(FOLDERS);
+    const current = (await req(store.get(id))) as Folder | undefined;
+    if (!current) throw new Error('This folder no longer exists.');
+    const { imageSize: _old, ...rest } = current;
+    void _old;
+    store.put({ ...rest, ...(size === 'medium' ? {} : { imageSize: size }), updatedAt: Date.now() });
   });
   await notifyChanged();
 }
