@@ -25,7 +25,7 @@ src/
     background.ts        service worker: badge per tab, series progress (lastReadUrl)
     popup/               toolbar popup (short): add page (title + folder chips), or read state only; links to Manage
     options/             full list page (options_ui, open_in_tab): folder bar, record list, search, filters, Manage dialog (edit + delete)
-    backup/              Backup page (backup.html, linked from the list header): export / import JSON, erase all data
+    backup/              Backup page (backup.html, linked from the list header): export / import (.zip, old .json), erase all data
                          (`wipeAllData`, one transaction; a dialog with a 3 s `HoldButton`)
   components/            shared React UI (RecordForm, ImagePicker, ImageViewer, Thumbnail (cover), UrlLink, HoldButton,
                          StatusPicker, Dialog)
@@ -42,6 +42,7 @@ src/
     records.ts           createRecord, computeMatchKey, tag helpers
     backup.ts            parseBackup / planImport / buildBackup (pure, unit-tested)
     backup-io.ts         export download + import apply (side effects)
+    zip.ts               minimal ZIP writer / reader (stored entries, ZIP64, deflate on read), CRC-32
   styles/base.css        color tokens on :root, dark mode via prefers-color-scheme, shared classes
 tests/                   vitest unit tests for pure lib code
 public/icon/             extension icons
@@ -142,7 +143,13 @@ migrate on import; backups from newer versions are rejected.
 
 ### Backup and images
 
-Schema v3 backups carry `images: [{ id, recordId, dataUrl }]` with the original files (so files can be large); v1/v2
+Backups are **ZIP files** (`lib/zip.ts`, own writer/reader, no dependency): `backup.json` plus each original image
+under `images/<id>.<ext>` (`imagePath`), listed in the JSON as `images: [{ id, recordId, file }]`. Entries are stored
+(not compressed) and the archive Blob is assembled from the image Blobs, so export doesn't copy files into memory
+(only a streaming CRC-32 pass); ZIP64 records are written only when needed. The reader takes stored or deflated
+entries (via `DecompressionStream`), so a re-zipped backup imports. `parseBackup` accepts only plain `images/<name>`
+paths (`isImagePath`); an image whose file is missing from the archive is dropped. Older `.json` backups (schema v3+
+`images: [{ id, recordId, dataUrl }]`) still import, and v1/v2
 files carried `thumbnails` (record id -> data URL), which `parseBackup` turns into `legacy-<recordId>` images.
 On import, a written record keeps only image ids the file carries for it (or already stored for it); previews are
 rebuilt; stored images the winning copy no longer lists are deleted; an id owned by another local record is never

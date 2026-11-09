@@ -99,12 +99,12 @@ export type ReadMode = 'status' | 'revisit';
 export const READ_MODES: readonly ReadMode[] = ['status', 'revisit'];
 export const READ_MODE_LABEL: Record<ReadMode, string> = { status: 'Status', revisit: 'Revisit' };
 
-export interface BackupImage {
-  id: string;
-  recordId: string;
-  /** The original file as a data URL (data:image/...). */
-  dataUrl: string;
-}
+/**
+ * One image in a backup: exactly one of `file` (ZIP backups: path of the original file
+ * inside the archive, e.g. "images/<id>.jpg") or `dataUrl` (JSON backups: the original
+ * file as data:image/...).
+ */
+export type BackupImage = { id: string; recordId: string } & ({ file: string; dataUrl?: never } | { dataUrl: string; file?: never });
 
 export const MAX_IMAGES = 3;
 

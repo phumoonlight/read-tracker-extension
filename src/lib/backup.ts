@@ -122,7 +122,15 @@ function parseFolder(f: unknown, i: number): Folder {
   };
 }
 
-/** Parse and validate a backup file's JSON text. Older schema versions are migrated; newer ones are rejected. */
+/** Path of an image inside a ZIP backup: under images/, no "..", no absolute path. */
+export function isImagePath(v: unknown): v is string {
+  return typeof v === 'string' && /^images\/[^/\\]+$/.test(v) && !v.includes('..');
+}
+
+/**
+ * Parse and validate a backup file's JSON text (a .json backup, or backup.json inside a
+ * .zip backup). Older schema versions are migrated; newer ones are rejected.
+ */
 export function parseBackup(text: string): BackupFile {
   let data: unknown;
   try {
@@ -160,9 +168,9 @@ export function parseBackup(text: string): BackupFile {
   } else {
     // Entries that are malformed or not images are dropped; records then simply lack that image.
     for (const img of Array.isArray(data.images) ? data.images : []) {
-      if (isObj(img) && typeof img.id === 'string' && img.id && typeof img.recordId === 'string' && isImageData(img.dataUrl)) {
-        images.push({ id: img.id, recordId: img.recordId, dataUrl: img.dataUrl });
-      }
+      if (!isObj(img) || typeof img.id !== 'string' || !img.id || typeof img.recordId !== 'string') continue;
+      if (isImagePath(img.file)) images.push({ id: img.id, recordId: img.recordId, file: img.file });
+      else if (isImageData(img.dataUrl)) images.push({ id: img.id, recordId: img.recordId, dataUrl: img.dataUrl });
     }
   }
   return {
@@ -316,4 +324,30 @@ export function buildBackup(
     images,
     ...(home ? { home } : {}),
   };
+}
+
+/** Name of the JSON part inside a ZIP backup. */
+export const BACKUP_JSON = 'backup.json';
+
+const EXTENSIONS: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/avif': 'avif',
+  'image/bmp': 'bmp',
+  'image/svg+xml': 'svg',
+};
+
+/** Path for an image's original file inside a ZIP backup: images/<id>.<ext> (id made filename-safe). */
+export function imagePath(id: string, type: string): string {
+  const safe = id.replace(/[^A-Za-z0-9_-]/g, '_') || 'image';
+  return `images/${safe}.${EXTENSIONS[type] ?? 'bin'}`;
+}
+
+/** MIME type for an image path's extension (files from a ZIP have none of their own). */
+export function typeForImagePath(path: string): string {
+  const ext = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
+  if (ext === 'jpeg') return 'image/jpeg';
+  return Object.entries(EXTENSIONS).find(([, e]) => e === ext)?.[0] ?? '';
 }

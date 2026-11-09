@@ -11,7 +11,7 @@ type Message = { text: string; error?: boolean };
 
 /**
  * Backup page (backup.html, opened from the list page header): export everything to one
- * JSON file, or import one (merged by record id; the newer "updated" time wins).
+ * ZIP file (or import one, or an older JSON backup) (merged by record id; the newer "updated" time wins).
  */
 export function App() {
   const [exportMsg, setExportMsg] = useState<Message>();
@@ -43,8 +43,8 @@ export function App() {
       <section className="backup-section">
         <h2>Export</h2>
         <p className="muted">
-          Saves every record, folder and setting to one JSON file, with the original images included (so the file can
-          be large).
+          Saves every record, folder and setting to one ZIP file. Inside are <code>backup.json</code> and an{' '}
+          <code>images</code> folder with the original image files, which you can open or extract with any unzip tool.
         </p>
         <div className="row">
           <button
@@ -64,7 +64,7 @@ export function App() {
               }
             }}
           >
-            Export JSON
+            Export backup
           </button>
         </div>
         {exportMsg && <span className={exportMsg.error ? 'error' : 'muted'}>{exportMsg.text}</span>}
@@ -73,15 +73,15 @@ export function App() {
       <section className="backup-section">
         <h2>Import</h2>
         <p className="muted">
-          Adds the records from a backup file. When a record exists both here and in the file, the copy that was edited
-          most recently is kept. Nothing is deleted.
+          Adds the records from a backup file (<code>.zip</code>, or <code>.json</code> from older versions). When a
+          record exists both here and in the file, the copy that was edited most recently is kept. Nothing is deleted.
         </p>
         <div className="row">
           <label className={`btn${busy ? ' is-disabled' : ''}`} aria-disabled={busy}>
-            Import JSON
+            Import backup
             <input
               type="file"
-              accept="application/json,.json"
+              accept=".zip,application/zip,.json,application/json"
               hidden
               disabled={busy}
               onChange={async (e) => {

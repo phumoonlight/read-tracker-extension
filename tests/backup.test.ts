@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildBackup, parseBackup, planImport } from '@/lib/backup';
+import { buildBackup, imagePath, isImagePath, parseBackup, planImport, typeForImagePath } from '@/lib/backup';
 import { BACKUP_FORMAT, MAX_IMAGES, MAX_URLS, SCHEMA_VERSION, legacyImageId, type BackupImage } from '@/lib/types';
 import { rec } from './fixtures';
 
@@ -201,5 +201,39 @@ describe('parseBackup (validation)', () => {
     expect(parsed.images).toEqual([{ id: legacyImageId('r1'), recordId: 'r1', dataUrl: IMG }]);
     // And the merge keeps it.
     expect(planImport([], [], parsed).write[0]?.images).toEqual([legacyImageId('r1')]);
+  });
+});
+
+describe('ZIP backup image paths', () => {
+  it('names image files by id and type, filename-safe', () => {
+    expect(imagePath('abc-123', 'image/jpeg')).toBe('images/abc-123.jpg');
+    expect(imagePath('a/../b', 'image/png')).toBe('images/a____b.png');
+    expect(imagePath('x', 'application/octet-stream')).toBe('images/x.bin');
+    expect(typeForImagePath('images/x.jpg')).toBe('image/jpeg');
+    expect(typeForImagePath('images/x.JPEG')).toBe('image/jpeg');
+    expect(typeForImagePath('images/x.svg')).toBe('image/svg+xml');
+    expect(typeForImagePath('images/x.bin')).toBe('');
+  });
+  it('accepts only plain paths under images/', () => {
+    expect(isImagePath('images/a.png')).toBe(true);
+    for (const p of ['a.png', 'images/', 'images/a/b.png', '/images/a.png', 'images/..', 'images\a.png', 42]) {
+      expect(isImagePath(p)).toBe(false);
+    }
+  });
+  it('parses images given by file path, dropping unsafe paths', () => {
+    const parsed = parseBackup(
+      JSON.stringify({
+        ...buildBackup([], [], []),
+        images: [
+          { id: 'a', recordId: 'r', file: 'images/a.png' },
+          { id: 'b', recordId: 'r', file: '../../etc/passwd' },
+          { id: 'c', recordId: 'r', dataUrl: IMG },
+        ],
+      }),
+    );
+    expect(parsed.images).toEqual([
+      { id: 'a', recordId: 'r', file: 'images/a.png' },
+      { id: 'c', recordId: 'r', dataUrl: IMG },
+    ]);
   });
 });
