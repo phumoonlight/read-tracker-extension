@@ -135,9 +135,11 @@
     'body center actions'
     'images images images';
   column-gap: 12px;
-  row-gap: 6px;
+  /* No row gap: the images row is empty for records without images, and a gap would
+     still add space under the text. The strip carries its own top margin instead. */
+  row-gap: 0;
   align-items: start;
-  padding: 8px 10px;
+  padding: 10px;
 }
 .card-list .card-body {
   grid-area: body;
@@ -147,7 +149,7 @@
 }
 .card-list .image-strip {
   grid-area: images;
-  margin-top: 0;
+  margin-top: 8px;
 }
 .card-list .card-actions {
   grid-area: actions;
@@ -188,6 +190,8 @@
 .card-list .card-title {
   -webkit-line-clamp: 2;
   line-clamp: 2;
+  /* Less half-leading above the first line, so the top space matches the bottom. */
+  line-height: 1.3;
 }
 
 @media (max-width: 600px) {
@@ -195,6 +199,11 @@
   .card-list {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: 'body' 'center' 'images' 'actions';
+    /* Stacked parts need space between them here. */
+    row-gap: 8px;
+  }
+  .card-list .image-strip {
+    margin-top: 0;
   }
   .card-list .card-actions {
     justify-self: stretch;
