@@ -503,17 +503,22 @@ function Card({
         <div className="card-title" title={record.title}>
           {record.title}
         </div>
-        <div className="card-meta">
-          {revisit ? (
-            record.readAt ? `Last read ${formatDateTime(record.readAt)}` : 'Not read yet'
-          ) : (
-            <>
-              <span className="status-dot" /> {STATUS_LABEL[record.status]}
-            </>
-          )}
-          {hasSeries(record) && ' · series'}
-          {!revisit && record.readAt && ` · read ${new Date(record.readAt).toLocaleDateString()}`}
-        </div>
+        {/* The tab already shows Unread / Read, so only the read date (or Revisit's last read) is shown. */}
+        {(revisit || record.status === 'read' || hasSeries(record)) && (
+          <div className="card-meta">
+            {revisit ? (
+              record.readAt ? `Last read ${formatDateTime(record.readAt)}` : 'Not read yet'
+            ) : (
+              record.status === 'read' && (
+                <>
+                  <span className="status-dot" /> Read
+                  {record.readAt && ` ${new Date(record.readAt).toLocaleDateString()}`}
+                </>
+              )
+            )}
+            {hasSeries(record) && (revisit || record.status === 'read' ? ' · series' : 'Series')}
+          </div>
+        )}
         {record.tags.length > 0 && (
           <div className="card-tags">
             {record.tags.map((t) => (
