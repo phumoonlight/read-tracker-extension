@@ -24,7 +24,7 @@ src/
   entrypoints/
     background.ts        service worker: badge per tab, series progress (lastReadUrl)
     popup/               toolbar popup: current page state, add, status, folder, images
-    options/             full list page (options_ui, open_in_tab): folder bar, grid/list views, search, filters, Manage dialog (edit + delete), backup
+    options/             full list page (options_ui, open_in_tab): folder bar, record list, search, filters, Manage dialog (edit + delete), backup
   components/            shared React UI (RecordForm, ImagePicker, ImageViewer, Thumbnail (cover), UrlLink, HoldButton,
                          StatusPicker, Dialog)
   lib/                   framework-free logic (only db.ts / storage.ts / tab.ts / images.ts touch browser APIs)
@@ -66,8 +66,8 @@ go through `updateFolderSettings` / `updateHomeSettings`, which merge and store 
 `Folder`: `id`, `name`, `imageSize?` (`small` | `medium` | `large` | `xlarge`; absent = medium), `readMode?`, `createdAt`,
 `updatedAt`. `imageSize` applies while that folder is open. Home has no Folder record: its size is `HomeSettings` in the `meta`
 store (key `home`, `getHomeSettings` / `setHomeImageSize`), exported as `home` in backups and merged newer-wins.
-Home can't be renamed or deleted. In either place, grid column width and
-list tile width scale with it, and at large/xlarge cards show original files instead of previews
+Home can't be renamed or deleted. In either place, the list's image tile width scales with it
+(72 / 96 / 160 / 240 px), and at large/xlarge tiles show original files instead of previews
 (`usesOriginalImages`). Set it with `setFolderImageSize`; unknown values in backups fall back to medium. Folders are flat and a record is in at most one folder;
 `folderId` absent = the record is in **Home**, the default place (there is no "All" view: the list always shows
 Home or one folder, and search/filters apply within it). Names are trimmed, whitespace-collapsed, at most
@@ -180,17 +180,17 @@ download is blocked by CORS. Don't add install-time permissions without a strong
 - Use `<dialog>` (components/Dialog.tsx) for confirmations, never `window.confirm`.
 - Read event values (`e.target.value`) synchronously in the handler, never inside an `updateRecord` callback or after
   an `await`: controlled inputs are reset to the old value by then (this broke the card status picker once).
-- `<Thumbnail>` (the cover) shows all of a record's images as a mosaic in one 16:10 box (1 full, 2 side by side,
-  3 = large left + two stacked), so card sizes never depend on the image count; clicking an image opens the viewer
-  at that index. Grid cards and the popup use it. List rows instead use `<ImageStrip>`: each image as its own
-  tile below the text (96px at medium; nothing when the record has no images).
-- On cards the title is plain text; each of the record's URLs is a `<UrlLink>` (site icon + `displayUrl`) under the
-  status line, plus a "Last: …" link for series progress. The no-image placeholder opens `openUrl(record)`.
+- The list page has one layout: rows (there used to be a grid view; its stored choice `read-tracker:view` is
+  removed on load). Each row is a 3-column grid `body | center | actions` with images on a second row via
+  `<ImageStrip>` (each image its own tile, 96px at medium; nothing when the record has no images).
+- `<Thumbnail>` (a 16:10 cover mosaic of all images: 1 full, 2 side by side, 3 = large left + two stacked) is used
+  only by the popup now; clicking an image opens the viewer at that index.
+- In rows the title is plain text; each of the record's URLs is a `<UrlLink>` (site icon + `displayUrl`) under the
+  status line, plus a "Last: …" link for series progress.
 - Records may have no images. `<Thumbnail>` then shows a placeholder tinted per site (`siteLabel` + `hueFor`,
   colors from the `--ph-*` tokens): the domain at size "large", its first letter at "small". Never derive the
   placeholder from the title (its first character can be a combining mark, e.g. in Thai).
-- `localStorage` is only for per-browser UI conveniences, always wrapped in try/catch: the grid/list choice
-  (`read-tracker:view`) and the open folder (`read-tracker:folder`, encoded by `encodeFolderFilter`; a folder that no
+- `localStorage` is only for per-browser UI conveniences, always wrapped in try/catch: the open folder (`read-tracker:folder`, encoded by `encodeFolderFilter`; a folder that no
   longer exists, or an old "all" value, falls back to Home once folders have loaded). Data goes in IndexedDB.
 - Ask before adding dependencies. The project deliberately uses its own IndexedDB layer (`lib/db.ts`), and unit
   tests cover only pure code (there is no IndexedDB in Node without adding `fake-indexeddb`).

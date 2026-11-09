@@ -34,22 +34,12 @@
   }
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 14px;
-}
-
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 10px;
   min-width: 0;
-}
-
-.card-thumb {
-  display: block;
 }
 
 .card-body {
@@ -126,20 +116,7 @@
   font-size: 12px;
 }
 
-/* Grid layout: image on top, actions pinned to the bottom so rows line up. */
-.card-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.card-grid .card-actions {
-  margin-top: auto;
-}
-.card-grid .card-actions select {
-  flex: 1;
-}
-
-/* List layout: one row per record, small image on the left. */
+/* The list: one row per record. */
 .list {
   display: flex;
   flex-direction: column;
@@ -282,16 +259,7 @@
   opacity: 0.75;
 }
 
-/* Per-folder image size (data-size on .grid / .list; medium is the default above). */
-.grid[data-size='small'] {
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-}
-.grid[data-size='large'] {
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-}
-.grid[data-size='xlarge'] {
-  grid-template-columns: repeat(auto-fill, minmax(min(440px, 100%), 1fr));
-}
+/* Per-place image size (data-size on .list; medium is the default above). */
 .list[data-size='small'] .image-strip .image-strip-cell {
   width: 72px;
 }
@@ -315,11 +283,6 @@
 .toolbar-note {
   align-self: center;
   font-size: 12px;
-}
-
-/* Grid cards in Revisit: Update read fills the space the status picker used. */
-.card-grid .card-actions .update-read {
-  flex: 1;
 }
 
 /* Delete lives at the bottom of the Manage dialog, set apart from Save. */

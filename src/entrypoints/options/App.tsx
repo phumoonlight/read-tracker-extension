@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { ConfirmDialog, Dialog } from '@/components/Dialog';
 import { RecordForm, newUrlRow, urlRowsFor, type RecordFormResult } from '@/components/RecordForm';
 import { UrlLink } from '@/components/UrlLink';
-import { ImageStrip, Thumbnail } from '@/components/Thumbnail';
+import { ImageStrip } from '@/components/Thumbnail';
 import { HoldButton } from '@/components/HoldButton';
 import { ImagePicker } from '@/components/ImagePicker';
 import { ImageViewer } from '@/components/ImageViewer';
 import { exportToFile, importFromFile } from '@/lib/backup-io';
 import { decodeFolderFilter, encodeFolderFilter } from '@/lib/folders';
-import { createRecord, formatDateTime, hasSeries, openUrl, urlEntries } from '@/lib/records';
+import { createRecord, formatDateTime, hasSeries, urlEntries } from '@/lib/records';
 import {
   countRecords,
   createFolder,
@@ -47,7 +47,7 @@ import {
   type ReadStatus,
 } from '@/lib/types';
 
-/** Cards loaded per page; more load as the end of the grid scrolls into view. */
+/** Rows loaded per page; more load as the end of the list scrolls into view. */
 const PAGE = 60;
 
 /** Sorts offered in Status mode (Revisit places always use least recently read first). */
@@ -85,27 +85,13 @@ function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
-type ViewMode = 'grid' | 'list';
-const VIEW_KEY = 'read-tracker:view';
-
-/** Grid or list layout, remembered per browser (a convenience; falls back to grid if storage is unavailable). */
-function useViewMode(): [ViewMode, (v: ViewMode) => void] {
-  const [view, setView] = useState<ViewMode>(() => {
-    try {
-      return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid';
-    } catch {
-      return 'grid';
-    }
-  });
-  const set = (v: ViewMode) => {
-    setView(v);
-    try {
-      localStorage.setItem(VIEW_KEY, v);
-    } catch {
-      // storage blocked: keep the in-memory choice
-    }
-  };
-  return [view, set];
+/** The page used to offer a grid view; drop its remembered Grid/List choice once (list only now). */
+function forgetOldViewChoice() {
+  try {
+    localStorage.removeItem('read-tracker:view');
+  } catch {
+    // storage blocked: nothing to clean up
+  }
 }
 
 const NO_FOLDERS: Folder[] = [];
@@ -159,9 +145,9 @@ export function App() {
   const [folder, setFolder] = useStoredFolder();
   const [home, setHome] = useState<HomeSettings>();
   const [modal, setModal] = useState<Modal>();
-  const [view, setView] = useViewMode();
 
   useEffect(() => {
+    forgetOldViewChoice();
     // The popup links here with #edit=<id> or #view=<id>&i=<index>.
     const edit = location.hash.match(/^#edit=([^&]+)$/);
     const view = location.hash.match(/^#view=([^&]+)&i=(\d+)$/);
@@ -232,13 +218,6 @@ export function App() {
               ? `${page.records.length}${page.hasMore ? '+' : ''} shown of ${placeCount}`
               : ''}
           </span>
-          <div className="segmented" role="group" aria-label="Layout">
-            {(['grid', 'list'] as const).map((m) => (
-              <button key={m} type="button" aria-pressed={view === m} onClick={() => setView(m)}>
-                {m === 'grid' ? 'Grid' : 'List'}
-              </button>
-            ))}
-          </div>
           <button type="button" className="btn btn-primary" onClick={() => setModal({ kind: 'new' })}>
             New record
           </button>
@@ -312,12 +291,11 @@ export function App() {
         </div>
       ) : (
         <>
-          <div className={view === 'list' ? 'list' : 'grid'} data-size={imageSize}>
+          <div className="list" data-size={imageSize}>
             {page.records.map((r) => (
               <Card
                 key={r.id}
                 record={r}
-                layout={view}
                 revisit={revisit}
                 originalImages={usesOriginalImages(imageSize)}
                 onEdit={() => setModal({ kind: 'edit', id: r.id })}
@@ -466,7 +444,6 @@ function LoadMore({ onLoad, pageKey }: { onLoad: () => void; pageKey: unknown })
 
 function Card({
   record,
-  layout,
   revisit,
   originalImages,
   onEdit,
@@ -474,7 +451,6 @@ function Card({
   onTag,
 }: {
   record: ReadingRecord;
-  layout: ViewMode;
   /** Revisit place: show last read time and an "Update read" button instead of the status. */
   revisit: boolean;
   /** Large display sizes: show original files instead of the small previews. */
@@ -484,7 +460,6 @@ function Card({
   onView: (index: number) => void;
   onTag: (t: string) => void;
 }) {
-  const href = openUrl(record);
   const updateRead = (
     <HoldButton
       className="btn btn-small btn-primary update-read"
@@ -495,20 +470,7 @@ function Card({
     </HoldButton>
   );
   return (
-    <article className={`card card-${layout}`} data-status={record.status}>
-      {layout === 'grid' && (
-        <div className="card-thumb">
-          {record.images.length > 0 ? (
-            // Clicking an image opens the full-resolution viewer at that image.
-            <Thumbnail record={record} onOpen={onView} original={originalImages} />
-          ) : (
-            // No image: the placeholder opens the main URL (or the series' last chapter).
-            <a href={href} target="_blank" rel="noreferrer" tabIndex={-1} aria-hidden="true">
-              <Thumbnail record={record} />
-            </a>
-          )}
-        </div>
-      )}
+    <article className="card card-list" data-status={record.status}>
       <div className="card-body">
         {/* The title is plain text; the record's URLs below are the links (it can have several). */}
         <div className="card-title" title={record.title}>
@@ -541,15 +503,11 @@ function Card({
           </div>
         )}
       </div>
-      {/* List rows: Update read sits in the middle column, images span the row below the text. */}
-      {layout === 'list' && revisit && <div className="card-center">{updateRead}</div>}
-      {layout === 'list' && record.images.length > 0 && (
-        <ImageStrip record={record} onOpen={onView} original={originalImages} />
-      )}
+      {/* Update read sits in the middle column; images span the row below the text. */}
+      {revisit && <div className="card-center">{updateRead}</div>}
+      {record.images.length > 0 && <ImageStrip record={record} onOpen={onView} original={originalImages} />}
       <div className="card-actions">
-        {revisit ? (
-          layout === 'grid' && updateRead
-        ) : (
+        {!revisit && (
           <select
             value={record.status}
             aria-label="Status"
