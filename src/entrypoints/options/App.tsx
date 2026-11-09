@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ConfirmDialog, Dialog } from '@/components/Dialog';
 import { RecordForm, defaultPrefix, type RecordFormResult } from '@/components/RecordForm';
-import { Thumbnail } from '@/components/Thumbnail';
+import { ImageStrip, Thumbnail } from '@/components/Thumbnail';
 import { ImagePicker } from '@/components/ImagePicker';
 import { ImageViewer } from '@/components/ImageViewer';
 import { exportToFile, importFromFile } from '@/lib/backup-io';
@@ -420,20 +420,21 @@ function Card({
   onTag: (t: string) => void;
 }) {
   const href = openUrl(record);
-  const size = layout === 'list' ? 'small' : 'large';
   return (
     <article className={`card card-${layout}`} data-status={record.status}>
-      <div className="card-thumb">
-        {record.images.length > 0 ? (
-          // Clicking an image opens the full-resolution viewer at that image.
-          <Thumbnail record={record} size={size} onOpen={onView} />
-        ) : (
-          // No image: the placeholder links to the page, like the title.
-          <a href={href} target="_blank" rel="noreferrer" tabIndex={-1} aria-hidden="true">
-            <Thumbnail record={record} size={size} />
-          </a>
-        )}
-      </div>
+      {layout === 'grid' && (
+        <div className="card-thumb">
+          {record.images.length > 0 ? (
+            // Clicking an image opens the full-resolution viewer at that image.
+            <Thumbnail record={record} onOpen={onView} />
+          ) : (
+            // No image: the placeholder links to the page, like the title.
+            <a href={href} target="_blank" rel="noreferrer" tabIndex={-1} aria-hidden="true">
+              <Thumbnail record={record} />
+            </a>
+          )}
+        </div>
+      )}
       <div className="card-body">
         <a className="card-title" href={href} target="_blank" rel="noreferrer" title={record.title}>
           {record.title}
@@ -460,6 +461,10 @@ function Card({
           </div>
         )}
       </div>
+      {layout === 'list' && record.images.length > 0 && (
+        // List rows: each image as its own tile, between the text and the actions.
+        <ImageStrip record={record} onOpen={onView} />
+      )}
       <div className="card-actions">
         <select
           value={record.status}

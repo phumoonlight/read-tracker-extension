@@ -119,25 +119,50 @@ export function Thumbnail({
   );
 }
 
+/**
+ * A record's images as separate small tiles in a row (list view), each opening the
+ * viewer at that image. Previews load only when the row nears the viewport.
+ */
+export function ImageStrip({ record, onOpen }: { record: ReadingRecord; onOpen?: (index: number) => void }) {
+  const [ref, near] = useNearViewport<HTMLDivElement>();
+  const count = record.images.length;
+  return (
+    <div ref={ref} className="image-strip">
+      {record.images.map((id, i) => (
+        <MosaicCell
+          key={id}
+          className="image-strip-cell"
+          imageId={id}
+          enabled={near}
+          label={count === 1 ? 'View image' : `View image ${i + 1} of ${count}`}
+          onOpen={onOpen && (() => onOpen(i))}
+        />
+      ))}
+    </div>
+  );
+}
+
 function MosaicCell({
   imageId,
   enabled,
   label,
   onOpen,
+  className = '',
 }: {
   imageId: string;
   enabled: boolean;
   label: string;
   onOpen?: () => void;
+  className?: string;
 }) {
   const url = useImageUrl(imageId, { enabled });
   // A missing image leaves an empty (tinted) cell rather than collapsing the layout.
   const img = url ? <img src={url} alt="" /> : null;
   return onOpen && url ? (
-    <button type="button" className="mosaic-cell thumb-button" onClick={onOpen} aria-label={label}>
+    <button type="button" className={`mosaic-cell thumb-button ${className}`} onClick={onOpen} aria-label={label}>
       {img}
     </button>
   ) : (
-    <div className="mosaic-cell">{img}</div>
+    <div className={`mosaic-cell ${className}`}>{img}</div>
   );
 }
