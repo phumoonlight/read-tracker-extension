@@ -1,24 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { browser, type Browser } from 'wxt/browser';
-import { FolderSelect, RecordForm, newUrlRow } from '@/components/RecordForm';
-import { StatusPicker } from '@/components/StatusPicker';
-import { Thumbnail } from '@/components/Thumbnail';
+import { FolderSelect } from '@/components/RecordForm';
 import { HoldButton } from '@/components/HoldButton';
-import { ImagePicker } from '@/components/ImagePicker';
-import { createRecord } from '@/lib/records';
-import {
-  findRecordForUrl,
-  listFolders,
-  markReadNow,
-  putRecord,
-  statusChange,
-  updateRecord,
-} from '@/lib/storage';
-import { formatDateTime, hasSeries } from '@/lib/records';
 import { matchedEntry } from '@/lib/match';
+import { createRecord, formatDateTime, hasSeries } from '@/lib/records';
+import { findRecordForUrl, listFolders, markReadNow, putRecord, statusChange, updateRecord } from '@/lib/storage';
 import { getActiveTab } from '@/lib/tab';
-import { STATUS_LABEL, type Folder, type ReadingRecord, type ReadStatus } from '@/lib/types';
-import { normalizeUrl } from '@/lib/url';
+import type { Folder, ReadingRecord } from '@/lib/types';
+import { displayUrl, normalizeUrl } from '@/lib/url';
 
 type ActiveTab = Browser.tabs.Tab & { id: number; url: string };
 
@@ -27,13 +16,16 @@ type State =
   | { kind: 'untrackable' }
   | { kind: 'ready'; tab: ActiveTab; record?: ReadingRecord; folders: Folder[] };
 
-const viewHash = (recordId: string, index: number) => `#view=${encodeURIComponent(recordId)}&i=${index}`;
-
 const openList = (hash = '') => {
   void browser.tabs.create({ url: browser.runtime.getURL(`/options.html${hash}`) });
   window.close();
 };
 
+/**
+ * The toolbar popup, kept short: add the current page (title + folder), or for a page
+ * already in the list, change its read state and folder. Images, extra URLs, tags and
+ * notes are managed on the full list page ("Manage").
+ */
 export function App() {
   const [state, setState] = useState<State>({ kind: 'loading' });
 
@@ -59,9 +51,7 @@ export function App() {
         </button>
       </header>
       {state.kind === 'loading' && <p className="muted">Loading…</p>}
-      {state.kind === 'untrackable' && (
-        <div className="banner">This page can't be tracked. Only http and https pages are supported.</div>
-      )}
+      {state.kind === 'untrackable' && <p className="muted">This page can't be tracked (only http and https pages).</p>}
       {state.kind === 'ready' &&
         (state.record ? (
           <CurrentRecord
@@ -77,43 +67,52 @@ export function App() {
   );
 }
 
-function AddPage({
-  tab,
-  folders,
-  onAdded,
-}: {
-  tab: ActiveTab;
-  folders: Folder[];
-  onAdded: (r: ReadingRecord) => void;
-}) {
+/** Add the current page: title and folder only. It starts unread. */
+function AddPage({ tab, folders, onAdded }: { tab: ActiveTab; folders: Folder[]; onAdded: (r: ReadingRecord) => void }) {
+  const [title, setTitle] = useState(tab.title ?? '');
+  const [folderId, setFolderId] = useState('');
+  const [error, setError] = useState<string>();
+  const [saving, setSaving] = useState(false);
+
+  async function add(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(undefined);
+    try {
+      const created = createRecord({
+        title,
+        url: tab.url,
+        matchMode: 'exact',
+        status: 'unread',
+        ...(folders.some((f) => f.id === folderId) ? { folderId } : {}),
+      });
+      if ('error' in created) throw new Error(created.error);
+      await putRecord(created);
+      onAdded(created);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <>
-      <div className="banner">This page is not in your list.</div>
-      <RecordForm
-        compact
-        folders={folders}
-        submitLabel="Add current page"
-        initial={{
-          title: tab.title ?? '',
-          urls: [newUrlRow(tab.url)],
-          status: 'unread',
-          tags: [],
-          notes: '',
-          folderId: '',
-        }}
-        onSubmit={async (v) => {
-          const created = createRecord({ ...v, prefix: v.matchKey });
-          if ('error' in created) throw new Error(created.error);
-          const record: ReadingRecord =
-            hasSeries(created) && created.status !== 'read' ? { ...created, lastReadUrl: tab.url } : created;
-          await putRecord(record);
-          onAdded(record);
-        }}
-      />
-    </>
+    <form className="popup-body" onSubmit={add}>
+      <h2 className="popup-section-title">Add this page</h2>
+      <input type="text" value={title} aria-label="Title" placeholder="Title" onChange={(e) => setTitle(e.target.value)} />
+      {folders.length > 0 && <FolderSelect folders={folders} value={folderId} onChange={setFolderId} />}
+      <span className="muted popup-url" title={tab.url}>
+        {displayUrl(tab.url)}
+      </span>
+      {error && <span className="error">{error}</span>}
+      <button type="submit" className="btn btn-primary popup-main-action" disabled={saving}>
+        Add to list
+      </button>
+    </form>
   );
 }
 
+/** A page already in the list: its read state (one button), folder, and a link to manage it. */
 function CurrentRecord({
   tab,
   record,
@@ -127,10 +126,10 @@ function CurrentRecord({
 }) {
   // Which of the record's URLs this page matched (a record can have several).
   const tabKey = normalizeUrl(tab.url);
-  const matched = tabKey ? matchedEntry(record, tabKey) : undefined;
-  const viaPrefix = matched?.matchMode === 'prefix';
+  const viaPrefix = (tabKey ? matchedEntry(record, tabKey) : undefined)?.matchMode === 'prefix';
   // The record's folder decides how it is read (Status or Revisit); Home is always Status.
   const revisit = !!record.folderId && folders.find((f) => f.id === record.folderId)?.readMode === 'revisit';
+
   async function setFolder(folderId: string) {
     const next = await updateRecord(record.id, (r) =>
       (r.folderId ?? '') === folderId ? {} : { folderId: folderId || undefined },
@@ -138,7 +137,8 @@ function CurrentRecord({
     if (next) onChange(next);
   }
 
-  async function setStatus(status: ReadStatus) {
+  async function toggleRead() {
+    const status = record.status === 'unread' ? 'read' : 'unread';
     const next = await updateRecord(record.id, (r) => ({
       ...statusChange(r, status),
       // Marking a series unread from this page counts as visiting it.
@@ -150,73 +150,61 @@ function CurrentRecord({
   const continueUrl = hasSeries(record) && record.lastReadUrl !== tab.url ? record.lastReadUrl : undefined;
 
   return (
-    <>
-      <div className="current" data-status={record.status}>
-        <Thumbnail record={record} size="small" onOpen={(i) => openList(viewHash(record.id, i))} />
-        <div>
-          <div className="current-title">{record.title}</div>
-          <div className="current-meta">
-            <span className="status-dot" /> {STATUS_LABEL[record.status]}
-            {viaPrefix && <> · series</>}
-          </div>
-          {viaPrefix && <div className="current-meta">Prefix: {matched?.matchKey}</div>}
+    <div className="popup-body">
+      <div>
+        <div className="current-title">{record.title}</div>
+        <div className="current-meta">
+          {revisit
+            ? record.readAt
+              ? `Last read ${formatDateTime(record.readAt)}`
+              : 'Not read yet'
+            : record.status === 'read'
+              ? `Read${record.readAt ? ` ${new Date(record.readAt).toLocaleDateString()}` : ''}`
+              : 'Unread'}
         </div>
       </div>
 
       {revisit ? (
-        <div className="field">
-          <span>{record.readAt ? `Last read ${formatDateTime(record.readAt)}` : 'Not read yet'}</span>
-          <div className="row">
-            <HoldButton
-              className="btn btn-primary"
-              title="Press and hold to record that you read it now; it then moves to the end of the list"
-              onConfirm={async () => {
-                const next = await markReadNow(record.id);
-                if (next) onChange(next);
-              }}
-            >
-              Update read
-            </HoldButton>
-          </div>
-        </div>
+        <HoldButton
+          className="btn btn-primary popup-main-action"
+          title="Press and hold to record that you read it now"
+          onConfirm={async () => {
+            const next = await markReadNow(record.id);
+            if (next) onChange(next);
+          }}
+        >
+          Update read
+        </HoldButton>
       ) : (
-        <div className="field">
-          <span>Status</span>
-          <StatusPicker value={record.status} onChange={setStatus} />
-        </div>
+        <button
+          type="button"
+          className={`btn popup-main-action${record.status === 'unread' ? ' btn-primary' : ''}`}
+          onClick={toggleRead}
+        >
+          {record.status === 'unread' ? 'Mark read' : 'Mark unread'}
+        </button>
       )}
 
       {folders.length > 0 && <FolderSelect folders={folders} value={record.folderId ?? ''} onChange={setFolder} />}
 
       {continueUrl && (
-        <div className="field">
-          <span>Last chapter visited</span>
-          <a
-            href={continueUrl}
-            onClick={(e) => {
-              e.preventDefault();
-              void browser.tabs.update(tab.id, { url: continueUrl });
-              window.close();
-            }}
-          >
-            {continueUrl}
-          </a>
-        </div>
+        <a
+          className="popup-url"
+          href={continueUrl}
+          title={continueUrl}
+          onClick={(e) => {
+            e.preventDefault();
+            void browser.tabs.update(tab.id, { url: continueUrl });
+            window.close();
+          }}
+        >
+          Continue: {displayUrl(continueUrl)}
+        </a>
       )}
 
-      <ImagePicker
-        record={record}
-        tab={{ id: tab.id, windowId: tab.windowId }}
-        onChange={onChange}
-        // Full-size images don't fit the popup: view them on the list page.
-        onView={(i) => openList(viewHash(record.id, i))}
-      />
-
-      <div className="row">
-        <button type="button" className="btn" onClick={() => openList(`#edit=${record.id}`)}>
-          Manage
-        </button>
-      </div>
-    </>
+      <button type="button" className="link-button" onClick={() => openList(`#edit=${record.id}`)}>
+        Manage in full list →
+      </button>
+    </div>
   );
 }

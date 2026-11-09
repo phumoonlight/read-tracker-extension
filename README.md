@@ -35,12 +35,14 @@ change.
 
 ## Using it
 
-- **Add a page:** click the toolbar icon, check the title, pick a status and click **Add current page**.
+- **Add a page:** click the toolbar icon, check the title, pick a folder and click **Add to list** (it starts
+  unread).
 - **Manage a record:** click **Manage** on its card (or in the popup) to edit its details, folder and images.
   A record can have several URLs (up to 10): use **+ Add URL** for a mirror or another site. Each URL matches
   that exact page, so the badge shows the record on any of them; the first one is the main URL. On the card, each URL is a link under the title (the title itself is not a link).
   **Delete record** is at the bottom of that dialog and asks for confirmation.
-- **Change status, folder or images:** open the popup on a page that is in your list.
+- **On a page in your list:** the popup shows **Mark read** / **Mark unread** (or **Update read** in Revisit
+  folders) and the folder. Images, extra URLs, tags and notes are managed on the full list page.
 - **View images:** click a card's image in the full list (or an image tile) to open the full-size viewer; use
   the arrow keys to step through a record's images, or **Open original** to see it in a tab.
 - **Full list:** click **Open full list** in the popup, or right-click the toolbar icon and choose **Options**.

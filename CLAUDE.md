@@ -23,7 +23,7 @@ Run `npm test` and `npm run compile` before declaring work done.
 src/
   entrypoints/
     background.ts        service worker: badge per tab, series progress (lastReadUrl)
-    popup/               toolbar popup: current page state, add, status, folder, images
+    popup/               toolbar popup (short): add page (title + folder), or read state + folder; links to Manage
     options/             full list page (options_ui, open_in_tab): folder bar, record list, search, filters, Manage dialog (edit + delete)
     backup/              Backup page (backup.html, linked from the list header): export / import JSON
   components/            shared React UI (RecordForm, ImagePicker, ImageViewer, Thumbnail (cover), UrlLink, HoldButton,

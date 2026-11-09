@@ -5,7 +5,7 @@ body {
 .popup {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   padding: 14px;
 }
 
@@ -20,28 +20,53 @@ body {
   font-size: 20px;
 }
 
-.current {
-  display: grid;
-  grid-template-columns: 96px 1fr;
+/* Body of either view (add / current record) */
+.popup-body {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
-  align-items: start;
+}
+
+.popup-section-title {
+  font-size: 18px;
 }
 
 .current-title {
-  font-weight: 600;
+  font-weight: 700;
   overflow-wrap: anywhere;
 }
 
 .current-meta {
   font-size: 16px;
   color: var(--text-muted);
-  overflow-wrap: anywhere;
 }
 
-.banner {
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  border: 1px solid var(--border);
+/* One-line address under the add form / the "Continue" link */
+.popup-url {
   font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The main button (Add to list / Mark read / Update read): full width */
+.popup-main-action {
+  width: 100%;
+  padding: 8px 12px;
+  font-weight: 700;
+}
+
+/* "Manage in full list →" */
+.link-button {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+}
+.link-button:hover {
+  color: var(--text);
+  text-decoration: underline;
 }
