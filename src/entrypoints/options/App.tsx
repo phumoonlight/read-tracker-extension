@@ -284,9 +284,8 @@ export function App() {
             ))}
           </select>
         )}
-        {revisit ? (
-          <span className="muted toolbar-note">Revisit: least recently read first</span>
-        ) : (
+        {/* Revisit places have a fixed order (least recently read first), so no sort menu. */}
+        {!revisit && (
           <select value={sort} onChange={(e) => resetting(setSort)(e.target.value as ListSort)} aria-label="Sort">
             {(Object.keys(SORT_LABEL) as ListSort[]).map((k) => (
               <option key={k} value={k}>

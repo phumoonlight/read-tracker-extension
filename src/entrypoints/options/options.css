@@ -291,11 +291,6 @@
   font-size: 12px;
 }
 
-.toolbar-note {
-  align-self: center;
-  font-size: 12px;
-}
-
 /* Delete lives at the bottom of the Manage dialog, set apart from Save. */
 .danger-zone {
   display: flex;
