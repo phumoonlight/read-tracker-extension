@@ -1,8 +1,8 @@
 import { BACKUP_JSON, buildBackup, imagePath, parseBackup, planImport, typeForImagePath, type ImportPlan } from './backup';
-import { dataUrlToBlob, getImage, prepareImage, type StoredImage } from './images';
+import { getImage, prepareImage, type StoredImage } from './images';
 import { applyImport, getAllRecords, getHomeSettings, listFolders } from './storage';
 import type { BackupImage } from './types';
-import { createZip, looksLikeZip, readZip, readZipEntry, type ZipEntry, type ZipInput } from './zip';
+import { createZip, looksLikeZip, readZip, readZipEntry, type ZipInput } from './zip';
 
 /**
  * Export everything to a .zip: backup.json (records, folders, settings; images listed by
@@ -40,34 +40,22 @@ function download(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
-/**
- * Validate, merge and apply a backup: a .zip from exportToFile, or a .json from older
- * builds (images as data URLs). All database writes happen in one transaction.
- */
+/** Validate, merge and apply a .zip backup from exportToFile. All database writes happen in one transaction. */
 export async function importFromFile(file: File): Promise<ImportPlan> {
-  let entries: Map<string, ZipEntry> | undefined;
-  let text: string;
-  if (await looksLikeZip(file)) {
-    entries = await readZip(file);
-    const json = entries.get(BACKUP_JSON);
-    if (!json) throw new Error(`Not a Read Tracker backup (no ${BACKUP_JSON} in the ZIP).`);
-    text = await (await readZipEntry(file, json)).text();
-  } else {
-    text = await file.text();
-  }
-  const backup = parseBackup(text);
+  if (!(await looksLikeZip(file))) throw new Error('Not a Read Tracker backup (expected a .zip file).');
+  const entries = await readZip(file);
+  const json = entries.get(BACKUP_JSON);
+  if (!json) throw new Error(`Not a Read Tracker backup (no ${BACKUP_JSON} in the ZIP).`);
+  const backup = parseBackup(await (await readZipEntry(file, json)).text());
   // An image whose file is missing from the archive is treated like one the file doesn't carry.
-  backup.images = backup.images.filter((img) => img.file === undefined || entries?.has(img.file));
+  backup.images = backup.images.filter((img) => entries.has(img.file));
 
   const [records, folders, home] = await Promise.all([getAllRecords(), listFolders(), getHomeSettings()]);
   const plan = planImport(records, folders, backup, home);
   // Read files and build previews first: async work is not allowed inside an IndexedDB transaction.
   const images: StoredImage[] = [];
   for (const img of plan.putImages) {
-    const blob =
-      img.file !== undefined
-        ? await readZipEntry(file, entries!.get(img.file)!, typeForImagePath(img.file))
-        : await dataUrlToBlob(img.dataUrl);
+    const blob = await readZipEntry(file, entries.get(img.file)!, typeForImagePath(img.file));
     const prepared = await prepareImage(blob);
     images.push({ ...prepared, id: img.id, recordId: img.recordId, addedAt: Date.now() });
   }

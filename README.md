@@ -61,7 +61,7 @@ change.
   after **Update read** the record moves to the bottom to wait its turn.
 - **Backup:** in the full list, click **Backup** (top right) to open the Backup page with **Export backup** and
   **Import backup**. The export is a `.zip` with `backup.json` and an `images` folder of the original files (any unzip
-  tool can open it); older `.json` backups still import. When the same record exists
+  tool can open it). Older `.json` backups can't be imported. When the same record exists
   in both places, the copy that was edited most recently is kept.
 - **Erase all data:** at the bottom of the Backup page. Click **Erase all data…**, then in the dialog press and hold
   **Hold to erase** for 3 seconds to delete every record, image and folder and reset Home's settings. It can't be

@@ -75,7 +75,7 @@ export interface BackupFile {
   records: ReadingRecord[];
   /** Added in schema v2; absent in v1 files. */
   folders: Folder[];
-  /** Original image files (schema v3+). v1/v2 files had `thumbnails` (record id -> data URL) instead. */
+  /** Original image files, by path inside the ZIP. */
   images: BackupImage[];
   /** Home's display settings; absent in older files (= defaults). */
   home?: HomeSettings;
@@ -99,12 +99,12 @@ export type ReadMode = 'status' | 'revisit';
 export const READ_MODES: readonly ReadMode[] = ['status', 'revisit'];
 export const READ_MODE_LABEL: Record<ReadMode, string> = { status: 'Status', revisit: 'Revisit' };
 
-/**
- * One image in a backup: exactly one of `file` (ZIP backups: path of the original file
- * inside the archive, e.g. "images/<id>.jpg") or `dataUrl` (JSON backups: the original
- * file as data:image/...).
- */
-export type BackupImage = { id: string; recordId: string } & ({ file: string; dataUrl?: never } | { dataUrl: string; file?: never });
+/** One image in a backup: `file` is the original file's path inside the ZIP, e.g. "images/<id>.jpg". */
+export interface BackupImage {
+  id: string;
+  recordId: string;
+  file: string;
+}
 
 export const MAX_IMAGES = 3;
 

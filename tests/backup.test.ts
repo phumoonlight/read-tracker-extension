@@ -4,7 +4,7 @@ import { BACKUP_FORMAT, MAX_IMAGES, MAX_URLS, SCHEMA_VERSION, legacyImageId, typ
 import { rec } from './fixtures';
 
 const IMG = 'data:image/webp;base64,AAAA';
-const img = (id: string, recordId: string): BackupImage => ({ id, recordId, dataUrl: IMG });
+const img = (id: string, recordId: string): BackupImage => ({ id, recordId, file: `images/${id}.webp` });
 
 describe('planImport (merge by id)', () => {
   it('adds records with new ids', () => {
@@ -143,15 +143,16 @@ describe('parseBackup (validation)', () => {
     );
   });
 
-  it('drops image entries that are not image data URLs or are malformed', () => {
+  it('drops image entries that are malformed or have no safe file path', () => {
     const text = JSON.stringify({
       ...valid(),
       images: [
-        { id: 'a', recordId: 'r', dataUrl: 'https://evil.example/x.png' },
-        { id: 'b', recordId: 'r', dataUrl: 42 },
-        { id: '', recordId: 'r', dataUrl: IMG },
+        { id: 'a', recordId: 'r', file: '../x.webp' },
+        { id: 'b', recordId: 'r', file: 42 },
+        { id: '', recordId: 'r', file: 'images/x.webp' },
+        { id: 'd', recordId: 'r', dataUrl: IMG },
         'nope',
-        { id: 'c', recordId: 'r', dataUrl: IMG },
+        { id: 'c', recordId: 'r', file: 'images/c.webp' },
       ],
     });
     expect(parseBackup(text).images).toEqual([img('c', 'r')]);
@@ -185,7 +186,7 @@ describe('parseBackup (validation)', () => {
     expect(() => parseBackup(bad(Array.from({ length: MAX_IMAGES + 1 }, (_, i) => `i${i}`)))).toThrow(/"images"/);
   });
 
-  it('converts a v2 backup thumbnail into the record\'s first image', () => {
+  it('migrates v2 records (a thumbnail without a file is dropped)', () => {
     const { images: _drop, ...r } = rec({ id: 'r1' });
     void _drop;
     const v2 = {
@@ -198,9 +199,9 @@ describe('parseBackup (validation)', () => {
     const parsed = parseBackup(JSON.stringify(v2));
     expect(parsed.records.map((x) => x.images)).toEqual([[legacyImageId('r1')], []]);
     expect(parsed.records[0]).not.toHaveProperty('hasThumbnail');
-    expect(parsed.images).toEqual([{ id: legacyImageId('r1'), recordId: 'r1', dataUrl: IMG }]);
-    // And the merge keeps it.
-    expect(planImport([], [], parsed).write[0]?.images).toEqual([legacyImageId('r1')]);
+    expect(parsed.images).toEqual([]);
+    // No file for it in the backup, so the imported record has no image.
+    expect(planImport([], [], parsed).write[0]?.images).toEqual([]);
   });
 });
 
@@ -227,13 +228,9 @@ describe('ZIP backup image paths', () => {
         images: [
           { id: 'a', recordId: 'r', file: 'images/a.png' },
           { id: 'b', recordId: 'r', file: '../../etc/passwd' },
-          { id: 'c', recordId: 'r', dataUrl: IMG },
         ],
       }),
     );
-    expect(parsed.images).toEqual([
-      { id: 'a', recordId: 'r', file: 'images/a.png' },
-      { id: 'c', recordId: 'r', dataUrl: IMG },
-    ]);
+    expect(parsed.images).toEqual([{ id: 'a', recordId: 'r', file: 'images/a.png' }]);
   });
 });

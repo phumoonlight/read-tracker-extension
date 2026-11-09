@@ -62,8 +62,8 @@ export async function prepareImage(blob: Blob): Promise<NewImage> {
   }
   try {
     const { width, height } = bitmap;
-    // Give untyped originals a real image type (same bytes), so backups export them as
-    // data:image/... and "Open original" displays instead of downloading.
+    // Give untyped originals a real image type (same bytes), so backups name them with the
+    // right extension and "Open original" displays instead of downloading.
     const original = untyped
       ? new Blob([blob], { type: sniffImageType(new Uint8Array(await blob.slice(0, 16).arrayBuffer())) ?? 'image/png' })
       : blob;
@@ -98,20 +98,6 @@ async function scaleForPreview(bitmap: ImageBitmap): Promise<Blob> {
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(bitmap, 0, 0, w, h);
   return canvas.convertToBlob({ type: 'image/webp', quality: PREVIEW_QUALITY });
-}
-
-export function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
-}
-
-export async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
-  if (!dataUrl.startsWith('data:image/')) throw new Error('Not an image data URL');
-  return (await fetch(dataUrl)).blob();
 }
 
 /** Copy of `list` with the item at `from` moved to index `to` (indexes clamped). */

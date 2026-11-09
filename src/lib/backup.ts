@@ -10,7 +10,6 @@ import {
   MAX_URLS,
   SCHEMA_VERSION,
   STATUSES,
-  legacyImageId,
   type BackupFile,
   type BackupImage,
   type Folder,
@@ -128,8 +127,8 @@ export function isImagePath(v: unknown): v is string {
 }
 
 /**
- * Parse and validate a backup file's JSON text (a .json backup, or backup.json inside a
- * .zip backup). Older schema versions are migrated; newer ones are rejected.
+ * Parse and validate backup.json from a ZIP backup. Older schema versions are migrated;
+ * newer ones are rejected.
  */
 export function parseBackup(text: string): BackupFile {
   let data: unknown;
@@ -157,21 +156,11 @@ export function parseBackup(text: string): BackupFile {
   });
   const folders = ((data.folders as unknown[] | undefined) ?? []).map(parseFolder);
   const home = parseHome(data.home);
-  const isImageData = (v: unknown): v is string => typeof v === 'string' && v.startsWith('data:image/');
+  // Entries that are malformed or have an unsafe path are dropped; records then simply lack that image.
   const images: BackupImage[] = [];
-  if (version < 3) {
-    // v1/v2: one thumbnail per record, keyed by record id. Same id as the record migration uses.
-    const thumbnails = isObj(data.thumbnails) ? data.thumbnails : {};
-    for (const [recordId, dataUrl] of Object.entries(thumbnails)) {
-      if (isImageData(dataUrl)) images.push({ id: legacyImageId(recordId), recordId, dataUrl });
-    }
-  } else {
-    // Entries that are malformed or not images are dropped; records then simply lack that image.
-    for (const img of Array.isArray(data.images) ? data.images : []) {
-      if (!isObj(img) || typeof img.id !== 'string' || !img.id || typeof img.recordId !== 'string') continue;
-      if (isImagePath(img.file)) images.push({ id: img.id, recordId: img.recordId, file: img.file });
-      else if (isImageData(img.dataUrl)) images.push({ id: img.id, recordId: img.recordId, dataUrl: img.dataUrl });
-    }
+  for (const img of Array.isArray(data.images) ? data.images : []) {
+    if (!isObj(img) || typeof img.id !== 'string' || !img.id || typeof img.recordId !== 'string') continue;
+    if (isImagePath(img.file)) images.push({ id: img.id, recordId: img.recordId, file: img.file });
   }
   return {
     format: BACKUP_FORMAT,

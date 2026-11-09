@@ -25,7 +25,7 @@ src/
     background.ts        service worker: badge per tab, series progress (lastReadUrl)
     popup/               toolbar popup (short): add page (title + folder chips), or read state only; links to Manage
     options/             full list page (options_ui, open_in_tab): folder bar, record list, search, filters, Manage dialog (edit + delete)
-    backup/              Backup page (backup.html, linked from the list header): export / import (.zip, old .json), erase all data
+    backup/              Backup page (backup.html, linked from the list header): export / import (.zip), erase all data
                          (`wipeAllData`, one transaction; a dialog with a 3 s `HoldButton`)
   components/            shared React UI (RecordForm, ImagePicker, ImageViewer, Thumbnail (cover), UrlLink, HoldButton,
                          StatusPicker, Dialog)
@@ -148,9 +148,8 @@ under `images/<id>.<ext>` (`imagePath`), listed in the JSON as `images: [{ id, r
 (not compressed) and the archive Blob is assembled from the image Blobs, so export doesn't copy files into memory
 (only a streaming CRC-32 pass); ZIP64 records are written only when needed. The reader takes stored or deflated
 entries (via `DecompressionStream`), so a re-zipped backup imports. `parseBackup` accepts only plain `images/<name>`
-paths (`isImagePath`); an image whose file is missing from the archive is dropped. Older `.json` backups (schema v3+
-`images: [{ id, recordId, dataUrl }]`) still import, and v1/v2
-files carried `thumbnails` (record id -> data URL), which `parseBackup` turns into `legacy-<recordId>` images.
+paths (`isImagePath`); an image whose file is missing from the archive is dropped. Only ZIP backups import: the
+old `.json` format (images as data URLs) was removed, so `.json` files are rejected.
 On import, a written record keeps only image ids the file carries for it (or already stored for it); previews are
 rebuilt; stored images the winning copy no longer lists are deleted; an id owned by another local record is never
 re-pointed.
