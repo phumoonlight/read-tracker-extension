@@ -483,19 +483,30 @@ dialog.viewer {
 }
 .icon-btn {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
+  /* As tall as the input beside it, and square. */
+  align-self: stretch;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  padding: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text-muted);
-  font-size: 20px;
-  line-height: 1;
   cursor: pointer;
 }
 .icon-btn:hover {
   color: var(--text);
   background: var(--surface-2);
+}
+/* Destructive icon button: red border, filled red on hover */
+.icon-btn-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.icon-btn-danger:hover {
+  background: var(--danger);
+  color: var(--danger-text);
 }
 /* Quiet destructive action (text only, red) */
 .btn-danger-text {

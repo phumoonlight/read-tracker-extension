@@ -237,8 +237,17 @@ function UrlRowEditor({
           onChange={(e) => onChange({ url: e.target.value })}
         />
         {onRemove && (
-          <button type="button" className="icon-btn" onClick={onRemove} aria-label={`Remove URL ${index + 1}`} title="Remove URL">
-            ×
+          <button
+            type="button"
+            className="icon-btn icon-btn-danger"
+            onClick={onRemove}
+            aria-label={`Remove URL ${index + 1}`}
+            title="Remove URL"
+          >
+            {/* Drawn X (a "×" character sits low in most fonts, so it can't be centred exactly). */}
+            <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
           </button>
         )}
       </div>
