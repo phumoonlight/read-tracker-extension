@@ -1,8 +1,8 @@
 /** Bump when the stored record shape changes, and add a step in migrate.ts. */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 1;
 
 export type MatchMode = 'exact' | 'prefix';
-/** Two states. (Schema v5 removed 'reading'; such records became 'unread'.) */
+/** Two states. */
 export type ReadStatus = 'unread' | 'read';
 
 export const STATUSES: readonly ReadStatus[] = ['unread', 'read'];
@@ -26,15 +26,15 @@ export interface ReadingRecord {
   tags: string[];
   /**
    * More URLs for the same thing (e.g. a mirror, or the series on another site). Each matches
-   * on its own like the main url / matchKey / matchMode above. Added in schema v4.
+   * on its own like the main url / matchKey / matchMode above.
    */
   otherUrls?: UrlEntry[];
-  /** Folder the record is grouped in; undefined = Home (no folder, the default). Added in schema v2. */
+  /** Folder the record is grouped in; undefined = Home (no folder, the default). */
   folderId?: string;
   notes?: string;
   /**
    * Ids of the record's images (store "images"), in display order; the first is the
-   * cover. At most MAX_IMAGES. Replaced `hasThumbnail` in schema v3.
+   * cover. At most MAX_IMAGES.
    */
   images: string[];
   /** Epoch milliseconds. */
@@ -68,16 +68,16 @@ export const usesOriginalImages = (size: ImageSize) => size === 'large' || size 
 
 export const FOLDER_NAME_MAX = 60;
 
+/** A backup read from a ZIP (manifest.json + records.jsonl + images found by id), ready to merge. */
 export interface BackupFile {
   format: typeof BACKUP_FORMAT;
   version: number;
   exportedAt: number;
   records: ReadingRecord[];
-  /** Added in schema v2; absent in v1 files. */
   folders: Folder[];
   /** Original image files, by path inside the ZIP. */
   images: BackupImage[];
-  /** Home's display settings; absent in older files (= defaults). */
+  /** Home's display settings; absent = defaults. */
   home?: HomeSettings;
 }
 
@@ -107,9 +107,6 @@ export interface BackupImage {
 }
 
 export const MAX_IMAGES = 3;
-
-/** Id given to a record's single pre-v3 thumbnail when it became an image. */
-export const legacyImageId = (recordId: string) => `legacy-${recordId}`;
 
 export const BACKUP_FORMAT = 'read-tracker-backup';
 

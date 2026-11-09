@@ -1,5 +1,4 @@
 import {
-  BACKUP_JSON,
   BACKUP_MANIFEST,
   BACKUP_RECORDS,
   buildManifest,
@@ -7,7 +6,6 @@ import {
   imagePath,
   imageStem,
   imagesFromZip,
-  parseBackup,
   parseManifest,
   parseRecordLine,
   planImport,
@@ -22,7 +20,7 @@ import type { BackupFile, ReadingRecord } from './types';
 import { createZip, looksLikeZip, readZip, readZipEntry, type ZipEntry, type ZipInput } from './zip';
 
 /**
- * Export everything to a .zip (layout 3):
+ * Export everything to a .zip (layout 1):
  *   manifest.json   format, versions, export time, counts, folders, Home settings
  *   records.jsonl   one record per line
  *   images/<id>.ext original image files (found by id on import: no separate list)
@@ -80,62 +78,45 @@ export interface OpenedBackup {
 }
 
 /**
- * Open a backup .zip and read only what's needed to preview it (manifest.json; or, for
- * the first ZIP layout, the whole backup.json). Throws a user-facing error if it isn't
- * a backup this build can read.
+ * Open a backup .zip and read only what's needed to preview it (manifest.json). Throws a
+ * user-facing error if it isn't a backup this build can read.
  */
 export async function openBackup(file: File): Promise<OpenedBackup> {
   if (!(await looksLikeZip(file))) throw new Error('Not a Read Tracker backup (expected a .zip file).');
   const entries = await readZip(file);
   const manifestEntry = entries.get(BACKUP_MANIFEST);
+  if (!manifestEntry) throw new Error(`Not a Read Tracker backup (no ${BACKUP_MANIFEST} in the ZIP).`);
   /** Problems found while opening (e.g. invalid folder domains); each run starts from a copy. */
   const openIssues: string[] = [];
-
-  if (manifestEntry) {
-    const manifest = parseManifest(await (await readZipEntry(file, manifestEntry)).text(), openIssues);
-    const recordsEntry = entries.get(BACKUP_RECORDS);
-    if (!recordsEntry) throw new Error(`The backup has no ${BACKUP_RECORDS}.`);
-    return {
-      exportedAt: manifest.exportedAt,
-      counts: manifest.counts,
-      run: async () => {
-        const issues = [...openIssues];
-        // Streamed line by line; a bad record line stops the import before anything is written.
-        const records: ReadingRecord[] = [];
-        for await (const { line, lineNo } of readLines(await readZipEntry(file, recordsEntry))) {
-          records.push(parseRecordLine(line, lineNo, manifest.version));
-        }
-        if (records.length !== manifest.counts.records) {
-          issues.push(
-            `${BACKUP_MANIFEST} lists ${manifest.counts.records} records but ${BACKUP_RECORDS} has ${records.length}.`,
-          );
-        }
-        const backup: BackupFile = {
-          format: manifest.format,
-          version: manifest.version,
-          exportedAt: manifest.exportedAt,
-          records,
-          folders: manifest.folders,
-          images: [],
-          ...(manifest.home ? { home: manifest.home } : {}),
-        };
-        return mergeBackup(file, entries, backup, issues);
-      },
-    };
-  }
-
-  // Layout 1 (the first ZIP backups): everything in backup.json.
-  const jsonEntry = entries.get(BACKUP_JSON);
-  if (!jsonEntry) throw new Error(`Not a Read Tracker backup (no ${BACKUP_MANIFEST} in the ZIP).`);
-  const backup = parseBackup(await (await readZipEntry(file, jsonEntry)).text(), openIssues);
+  const manifest = parseManifest(await (await readZipEntry(file, manifestEntry)).text(), openIssues);
+  const recordsEntry = entries.get(BACKUP_RECORDS);
+  if (!recordsEntry) throw new Error(`The backup has no ${BACKUP_RECORDS}.`);
   return {
-    exportedAt: backup.exportedAt,
-    counts: {
-      records: backup.records.length,
-      folders: backup.folders.length,
-      images: imagesFromZip(backup.records, imageIndex(entries.keys())).length,
+    exportedAt: manifest.exportedAt,
+    counts: manifest.counts,
+    run: async () => {
+      const issues = [...openIssues];
+      // Streamed line by line; a bad record line stops the import before anything is written.
+      const records: ReadingRecord[] = [];
+      for await (const { line, lineNo } of readLines(await readZipEntry(file, recordsEntry))) {
+        records.push(parseRecordLine(line, lineNo, manifest.version));
+      }
+      if (records.length !== manifest.counts.records) {
+        issues.push(
+          `${BACKUP_MANIFEST} lists ${manifest.counts.records} records but ${BACKUP_RECORDS} has ${records.length}.`,
+        );
+      }
+      const backup: BackupFile = {
+        format: manifest.format,
+        version: manifest.version,
+        exportedAt: manifest.exportedAt,
+        records,
+        folders: manifest.folders,
+        images: [],
+        ...(manifest.home ? { home: manifest.home } : {}),
+      };
+      return mergeBackup(file, entries, backup, issues);
     },
-    run: () => mergeBackup(file, entries, { ...backup }, [...openIssues]),
   };
 }
 
@@ -146,7 +127,7 @@ async function mergeBackup(
   backup: BackupFile,
   issues: string[],
 ): Promise<ImportResult> {
-  // Each record's images are found by id among the ZIP's files (any layout); an id without
+  // Each record's images are found by id among the ZIP's files; an id without
   // a file is reported by planImport on its record.
   backup.images = imagesFromZip(backup.records, imageIndex(entries.keys()));
 

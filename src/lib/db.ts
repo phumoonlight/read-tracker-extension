@@ -1,4 +1,5 @@
-import { legacyImageId } from './types';
+/** Image id the DB v4 step gave a record's old single thumbnail. */
+const legacyImageId = (recordId: string) => `legacy-${recordId}`;
 
 /**
  * The extension's IndexedDB database. The extension origin is shared, so the popup,
@@ -12,10 +13,10 @@ import { legacyImageId } from './types';
  *   folders     keyPath "id"; Folder (v3)
  *   images      keyPath "id"; StoredImage (original Blob + small preview Blob), index recordId (v4)
  *   thumbnails  removed in v4 (was: record id -> 300px WebP); its blobs became images "legacy-<recordId>"
- *   meta        out-of-line key, small values (e.g. "schemaVersion" = record schema version)
+ *   meta        out-of-line key, small values ("recordVersion" = record SCHEMA_VERSION, "home" = Home settings)
  *
  * DB_VERSION changes the store/index layout. The record *shape* has its own
- * SCHEMA_VERSION (types.ts) and is migrated lazily, see records-db.ts.
+ * SCHEMA_VERSION (types.ts) and is migrated lazily, see storage.ts.
  */
 export const DB_NAME = 'read-tracker';
 export const DB_VERSION = 6;
@@ -61,8 +62,7 @@ function upgrade(db: IDBDatabase, tx: IDBTransaction, oldVersion: number) {
     const images = db.createObjectStore(IMAGES, { keyPath: 'id' });
     images.createIndex(IDX.recordId, 'recordId');
     // Move each 300px thumbnail into the images store as both original and preview
-    // (the full-size original was never kept). Record rows are rewritten to point at
-    // these ids by the schema v2 -> v3 record migration (see migrate.ts).
+    // (the full-size original was never kept). Only pre-release databases had this store.
     const cursorReq = tx.objectStore(THUMBNAILS).openCursor();
     cursorReq.onsuccess = () => {
       const c = cursorReq.result;

@@ -7,17 +7,15 @@ import {
   imagePath,
   imageIndex,
   imagesFromZip,
-  parseBackup,
   parseManifest,
   parseRecordLine,
   planImport,
   toJsonLine,
   typeForImagePath,
 } from '@/lib/backup';
-import { BACKUP_FORMAT, MAX_IMAGES, MAX_URLS, SCHEMA_VERSION, legacyImageId, type BackupImage } from '@/lib/types';
+import { MAX_IMAGES, MAX_URLS, SCHEMA_VERSION, type BackupImage } from '@/lib/types';
 import { rec } from './fixtures';
 
-const IMG = 'data:image/webp;base64,AAAA';
 const img = (id: string, recordId: string): BackupImage => ({ id, recordId, file: `images/${id}.webp` });
 
 describe('planImport (merge by id)', () => {
@@ -104,104 +102,58 @@ describe('planImport (merge by id)', () => {
   });
 });
 
-describe('parseBackup (validation)', () => {
-  const valid = () => buildBackup([rec({ id: 'a', images: ['i1'] })], [], [img('i1', 'a')]);
+describe('parseRecordLine (validation)', () => {
+  const parse = (patch: object) => parseRecordLine(JSON.stringify({ ...rec(), ...patch }), 1, SCHEMA_VERSION);
 
-  it('round-trips a built backup', () => {
-    const b = valid();
-    const parsed = parseBackup(JSON.stringify(b));
-    expect(parsed.records).toEqual(b.records);
-    // Images come from the ZIP's files, not the file's own list.
-    expect(parsed.images).toEqual([]);
-    expect(parsed.version).toBe(SCHEMA_VERSION);
+  it('accepts a valid record', () => {
+    const r = rec({ id: 'a', lastReadUrl: 'https://example.com/ch-2' });
+    expect(parseRecordLine(toJsonLine(r).trim(), 1, SCHEMA_VERSION)).toEqual(r);
   });
 
-  it('rejects invalid JSON', () => {
-    expect(() => parseBackup('{nope')).toThrow(/valid JSON/);
-  });
-
-  it('rejects files that are not backups', () => {
-    expect(() => parseBackup(JSON.stringify({ records: [] }))).toThrow(/Not a Read Tracker backup/);
-    expect(() => parseBackup('[]')).toThrow(/Not a Read Tracker backup/);
-  });
-
-  it('rejects a missing or malformed version', () => {
-    for (const version of [undefined, '1', 0, 1.5]) {
-      expect(() => parseBackup(JSON.stringify({ ...valid(), version }))).toThrow(/version/);
-    }
-  });
-
-  it('rejects a backup from a newer schema', () => {
-    expect(() => parseBackup(JSON.stringify({ ...valid(), version: SCHEMA_VERSION + 1 }))).toThrow(/newer version/);
+  it('rejects lines that are not JSON objects, with the line number', () => {
+    expect(() => parseRecordLine('{"id":', 7, SCHEMA_VERSION)).toThrow(/records\.jsonl line 7: not valid JSON/);
+    expect(() => parseRecordLine('[]', 3, SCHEMA_VERSION)).toThrow(/records\.jsonl line 3 is not an object/);
   });
 
   it('rejects records with missing or wrong-typed fields', () => {
-    const bad = (patch: object) =>
-      JSON.stringify({ format: BACKUP_FORMAT, version: SCHEMA_VERSION, records: [{ ...rec(), ...patch }] });
-    expect(() => parseBackup(bad({ id: 5 }))).toThrow(/"id"/);
-    expect(() => parseBackup(bad({ matchMode: 'fuzzy' }))).toThrow(/"matchMode"/);
-    expect(() => parseBackup(bad({ status: 'done' }))).toThrow(/"status"/);
-    expect(() => parseBackup(bad({ tags: 'a,b' }))).toThrow(/"tags"/);
-    expect(() => parseBackup(bad({ updatedAt: '2024-01-01' }))).toThrow(/"updatedAt"/);
-    expect(() => parseBackup(bad({ notes: 5 }))).toThrow(/"notes"/);
-    expect(() => parseBackup(bad({ readAt: 'yesterday' }))).toThrow(/"readAt"/);
+    expect(() => parse({ id: 5 })).toThrow(/"id"/);
+    expect(() => parse({ matchMode: 'fuzzy' })).toThrow(/"matchMode"/);
+    expect(() => parse({ status: 'done' })).toThrow(/"status"/);
+    expect(() => parse({ status: 'reading' })).toThrow(/"status"/);
+    expect(() => parse({ tags: 'a,b' })).toThrow(/"tags"/);
+    expect(() => parse({ updatedAt: '2024-01-01' })).toThrow(/"updatedAt"/);
+    expect(() => parse({ notes: 5 })).toThrow(/"notes"/);
+    expect(() => parse({ readAt: 'yesterday' })).toThrow(/"readAt"/);
+    for (const folderId of [5, '']) expect(() => parse({ folderId })).toThrow(/"folderId"/);
   });
 
-  it('rejects non-http(s) links', () => {
-    const bad = (patch: object) =>
-      JSON.stringify({ format: BACKUP_FORMAT, version: SCHEMA_VERSION, records: [{ ...rec(), ...patch }] });
-    expect(() => parseBackup(bad({ url: 'javascript:alert(1)' }))).toThrow(/"url"/);
-    expect(() => parseBackup(bad({ url: 'site.com/x' }))).toThrow(/"url"/);
-    expect(() => parseBackup(bad({ lastReadUrl: 'javascript:alert(1)' }))).toThrow(/"lastReadUrl"/);
-    expect(parseBackup(bad({ lastReadUrl: 'https://example.com/ch-2' })).records[0]?.lastReadUrl).toBe(
-      'https://example.com/ch-2',
+  it('rejects non-http(s) links, naming the line', () => {
+    expect(() => parseRecordLine(JSON.stringify({ ...rec(), url: 'javascript:x' }), 9, SCHEMA_VERSION)).toThrow(
+      /records\.jsonl line 9: missing or invalid "url"/,
     );
-  });
-
-  it('imports a "reading" record from an older backup as unread, and rejects it in a current one', () => {
-    const old = JSON.stringify({ format: BACKUP_FORMAT, version: 4, records: [{ ...rec(), status: 'reading' }], images: [] });
-    expect(parseBackup(old).records[0]?.status).toBe('unread');
-    const current = JSON.stringify({ format: BACKUP_FORMAT, version: SCHEMA_VERSION, records: [{ ...rec(), status: 'reading' }], images: [] });
-    expect(() => parseBackup(current)).toThrow(/"status"/);
+    expect(() => parse({ url: 'site.com/x' })).toThrow(/"url"/);
+    expect(() => parse({ lastReadUrl: 'javascript:alert(1)' })).toThrow(/"lastReadUrl"/);
   });
 
   it('validates extra URLs', () => {
-    const bad = (otherUrls: unknown) =>
-      JSON.stringify({ format: BACKUP_FORMAT, version: SCHEMA_VERSION, records: [{ ...rec(), otherUrls }], images: [] });
     const ok = { url: 'https://b.com/x', matchMode: 'exact', matchKey: 'b.com/x' };
-    expect(parseBackup(bad([ok])).records[0]?.otherUrls).toEqual([ok]);
-    expect(() => parseBackup(bad('x'))).toThrow(/"otherUrls"/);
-    expect(() => parseBackup(bad([{ ...ok, url: 'javascript:alert(1)' }]))).toThrow(/"otherUrls"/);
-    expect(() => parseBackup(bad([{ ...ok, matchMode: 'fuzzy' }]))).toThrow(/"otherUrls"/);
-    expect(() => parseBackup(bad([{ ...ok, matchKey: '' }]))).toThrow(/"otherUrls"/);
-    expect(() => parseBackup(bad(Array.from({ length: MAX_URLS }, () => ok)))).toThrow(/"otherUrls"/);
+    expect(parse({ otherUrls: [ok] }).otherUrls).toEqual([ok]);
+    expect(() => parse({ otherUrls: 'x' })).toThrow(/"otherUrls"/);
+    expect(() => parse({ otherUrls: [{ ...ok, url: 'javascript:alert(1)' }] })).toThrow(/"otherUrls"/);
+    expect(() => parse({ otherUrls: [{ ...ok, matchMode: 'fuzzy' }] })).toThrow(/"otherUrls"/);
+    expect(() => parse({ otherUrls: [{ ...ok, matchKey: '' }] })).toThrow(/"otherUrls"/);
+    expect(() => parse({ otherUrls: Array.from({ length: MAX_URLS }, () => ok) })).toThrow(/"otherUrls"/);
   });
 
   it('rejects records with an invalid images list', () => {
-    const bad = (images: unknown) =>
-      JSON.stringify({ format: BACKUP_FORMAT, version: SCHEMA_VERSION, records: [{ ...rec(), images }], images: [] });
-    expect(() => parseBackup(bad('x'))).toThrow(/"images"/);
-    expect(() => parseBackup(bad([1]))).toThrow(/"images"/);
-    expect(() => parseBackup(bad(['a', 'a']))).toThrow(/"images"/);
-    expect(() => parseBackup(bad(Array.from({ length: MAX_IMAGES + 1 }, (_, i) => `i${i}`)))).toThrow(/"images"/);
+    expect(() => parse({ images: 'x' })).toThrow(/"images"/);
+    expect(() => parse({ images: [1] })).toThrow(/"images"/);
+    expect(() => parse({ images: ['a', 'a'] })).toThrow(/"images"/);
+    expect(() => parse({ images: Array.from({ length: MAX_IMAGES + 1 }, (_, i) => `i${i}`) })).toThrow(/"images"/);
   });
 
-  it('migrates v2 records (a thumbnail without a file is dropped)', () => {
-    const { images: _drop, ...r } = rec({ id: 'r1' });
-    void _drop;
-    const v2 = {
-      format: BACKUP_FORMAT,
-      version: 2,
-      records: [{ ...r, hasThumbnail: true }, { ...r, id: 'r2', hasThumbnail: false }],
-      folders: [],
-      thumbnails: { r1: IMG, r2: 'https://x' },
-    };
-    const parsed = parseBackup(JSON.stringify(v2));
-    expect(parsed.records.map((x) => x.images)).toEqual([[legacyImageId('r1')], []]);
-    expect(parsed.records[0]).not.toHaveProperty('hasThumbnail');
-    expect(parsed.images).toEqual([]);
-    // No file for it in the backup, so the imported record has no image.
-    expect(planImport([], [], parsed).write[0]?.images).toEqual([]);
+  it('rejects records from a newer schema', () => {
+    expect(() => parseRecordLine(JSON.stringify(rec()), 1, SCHEMA_VERSION + 1)).toThrow(/supports up to/);
   });
 });
 
@@ -242,7 +194,7 @@ describe('ZIP backup image paths', () => {
   });
 });
 
-describe('ZIP layout 2 (manifest + JSON lines)', () => {
+describe('manifest.json', () => {
   const folderA = { id: 'f', name: 'A', createdAt: 1, updatedAt: 1 };
   it('round-trips the manifest', () => {
     const m = buildManifest({ records: 3, images: 2 }, [folderA], { updatedAt: 4, imageSize: 'large' }, 123);
@@ -257,6 +209,9 @@ describe('ZIP layout 2 (manifest + JSON lines)', () => {
     expect(() => parseManifest(JSON.stringify({ ...m, layout: BACKUP_LAYOUT + 1 }))).toThrow(/newer version/);
     expect(() => parseManifest(JSON.stringify({ ...m, layout: 'x' }))).toThrow(/layout/);
     expect(() => parseManifest(JSON.stringify({ ...m, version: SCHEMA_VERSION + 1 }))).toThrow(/newer version/);
+    for (const version of [undefined, '1', 0, 1.5]) {
+      expect(() => parseManifest(JSON.stringify({ ...m, version }))).toThrow(/version/);
+    }
     expect(() => parseManifest(JSON.stringify({ ...m, folders: 'x' }))).toThrow(/folders/);
   });
   it('reports invalid folder domains instead of failing', () => {
@@ -265,16 +220,6 @@ describe('ZIP layout 2 (manifest + JSON lines)', () => {
     expect(parseManifest(JSON.stringify(m), issues).folders[0]?.domains).toEqual(['x.com']);
     expect(issues).toHaveLength(2);
     expect(issues[0]).toMatch(/Folder “A”.*"not a domain"/);
-  });
-  it('parses record lines, with the line number in errors', () => {
-    const r = rec({ id: 'a' });
-    expect(parseRecordLine(toJsonLine(r).trim(), 1, SCHEMA_VERSION)).toEqual(r);
-    expect(() => parseRecordLine('{"id":', 7, SCHEMA_VERSION)).toThrow(/records\.jsonl line 7: not valid JSON/);
-    expect(() => parseRecordLine(JSON.stringify({ ...r, url: 'javascript:x' }), 9, SCHEMA_VERSION)).toThrow(
-      /records\.jsonl line 9: missing or invalid "url"/,
-    );
-    // Older schema versions migrate.
-    expect(parseRecordLine(JSON.stringify({ ...r, status: 'reading' }), 1, 4).status).toBe('unread');
   });
 });
 

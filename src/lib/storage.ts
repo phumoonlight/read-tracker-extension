@@ -68,19 +68,21 @@ function fromRow(row: Row): ReadingRecord {
 }
 
 // ---------------------------------------------------------------------------
-// Startup: schema migration and the one-time move out of chrome.storage.local.
+// Startup: record schema migration.
 
-const LEGACY_RECORD_PREFIX = 'record:';
-const LEGACY_VERSION_KEY = 'schemaVersion';
+/** META key of the stored records' SCHEMA_VERSION. */
+const VERSION_KEY = 'recordVersion';
+/**
+ * Pre-release builds kept the version under this key, numbered up to 5. That shape is
+ * today's v1, so the old key is just dropped.
+ */
+const PRE_RELEASE_VERSION_KEY = 'schemaVersion';
 
 let ready: Promise<void> | undefined;
 
 /** Runs once per context before the first read or write. */
 function ensureReady(): Promise<void> {
-  ready ??= (async () => {
-    await migrateStoredRecords();
-    await moveLegacyStorage();
-  })();
+  ready ??= migrateStoredRecords();
   ready.catch(() => (ready = undefined));
   return ready;
 }
@@ -89,39 +91,16 @@ function ensureReady(): Promise<void> {
 async function migrateStoredRecords() {
   await withTx([RECORDS, META], 'readwrite', async (tx) => {
     const meta = tx.objectStore(META);
-    const stored = (await req(meta.get('schemaVersion'))) as number | undefined;
+    const stored = (await req(meta.get(VERSION_KEY))) as number | undefined;
     if (stored === SCHEMA_VERSION) return;
+    meta.delete(PRE_RELEASE_VERSION_KEY);
     if (stored !== undefined) {
       const store = tx.objectStore(RECORDS);
       const rows = (await req(store.getAll())) as Record<string, unknown>[];
       for (const raw of rows) store.put(toRow(migrateRecord(raw, stored)));
     }
-    meta.put(SCHEMA_VERSION, 'schemaVersion');
+    meta.put(SCHEMA_VERSION, VERSION_KEY);
   });
-}
-
-/**
- * Builds before the IndexedDB move kept records in chrome.storage.local as
- * "record:<id>". Copy them in (keeping whichever copy is newer) and remove them.
- */
-async function moveLegacyStorage() {
-  const all = await browser.storage.local.get(null);
-  const keys = Object.keys(all).filter((k) => k.startsWith(LEGACY_RECORD_PREFIX));
-  if (!keys.length && all[LEGACY_VERSION_KEY] === undefined) return;
-
-  const version = typeof all[LEGACY_VERSION_KEY] === 'number' ? (all[LEGACY_VERSION_KEY] as number) : 1;
-  const legacy = keys.map((k) => migrateRecord(all[k] as Record<string, unknown>, version));
-  if (legacy.length) {
-    await withTx(RECORDS, 'readwrite', async (tx) => {
-      const store = tx.objectStore(RECORDS);
-      for (const r of legacy) {
-        const existing = (await req(store.get(r.id))) as Row | undefined;
-        if (!existing || existing.updatedAt < r.updatedAt) store.put(toRow(r));
-      }
-    });
-  }
-  await browser.storage.local.remove([...keys, LEGACY_VERSION_KEY]);
-  if (legacy.length) await notifyChanged();
 }
 
 // ---------------------------------------------------------------------------
@@ -630,7 +609,7 @@ export async function wipeAllData(): Promise<void> {
     tx.objectStore(FOLDERS).clear();
     const meta = tx.objectStore(META);
     meta.clear();
-    meta.put(SCHEMA_VERSION, 'schemaVersion');
+    meta.put(SCHEMA_VERSION, VERSION_KEY);
   });
   await notifyChanged();
 }

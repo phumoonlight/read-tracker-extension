@@ -138,37 +138,6 @@ function checkVersion(version: unknown): number {
   return version;
 }
 
-/**
- * Parse and validate backup.json, the single-file layout of the first ZIP backups
- * (layout 1). Older schema versions are migrated; newer ones are rejected.
- */
-export function parseBackup(text: string, issues: string[] = []): BackupFile {
-  let data: unknown;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    throw new Error('Not a valid JSON file.');
-  }
-  if (!isObj(data) || data.format !== BACKUP_FORMAT) throw new Error('Not a Read Tracker backup file.');
-  const version = checkVersion(data.version);
-  if (!Array.isArray(data.records)) throw new Error('Backup has no records list.');
-  if (data.folders !== undefined && !Array.isArray(data.folders)) throw new Error('Backup has an invalid folders list.');
-
-  const records = data.records.map((raw, i) => parseRecordValue(raw, `Record #${i + 1}`, version));
-  const folders = ((data.folders as unknown[] | undefined) ?? []).map((f, i) => parseFolder(f, i, issues));
-  const home = parseHome(data.home);
-  return {
-    format: BACKUP_FORMAT,
-    version: SCHEMA_VERSION,
-    exportedAt: typeof data.exportedAt === 'number' ? data.exportedAt : 0,
-    records,
-    folders,
-    // Found by id among the ZIP's files on import (imagesFromZip); the file's own list is not needed.
-    images: [],
-    ...(home ? { home } : {}),
-  };
-}
-
 function parseRecordValue(raw: unknown, where: string, version: number): ReadingRecord {
   if (!isObj(raw)) throw new Error(`${where} is not an object.`);
   const r = migrateRecord(raw, version);
@@ -177,14 +146,10 @@ function parseRecordValue(raw: unknown, where: string, version: number): Reading
 }
 
 // ---------------------------------------------------------------------------
-// ZIP layout 3: manifest.json + records.jsonl + images/<id>.<ext>
+// ZIP backup: manifest.json + records.jsonl + images/<id>.<ext>
 
-/**
- * Version of the ZIP's file layout (separate from the record SCHEMA_VERSION).
- * 1 = backup.json only; 2 added manifest.json, records.jsonl and images.jsonl;
- * 3 dropped images.jsonl (images are found by id, see imagesFromZip). All still import.
- */
-export const BACKUP_LAYOUT = 3;
+/** Version of the ZIP's file layout (separate from the record SCHEMA_VERSION). */
+export const BACKUP_LAYOUT = 1;
 export const BACKUP_MANIFEST = 'manifest.json';
 export const BACKUP_RECORDS = 'records.jsonl';
 
@@ -233,7 +198,7 @@ export function parseManifest(text: string, issues: string[] = []): BackupManife
   }
   if (!isObj(data) || data.format !== BACKUP_FORMAT) throw new Error('Not a Read Tracker backup file.');
   const layout = data.layout;
-  if (typeof layout !== 'number' || !Number.isInteger(layout) || layout < 2) {
+  if (typeof layout !== 'number' || !Number.isInteger(layout) || layout < 1) {
     throw new Error('Backup has no valid layout version.');
   }
   if (layout > BACKUP_LAYOUT) throw new Error('Backup is from a newer version. Update the extension first.');
@@ -428,9 +393,6 @@ export function buildBackup(
     ...(home ? { home } : {}),
   };
 }
-
-/** Name of the JSON part inside a ZIP backup. */
-export const BACKUP_JSON = 'backup.json';
 
 const EXTENSIONS: Record<string, string> = {
   'image/jpeg': 'jpg',

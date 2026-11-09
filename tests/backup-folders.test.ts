@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildBackup, parseBackup, planImport } from '@/lib/backup';
-import { BACKUP_FORMAT, type Folder } from '@/lib/types';
+import { buildBackup, buildManifest, parseManifest, planImport } from '@/lib/backup';
+import type { Folder } from '@/lib/types';
 import { rec } from './fixtures';
 
 const folder = (id: string, name: string, updatedAt = 100): Folder => ({ id, name, createdAt: 1, updatedAt });
@@ -64,36 +64,25 @@ describe('planImport with folders', () => {
   });
 });
 
-describe('parseBackup with folders', () => {
-  it('reads v1 backups (no folders, no folderId) and upgrades them', () => {
-    const v1 = { format: BACKUP_FORMAT, version: 1, exportedAt: 1, records: [rec({ id: 'a' })], thumbnails: {} };
-    const parsed = parseBackup(JSON.stringify(v1));
-    expect(parsed.folders).toEqual([]);
-    expect(parsed.records[0]).not.toHaveProperty('folderId');
-  });
+/** manifest.json text with these fields replaced. */
+const manifest = (patch: object = {}) => JSON.stringify({ ...buildManifest({ records: 0, images: 0 }, []), ...patch });
 
+describe('folders in manifest.json', () => {
   it('round-trips folders', () => {
-    const b = buildBackup([rec({ id: 'r', folderId: 'f' })], [folder('f', 'Novels')], []);
-    const parsed = parseBackup(JSON.stringify(b));
-    expect(parsed.folders).toEqual([folder('f', 'Novels')]);
-    expect(parsed.records[0]?.folderId).toBe('f');
+    const m = buildManifest({ records: 0, images: 0 }, [folder('f', 'Novels')]);
+    expect(parseManifest(JSON.stringify(m)).folders).toEqual([folder('f', 'Novels')]);
   });
 
   it('cleans folder names and rejects invalid folders', () => {
-    const base = buildBackup([], [], []);
-    expect(parseBackup(JSON.stringify({ ...base, folders: [folder('f', '  A   b ')] })).folders[0]?.name).toBe('A b');
-    expect(() => parseBackup(JSON.stringify({ ...base, folders: 'x' }))).toThrow(/folders list/);
-    expect(() => parseBackup(JSON.stringify({ ...base, folders: [{ ...folder('f', 'A'), id: '' }] }))).toThrow(/"id"/);
-    expect(() => parseBackup(JSON.stringify({ ...base, folders: [folder('f', '   ')] }))).toThrow(/"name"/);
-    expect(() => parseBackup(JSON.stringify({ ...base, folders: [{ ...folder('f', 'A'), updatedAt: 'x' }] }))).toThrow(
-      /"updatedAt"/,
-    );
+    expect(parseManifest(manifest({ folders: [folder('f', '  A   b ')] })).folders[0]?.name).toBe('A b');
+    expect(() => parseManifest(manifest({ folders: 'x' }))).toThrow(/folders list/);
+    expect(() => parseManifest(manifest({ folders: [{ ...folder('f', 'A'), id: '' }] }))).toThrow(/"id"/);
+    expect(() => parseManifest(manifest({ folders: [folder('f', '   ')] }))).toThrow(/"name"/);
+    expect(() => parseManifest(manifest({ folders: [{ ...folder('f', 'A'), updatedAt: 'x' }] }))).toThrow(/"updatedAt"/);
   });
 
   it('keeps a folder image size, drops the default, and ignores unknown values', () => {
-    const base = buildBackup([], [], []);
-    const parse = (imageSize: unknown) =>
-      parseBackup(JSON.stringify({ ...base, folders: [{ ...folder('f', 'A'), imageSize }] })).folders[0];
+    const parse = (imageSize: unknown) => parseManifest(manifest({ folders: [{ ...folder('f', 'A'), imageSize }] })).folders[0];
     expect(parse('xlarge')?.imageSize).toBe('xlarge');
     expect(parse('small')?.imageSize).toBe('small');
     expect(parse('medium')).not.toHaveProperty('imageSize');
@@ -106,30 +95,21 @@ describe('parseBackup with folders', () => {
     const plan = planImport([], [local], buildBackup([], [{ ...folder('f1', 'Art', 200), imageSize: 'large' }], []));
     expect(plan.writeFolders).toEqual([{ ...folder('f1', 'Art', 200), imageSize: 'large' }]);
   });
-
-  it('rejects a record with an invalid folderId', () => {
-    const base = buildBackup([], [], []);
-    for (const folderId of [5, '']) {
-      expect(() => parseBackup(JSON.stringify({ ...base, records: [{ ...rec(), folderId }] }))).toThrow(/"folderId"/);
-    }
-  });
 });
 
 describe('Home settings in backups', () => {
   const base = () => buildBackup([], [], []);
 
   it('round-trips the Home image size', () => {
-    const b = buildBackup([], [], [], { imageSize: 'large', updatedAt: 5 });
-    expect(parseBackup(JSON.stringify(b)).home).toEqual({ imageSize: 'large', updatedAt: 5 });
+    const m = buildManifest({ records: 0, images: 0 }, [], { imageSize: 'large', updatedAt: 5 });
+    expect(parseManifest(JSON.stringify(m)).home).toEqual({ imageSize: 'large', updatedAt: 5 });
   });
 
   it('treats missing or malformed Home settings as absent, and drops unknown sizes', () => {
-    expect(parseBackup(JSON.stringify(base())).home).toBeUndefined();
-    expect(parseBackup(JSON.stringify({ ...base(), home: 'x' })).home).toBeUndefined();
-    expect(parseBackup(JSON.stringify({ ...base(), home: { imageSize: 'large' } })).home).toBeUndefined();
-    expect(parseBackup(JSON.stringify({ ...base(), home: { imageSize: 'huge', updatedAt: 1 } })).home).toEqual({
-      updatedAt: 1,
-    });
+    expect(parseManifest(manifest()).home).toBeUndefined();
+    expect(parseManifest(manifest({ home: 'x' })).home).toBeUndefined();
+    expect(parseManifest(manifest({ home: { imageSize: 'large' } })).home).toBeUndefined();
+    expect(parseManifest(manifest({ home: { imageSize: 'huge', updatedAt: 1 } })).home).toEqual({ updatedAt: 1 });
   });
 
   it('imports Home settings only when newer than the stored ones', () => {
@@ -142,31 +122,27 @@ describe('Home settings in backups', () => {
 });
 
 describe('read mode in backups', () => {
-  const base = () => buildBackup([], [], []);
-
   it('keeps Revisit on folders, drops the default and unknown values, and ignores it for Home', () => {
-    const parse = (readMode: unknown) =>
-      parseBackup(JSON.stringify({ ...base(), folders: [{ ...folder('f', 'A'), readMode }] })).folders[0];
+    const parse = (readMode: unknown) => parseManifest(manifest({ folders: [{ ...folder('f', 'A'), readMode }] })).folders[0];
     expect(parse('revisit')?.readMode).toBe('revisit');
     expect(parse('status')).not.toHaveProperty('readMode');
     expect(parse('weird')).not.toHaveProperty('readMode');
 
     // Home is always Status: a read mode for Home in a file is ignored.
-    const home = parseBackup(JSON.stringify({ ...base(), home: { readMode: 'revisit', imageSize: 'large', updatedAt: 3 } })).home;
+    const home = parseManifest(manifest({ home: { readMode: 'revisit', imageSize: 'large', updatedAt: 3 } })).home;
     expect(home).toEqual({ imageSize: 'large', updatedAt: 3 });
   });
 });
 
 describe('preferred domains in backups', () => {
-  const base = () => buildBackup([], [], []);
   const withDomains = (f: Folder, domains: unknown) => ({ ...f, domains });
 
   it('keeps valid domains (normalized) and drops invalid ones', () => {
-    const parsed = parseBackup(
-      JSON.stringify({ ...base(), folders: [withDomains(folder('f', 'A'), ['https://www.X.com/a', 'nonsense', 5, 'x.com'])] }),
+    const parsed = parseManifest(
+      manifest({ folders: [withDomains(folder('f', 'A'), ['https://www.X.com/a', 'nonsense', 5, 'x.com'])] }),
     );
     expect(parsed.folders[0]?.domains).toEqual(['x.com']);
-    const none = parseBackup(JSON.stringify({ ...base(), folders: [withDomains(folder('g', 'B'), 'x.com')] }));
+    const none = parseManifest(manifest({ folders: [withDomains(folder('g', 'B'), 'x.com')] }));
     expect(none.folders[0]).not.toHaveProperty('domains');
   });
 

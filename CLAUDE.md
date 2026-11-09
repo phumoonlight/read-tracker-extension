@@ -54,10 +54,10 @@ public/icon/             extension icons
 ## Data model
 
 `ReadingRecord` (src/lib/types.ts): `id` (crypto.randomUUID), `title`, `url` (as entered), `matchKey`,
-`matchMode` ("exact" | "prefix"), `status` ("unread" | "read"; schema v5 turned "reading" into "unread"), `lastReadUrl?`, `tags` (lowercase,
+`matchMode` ("exact" | "prefix"), `status` ("unread" | "read"), `lastReadUrl?`, `tags` (lowercase,
 unique), `folderId?`, `notes?`, `images` (ids, max `MAX_IMAGES` = 3, first = cover), `createdAt`, `updatedAt`,
-`readAt?`, `otherUrls?`. Timestamps are epoch milliseconds. Current `SCHEMA_VERSION` is 5 (v5 removed "reading"; v4 added `otherUrls`; v2 added `folderId`; v3 replaced
-`hasThumbnail` with `images`, mapping an old thumbnail to image id `legacyImageId(recordId)` = `legacy-<recordId>`).
+`readAt?`, `otherUrls?`. Timestamps are epoch milliseconds. Current `SCHEMA_VERSION` is 1 (reset before the first
+release; there are no migrations yet).
 
 Read modes (`readMode?` on `Folder` only; absent = `status`. **Home is always Status**: it has no read mode,
 `getHomeSettings` / `updateHomeSettings` strip one saved by an older build, and backups ignore it): **Status** is unread / read (Unread / Read tabs; each row's centre column has one Mark read / Mark unread button).
@@ -100,11 +100,11 @@ Storage: IndexedDB database `read-tracker` (layout in `src/lib/db.ts`, no third-
   same transaction); `deleteRecord` removes a record's images. Files over 25 MB are rejected (`prepareImage`).
   DB v4 converted the old `thumbnails` store (300px WebP per record) into images `legacy-<recordId>` and dropped it;
   those few stay 300px because the originals were never kept.
-- `meta`: `schemaVersion` (record shape version) and `home` (`HomeSettings`).
+- `meta`: `recordVersion` (record `SCHEMA_VERSION`; pre-release builds used `schemaVersion`, numbered up to 5, which
+  is dropped on startup) and `home` (`HomeSettings`).
 - `chrome.storage.local` holds only `recordsRevision`, bumped after every write. IndexedDB has no change events;
   `storage.onChanged` reaches every context and wakes the service worker, so this key is the change signal
-  (`onRecordsChanged`). Builds before the IndexedDB move stored records there as `record:<id>`;
-  `moveLegacyStorage()` copies them in and deletes them on first use.
+  (`onRecordsChanged`).
 
 How data is read:
 - Badge and popup: `findRecordForUrl()` looks up `lookupTags(url)` (the exact tag `e|<url>`, then `p|<key>` for each
@@ -139,13 +139,13 @@ Rules:
 4. If you need a new index or store, bump `DB_VERSION` in `src/lib/db.ts` and add an `if (oldVersion < N)` step
    to `upgrade()`. Never edit an existing step.
 
-Stored records migrate on first access in each context (`ensureReady` in storage.ts). Backups from older versions
-migrate on import; backups from newer versions are rejected.
+Stored records migrate on first access in each context (`ensureReady` in storage.ts). Backups from older schema
+versions migrate on import; backups from newer versions (schema or `BACKUP_LAYOUT`) are rejected.
 
 ### Backup and images
 
-Backups are **ZIP files** (`lib/zip.ts`, own writer/reader, no dependency). Layout 3 (`BACKUP_LAYOUT`, separate
-from `SCHEMA_VERSION`):
+Backups are **ZIP files** (`lib/zip.ts`, own writer/reader, no dependency). Layout 1 (`BACKUP_LAYOUT`, separate
+from `SCHEMA_VERSION`; bump it when the files in the ZIP change):
 - `manifest.json` (`BackupManifest`): format, `layout`, record schema `version`, `exportedAt`, `counts`, `folders`,
   `home`. Read first (`openBackup`), so the Backup page previews counts and rejects newer backups before reading
   records.
@@ -154,8 +154,6 @@ from `SCHEMA_VERSION`):
 - `images/<id>.<ext>` (`imagePath`, `imageStem`): original files. There is no image list: on import each id in a
   record's `images` is looked up by file-name stem among the ZIP's entries (`imageIndex` + `imagesFromZip`; any
   extension, first record listing an id gets it).
-Older layouts still import and find images the same way: layout 1 (one `backup.json`, `parseBackup`; its `images`
-list is ignored) and layout 2 (also had `images.jsonl`, now ignored).
 
 Import reports what it skipped or changed as `issues` (strings; `planImport` adds folder renames skipped, domain
 clashes, images not in the file or owned by another record, records moved to Home; parsing adds invalid folder
@@ -182,7 +180,7 @@ Home.
   drops `#hash`, tracking params (`utm_*`, `fbclid`, `gclid`, `ref`, … see `TRACKING_PARAMS`), and trailing
   slashes, and sorts the remaining params. Non-http(s) URLs give `null` (not trackable).
 - A record has a main URL (`url` / `matchKey` / `matchMode`, listed first) plus optional `otherUrls`
-  (`UrlEntry[]`, up to `MAX_URLS` = 10 in total, schema v4); `urlEntries(record)` lists them all. Each URL matches on
+  (`UrlEntry[]`, up to `MAX_URLS` = 10 in total); `urlEntries(record)` lists them all. Each URL matches on
   its own; `matchedEntry(record, url)` says which one did (the background uses it so `lastReadUrl` only follows
   series URLs). Editing happens in `RecordForm` rows (`validateUrlRows`: blank extra rows ignored, duplicates of the
   same mode+key rejected).

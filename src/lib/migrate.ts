@@ -1,27 +1,13 @@
-import { SCHEMA_VERSION, legacyImageId, type ReadingRecord } from './types';
+import { SCHEMA_VERSION, type ReadingRecord } from './types';
 
 type RawRecord = Record<string, unknown>;
 
 /**
  * MIGRATIONS[n] upgrades a record from schema version n to n + 1.
- * To change the record shape: bump SCHEMA_VERSION in types.ts and append a step here.
+ * To change the record shape: bump SCHEMA_VERSION in types.ts and add a step here.
+ * (Empty: the schema is at its first version.)
  */
-const MIGRATIONS: Record<number, (r: RawRecord) => RawRecord> = {
-  // v2 adds optional `folderId`. Absent means Home (no folder), so v1 records are already valid.
-  1: (r) => r,
-  // v3 replaces `hasThumbnail: boolean` with `images: string[]`. The old thumbnail
-  // becomes image `legacy-<id>` (the DB upgrade and parseBackup use the same id).
-  2: (r) => {
-    const { hasThumbnail, ...rest } = r;
-    const images = Array.isArray(r.images) ? r.images : hasThumbnail === true ? [legacyImageId(String(r.id))] : [];
-    return { ...rest, images };
-  },
-  // v4 adds optional `otherUrls`. Absent means only the main URL, so v3 records are valid.
-  // (Bumped anyway so an older build refuses v4 backups instead of silently dropping URLs.)
-  3: (r) => r,
-  // v5 has two states: unread / read. "reading" becomes "unread".
-  4: (r) => (r.status === 'reading' ? { ...r, status: 'unread' } : r),
-};
+const MIGRATIONS: Record<number, (r: RawRecord) => RawRecord> = {};
 
 /** Bring a stored or imported record up to SCHEMA_VERSION. Throws if `fromVersion` is newer than this build. */
 export function migrateRecord(raw: RawRecord, fromVersion: number): ReadingRecord {
