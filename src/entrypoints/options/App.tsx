@@ -175,7 +175,8 @@ export function App() {
   const placeSettings = isFolderId(activeFolder) ? openFolder : home;
   const imageSize: ImageSize = placeSettings?.imageSize ?? 'medium';
   // Revisit: "Update read" instead of statuses, always least recently read first.
-  const revisit = placeSettings?.readMode === 'revisit';
+  // Only folders can use it; Home is always Status.
+  const revisit = openFolder?.readMode === 'revisit';
 
   // If the selected tag disappears (last record with it deleted or retagged), stop filtering by it.
   const activeTag = tag && allTags.includes(tag) ? tag : '';
@@ -344,7 +345,6 @@ export function App() {
           id={modal.id}
           revision={revision}
           folders={folders}
-          home={home}
           onClose={() => setModal(undefined)}
         />
       )}
@@ -379,7 +379,7 @@ export function App() {
           onSettings={(patch) => {
             // Changing mode starts from the first page of the new order.
             if (patch.readMode) setLimit(PAGE);
-            void (openFolder ? updateFolderSettings(openFolder.id, patch) : updateHomeSettings(patch));
+            void (openFolder ? updateFolderSettings(openFolder.id, patch) : updateHomeSettings({ imageSize: patch.imageSize }));
           }}
           onDelete={() =>
             openFolder && setModal({ kind: 'folder-delete', folder: openFolder, count: counts.get(openFolder.id) ?? 0 })
@@ -527,13 +527,11 @@ function EditDialog({
   id,
   revision,
   folders,
-  home,
   onClose,
 }: {
   id: string;
   revision: number;
   folders: Folder[];
-  home: HomeSettings | undefined;
   onClose: () => void;
 }) {
   // Loaded by id (the record may not be on the loaded page) and reloaded on any change,
@@ -587,7 +585,7 @@ function EditDialog({
         submitLabel="Save"
         folders={folders}
         // Revisit records keep their last-read time; a status change here would clear it.
-        hideStatus={(record.folderId ? folders.find((f) => f.id === record.folderId) : home)?.readMode === 'revisit'}
+        hideStatus={!!record.folderId && folders.find((f) => f.id === record.folderId)?.readMode === 'revisit'}
         initial={{
           title: record.title,
           urls: urlRowsFor(record),
@@ -669,8 +667,8 @@ function FolderBar({
 
 /**
  * Settings of the open place. Folders: name (saved with its own button), image size,
- * read mode (both apply at once) and delete. Home: image size and read mode only
- * (it can't be renamed or deleted).
+ * read mode (both apply at once) and delete. Home: image size only (it is always Status
+ * and can't be renamed or deleted).
  */
 function PlaceDialog({
   folder,
@@ -756,18 +754,29 @@ function PlaceDialog({
 
       <div className="field">
         <span>Read mode</span>
-        <div className="segmented size-picker" role="group" aria-label={`Read mode for ${placeName}`}>
-          {READ_MODES.map((m) => (
-            <button key={m} type="button" aria-pressed={(settings?.readMode ?? 'status') === m} onClick={() => onSettings({ readMode: m })}>
-              {READ_MODE_LABEL[m]}
-            </button>
-          ))}
-        </div>
-        <small className="muted">
-          {(settings?.readMode ?? 'status') === 'revisit'
-            ? 'Revisit: hold “Update read” on a record to record when you last read it. The least recently read come first.'
-            : 'Status: mark records unread or read.'}
-        </small>
+        {folder ? (
+          <>
+            <div className="segmented size-picker" role="group" aria-label={`Read mode for ${placeName}`}>
+              {READ_MODES.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  aria-pressed={(folder.readMode ?? 'status') === m}
+                  onClick={() => onSettings({ readMode: m })}
+                >
+                  {READ_MODE_LABEL[m]}
+                </button>
+              ))}
+            </div>
+            <small className="muted">
+              {(folder.readMode ?? 'status') === 'revisit'
+                ? 'Revisit: hold “Update read” on a record to record when you last read it. The least recently read come first.'
+                : 'Status: mark records unread or read.'}
+            </small>
+          </>
+        ) : (
+          <small className="muted">Status: mark records unread or read. Home always uses Status.</small>
+        )}
       </div>
 
       <div className="dialog-actions" style={{ justifyContent: 'space-between' }}>

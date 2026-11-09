@@ -8,7 +8,6 @@ import { ImagePicker } from '@/components/ImagePicker';
 import { createRecord } from '@/lib/records';
 import {
   findRecordForUrl,
-  getHomeSettings,
   listFolders,
   markReadNow,
   putRecord,
@@ -18,7 +17,7 @@ import {
 import { formatDateTime, hasSeries } from '@/lib/records';
 import { matchedEntry } from '@/lib/match';
 import { getActiveTab } from '@/lib/tab';
-import { STATUS_LABEL, type Folder, type HomeSettings, type ReadingRecord, type ReadStatus } from '@/lib/types';
+import { STATUS_LABEL, type Folder, type ReadingRecord, type ReadStatus } from '@/lib/types';
 import { normalizeUrl } from '@/lib/url';
 
 type ActiveTab = Browser.tabs.Tab & { id: number; url: string };
@@ -26,7 +25,7 @@ type ActiveTab = Browser.tabs.Tab & { id: number; url: string };
 type State =
   | { kind: 'loading' }
   | { kind: 'untrackable' }
-  | { kind: 'ready'; tab: ActiveTab; record?: ReadingRecord; folders: Folder[]; home?: HomeSettings };
+  | { kind: 'ready'; tab: ActiveTab; record?: ReadingRecord; folders: Folder[] };
 
 const viewHash = (recordId: string, index: number) => `#view=${encodeURIComponent(recordId)}&i=${index}`;
 
@@ -46,8 +45,8 @@ export function App() {
         setState({ kind: 'untrackable' });
         return;
       }
-      const [record, folders, home] = await Promise.all([findRecordForUrl(key), listFolders(), getHomeSettings()]);
-      setState({ kind: 'ready', tab: tab as ActiveTab, record, folders, home });
+      const [record, folders] = await Promise.all([findRecordForUrl(key), listFolders()]);
+      setState({ kind: 'ready', tab: tab as ActiveTab, record, folders });
     })();
   }, []);
 
@@ -69,7 +68,6 @@ export function App() {
             tab={state.tab}
             record={state.record}
             folders={state.folders}
-            home={state.home}
             onChange={(record) => setState({ ...state, record })}
           />
         ) : (
@@ -120,22 +118,19 @@ function CurrentRecord({
   tab,
   record,
   folders,
-  home,
   onChange,
 }: {
   tab: ActiveTab;
   record: ReadingRecord;
   folders: Folder[];
-  home: HomeSettings | undefined;
   onChange: (r: ReadingRecord) => void;
 }) {
   // Which of the record's URLs this page matched (a record can have several).
   const tabKey = normalizeUrl(tab.url);
   const matched = tabKey ? matchedEntry(record, tabKey) : undefined;
   const viaPrefix = matched?.matchMode === 'prefix';
-  // The record's place decides how it is read (Status or Revisit).
-  const place = record.folderId ? folders.find((f) => f.id === record.folderId) : home;
-  const revisit = place?.readMode === 'revisit';
+  // The record's folder decides how it is read (Status or Revisit); Home is always Status.
+  const revisit = !!record.folderId && folders.find((f) => f.id === record.folderId)?.readMode === 'revisit';
   async function setFolder(folderId: string) {
     const next = await updateRecord(record.id, (r) =>
       (r.folderId ?? '') === folderId ? {} : { folderId: folderId || undefined },

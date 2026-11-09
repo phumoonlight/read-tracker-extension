@@ -56,7 +56,8 @@ unique), `folderId?`, `notes?`, `images` (ids, max `MAX_IMAGES` = 3, first = cov
 `readAt?`, `otherUrls?`. Timestamps are epoch milliseconds. Current `SCHEMA_VERSION` is 5 (v5 removed "reading"; v4 added `otherUrls`; v2 added `folderId`; v3 replaced
 `hasThumbnail` with `images`, mapping an old thumbnail to image id `legacyImageId(recordId)` = `legacy-<recordId>`).
 
-Read modes (`readMode?` on `Folder` and `HomeSettings`; absent = `status`): **Status** is unread / read (an Unread | Read button group in the row's centre column).
+Read modes (`readMode?` on `Folder` only; absent = `status`. **Home is always Status**: it has no read mode,
+`getHomeSettings` / `updateHomeSettings` strip one saved by an older build, and backups ignore it): **Status** is unread / read (an Unread | Read button group in the row's centre column).
 **Revisit** is for things read again and again: cards show a press-and-hold "Update read" button (`HoldButton`, `HOLD_MS` = 1 s; `markReadNow`: status `read`, `readAt` = now)
 and "Last read …" instead of a status, the list is always least recently read first (`queryRecords` sort `revisit`
 over the `readOrder` index `[_readSort, createdAt]`, where the derived `_readSort` = `readAt ?? 0`, so never-read

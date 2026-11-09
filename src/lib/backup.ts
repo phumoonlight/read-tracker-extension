@@ -92,7 +92,7 @@ function parseHome(v: unknown): HomeSettings | undefined {
   const imageSize = parseImageSize(v.imageSize);
   return {
     ...(imageSize && imageSize !== 'medium' ? { imageSize } : {}),
-    ...parseReadMode(v.readMode),
+    // Home is always Status: a read mode from an older file is ignored.
     updatedAt: v.updatedAt,
   };
 }

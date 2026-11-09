@@ -420,7 +420,19 @@ const HOME_KEY = 'home';
 
 export async function getHomeSettings(): Promise<HomeSettings | undefined> {
   await ensureReady();
-  return withTx(META, 'readonly', (tx) => req(tx.objectStore(META).get(HOME_KEY)) as Promise<HomeSettings | undefined>);
+  const stored = await withTx(
+    META,
+    'readonly',
+    (tx) => req(tx.objectStore(META).get(HOME_KEY)) as Promise<HomeSettings | undefined>,
+  );
+  return stored && withoutReadMode(stored);
+}
+
+/** Home is always Status: drop a read mode saved by an earlier build. */
+function withoutReadMode<T extends object>(s: T): Omit<T, 'readMode'> {
+  const { readMode: _ignored, ...rest } = s as T & { readMode?: unknown };
+  void _ignored;
+  return rest;
 }
 
 /** Display settings shared by Home and folders. Defaults are stored as absent. */
@@ -434,13 +446,13 @@ function withSettings<T extends PlaceSettings>(current: T, patch: PlaceSettings)
   return next;
 }
 
-/** Change Home's settings (merged with the stored ones). */
-export async function updateHomeSettings(patch: PlaceSettings): Promise<void> {
+/** Change Home's settings (merged with the stored ones). Home has no read mode setting. */
+export async function updateHomeSettings(patch: { imageSize?: ImageSize }): Promise<void> {
   await ensureReady();
   await withTx(META, 'readwrite', async (tx) => {
     const store = tx.objectStore(META);
     const current = ((await req(store.get(HOME_KEY))) as HomeSettings | undefined) ?? { updatedAt: 0 };
-    store.put({ ...withSettings(current, patch), updatedAt: Date.now() }, HOME_KEY);
+    store.put({ ...withoutReadMode(withSettings(current, patch)), updatedAt: Date.now() }, HOME_KEY);
   });
   await notifyChanged();
 }

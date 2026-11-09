@@ -77,11 +77,10 @@ export interface BackupFile {
 }
 
 /** Settings for Home, the place for records without a folder (it has no Folder record). */
+/** Home's settings. Home always uses the Status read mode (it has no read mode setting). */
 export interface HomeSettings {
   /** Absent = 'medium'. */
   imageSize?: ImageSize;
-  /** Absent = 'status'. */
-  readMode?: ReadMode;
   updatedAt: number;
 }
 
