@@ -55,7 +55,9 @@ unique), `folderId?`, `notes?`, `images` (ids, max `MAX_IMAGES` = 3, first = cov
 `hasThumbnail` with `images`, mapping an old thumbnail to image id `legacyImageId(recordId)` = `legacy-<recordId>`).
 
 `Folder`: `id`, `name`, `imageSize?` (`small` | `medium` | `large` | `xlarge`; absent = medium), `createdAt`,
-`updatedAt`. `imageSize` applies while that folder is open (Home uses medium): grid column width and
+`updatedAt`. `imageSize` applies while that folder is open. Home has no Folder record: its size is `HomeSettings` in the `meta`
+store (key `home`, `getHomeSettings` / `setHomeImageSize`), exported as `home` in backups and merged newer-wins.
+Home can't be renamed or deleted: grid column width and
 list tile width scale with it, and at large/xlarge cards show original files instead of previews
 (`usesOriginalImages`). Set it with `setFolderImageSize`; unknown values in backups fall back to medium. Folders are flat and a record is in at most one folder;
 `folderId` absent = the record is in **Home**, the default place (there is no "All" view: the list always shows
@@ -76,7 +78,7 @@ Storage: IndexedDB database `read-tracker` (layout in `src/lib/db.ts`, no third-
   same transaction); `deleteRecord` removes a record's images. Files over 25 MB are rejected (`prepareImage`).
   DB v4 converted the old `thumbnails` store (300px WebP per record) into images `legacy-<recordId>` and dropped it;
   those few stay 300px because the originals were never kept.
-- `meta`: `schemaVersion` (record shape version).
+- `meta`: `schemaVersion` (record shape version) and `home` (`HomeSettings`).
 - `chrome.storage.local` holds only `recordsRevision`, bumped after every write. IndexedDB has no change events;
   `storage.onChanged` reaches every context and wakes the service worker, so this key is the change signal
   (`onRecordsChanged`). Builds before the IndexedDB move stored records there as `record:<id>`;

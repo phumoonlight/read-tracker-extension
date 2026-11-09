@@ -12,11 +12,14 @@ import {
   type BackupFile,
   type BackupImage,
   type Folder,
+  type HomeSettings,
   type ImageSize,
   type ReadingRecord,
 } from './types';
 
 export interface ImportPlan {
+  /** Home settings to write (the file's copy is newer), or undefined to keep the stored ones. */
+  writeHome?: HomeSettings;
   /** Folders to write (new ids, or incoming copies newer than the stored ones). */
   writeFolders: Folder[];
   /** Records to write (new ids, or incoming copies newer than the stored ones). */
@@ -57,6 +60,18 @@ function assertRecord(r: unknown, i: number): asserts r is ReadingRecord {
   if (r.folderId !== undefined && (typeof r.folderId !== 'string' || !r.folderId)) throw bad('folderId');
 }
 
+/** Unknown sizes (e.g. from a newer build) fall back to the default rather than failing the import. */
+function parseImageSize(v: unknown): ImageSize | undefined {
+  return IMAGE_SIZES.includes(v as ImageSize) ? (v as ImageSize) : undefined;
+}
+
+/** Home settings from a file; malformed values are dropped (defaults), never fatal. */
+function parseHome(v: unknown): HomeSettings | undefined {
+  if (!isObj(v) || typeof v.updatedAt !== 'number') return undefined;
+  const imageSize = parseImageSize(v.imageSize);
+  return { ...(imageSize && imageSize !== 'medium' ? { imageSize } : {}), updatedAt: v.updatedAt };
+}
+
 function parseFolder(f: unknown, i: number): Folder {
   const bad = (field: string) => new Error(`Folder #${i + 1}: missing or invalid "${field}".`);
   if (!isObj(f)) throw new Error(`Folder #${i + 1} is not an object.`);
@@ -65,8 +80,7 @@ function parseFolder(f: unknown, i: number): Folder {
   const name = cleanFolderName(f.name);
   if (!name || name.length > FOLDER_NAME_MAX) throw bad('name');
   for (const k of ['createdAt', 'updatedAt'] as const) if (typeof f[k] !== 'number') throw bad(k);
-  // Unknown sizes (e.g. from a newer build) fall back to the default rather than failing the import.
-  const imageSize = IMAGE_SIZES.includes(f.imageSize as ImageSize) ? (f.imageSize as ImageSize) : undefined;
+  const imageSize = parseImageSize(f.imageSize);
   return {
     id: f.id,
     name,
@@ -102,6 +116,7 @@ export function parseBackup(text: string): BackupFile {
     return r;
   });
   const folders = ((data.folders as unknown[] | undefined) ?? []).map(parseFolder);
+  const home = parseHome(data.home);
   const isImageData = (v: unknown): v is string => typeof v === 'string' && v.startsWith('data:image/');
   const images: BackupImage[] = [];
   if (version < 3) {
@@ -125,6 +140,7 @@ export function parseBackup(text: string): BackupFile {
     records,
     folders,
     images,
+    ...(home ? { home } : {}),
   };
 }
 
@@ -156,6 +172,7 @@ export function planImport(
   existing: ReadingRecord[],
   existingFolders: Folder[],
   backup: BackupFile,
+  existingHome?: HomeSettings,
 ): ImportPlan {
   const plan: ImportPlan = {
     writeFolders: [],
@@ -166,6 +183,9 @@ export function planImport(
     updated: 0,
     skipped: 0,
   };
+
+  // --- Home settings: newer wins, like folders.
+  if (backup.home && backup.home.updatedAt > (existingHome?.updatedAt ?? -Infinity)) plan.writeHome = backup.home;
 
   // --- folders
   const folderById = new Map(existingFolders.map((f) => [f.id, f]));
@@ -230,6 +250,19 @@ export function planImport(
   return plan;
 }
 
-export function buildBackup(records: ReadingRecord[], folders: Folder[], images: BackupImage[]): BackupFile {
-  return { format: BACKUP_FORMAT, version: SCHEMA_VERSION, exportedAt: Date.now(), records, folders, images };
+export function buildBackup(
+  records: ReadingRecord[],
+  folders: Folder[],
+  images: BackupImage[],
+  home?: HomeSettings,
+): BackupFile {
+  return {
+    format: BACKUP_FORMAT,
+    version: SCHEMA_VERSION,
+    exportedAt: Date.now(),
+    records,
+    folders,
+    images,
+    ...(home ? { home } : {}),
+  };
 }

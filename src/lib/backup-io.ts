@@ -1,11 +1,11 @@
 import { buildBackup, parseBackup, planImport, type ImportPlan } from './backup';
 import { blobToDataUrl, dataUrlToBlob, getImage, prepareImage, type StoredImage } from './images';
-import { applyImport, getAllRecords, listFolders } from './storage';
+import { applyImport, getAllRecords, getHomeSettings, listFolders } from './storage';
 import type { BackupImage } from './types';
 
 /** Collect everything (original images included) into a backup file and trigger a download. */
 export async function exportToFile(): Promise<number> {
-  const [records, folders] = await Promise.all([getAllRecords(), listFolders()]);
+  const [records, folders, home] = await Promise.all([getAllRecords(), listFolders(), getHomeSettings()]);
   const images: BackupImage[] = [];
   for (const r of records) {
     for (const id of r.images) {
@@ -13,7 +13,7 @@ export async function exportToFile(): Promise<number> {
       if (img) images.push({ id, recordId: r.id, dataUrl: await blobToDataUrl(img.blob) });
     }
   }
-  const backup = buildBackup(records, folders, images);
+  const backup = buildBackup(records, folders, images, home);
   const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -27,14 +27,14 @@ export async function exportToFile(): Promise<number> {
 /** Validate, merge and apply a backup file. All writes happen in one transaction. */
 export async function importFromFile(file: File): Promise<ImportPlan> {
   const backup = parseBackup(await file.text());
-  const [records, folders] = await Promise.all([getAllRecords(), listFolders()]);
-  const plan = planImport(records, folders, backup);
+  const [records, folders, home] = await Promise.all([getAllRecords(), listFolders(), getHomeSettings()]);
+  const plan = planImport(records, folders, backup, home);
   // Decode files and build previews first: async work is not allowed inside an IndexedDB transaction.
   const images: StoredImage[] = [];
   for (const img of plan.putImages) {
     const prepared = await prepareImage(await dataUrlToBlob(img.dataUrl));
     images.push({ ...prepared, id: img.id, recordId: img.recordId, addedAt: Date.now() });
   }
-  await applyImport(plan.writeFolders, plan.write, images, plan.deleteImages);
+  await applyImport(plan.writeFolders, plan.write, images, plan.deleteImages, plan.writeHome);
   return plan;
 }

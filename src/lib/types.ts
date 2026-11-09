@@ -65,6 +65,15 @@ export interface BackupFile {
   folders: Folder[];
   /** Original image files (schema v3+). v1/v2 files had `thumbnails` (record id -> data URL) instead. */
   images: BackupImage[];
+  /** Home's display settings; absent in older files (= defaults). */
+  home?: HomeSettings;
+}
+
+/** Settings for Home, the place for records without a folder (it has no Folder record). */
+export interface HomeSettings {
+  /** Absent = 'medium'. */
+  imageSize?: ImageSize;
+  updatedAt: number;
 }
 
 export interface BackupImage {

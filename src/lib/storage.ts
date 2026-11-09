@@ -4,7 +4,15 @@ import { isPermutation, type NewImage, type StoredImage } from './images';
 import { cleanFolderName, folderNameError, newFolder, sortFolders } from './folders';
 import { candidateKeys, chooseMatch } from './match';
 import { migrateRecord } from './migrate';
-import { MAX_IMAGES, SCHEMA_VERSION, type Folder, type ImageSize, type ReadingRecord, type ReadStatus } from './types';
+import {
+  MAX_IMAGES,
+  SCHEMA_VERSION,
+  type Folder,
+  type HomeSettings,
+  type ImageSize,
+  type ReadingRecord,
+  type ReadStatus,
+} from './types';
 
 /**
  * Records repository on IndexedDB (see db.ts for the layout).
@@ -369,9 +377,11 @@ export async function applyImport(
   records: ReadingRecord[],
   putImages: StoredImage[],
   deleteImageIds: string[],
+  home?: HomeSettings,
 ): Promise<void> {
   await ensureReady();
-  await withTx([FOLDERS, RECORDS, IMAGES], 'readwrite', async (tx) => {
+  await withTx([FOLDERS, RECORDS, IMAGES, META], 'readwrite', async (tx) => {
+    if (home) tx.objectStore(META).put(home, HOME_KEY);
     const folderStore = tx.objectStore(FOLDERS);
     for (const f of folders) folderStore.put(f);
     const images = tx.objectStore(IMAGES);
@@ -380,7 +390,27 @@ export async function applyImport(
     const store = tx.objectStore(RECORDS);
     for (const r of records) store.put(toRow(await withValidFolder(tx, r)));
   });
-  if (records.length || folders.length) await notifyChanged();
+  if (records.length || folders.length || home) await notifyChanged();
+}
+
+// ---------------------------------------------------------------------------
+// Home (records without a folder). It has no Folder record; its settings live in META.
+
+const HOME_KEY = 'home';
+
+export async function getHomeSettings(): Promise<HomeSettings | undefined> {
+  await ensureReady();
+  return withTx(META, 'readonly', (tx) => req(tx.objectStore(META).get(HOME_KEY)) as Promise<HomeSettings | undefined>);
+}
+
+/** Set how big images display in Home ('medium' is stored as absent). */
+export async function setHomeImageSize(size: ImageSize): Promise<void> {
+  await ensureReady();
+  await withTx(META, 'readwrite', async (tx) => {
+    const settings: HomeSettings = { ...(size === 'medium' ? {} : { imageSize: size }), updatedAt: Date.now() };
+    tx.objectStore(META).put(settings, HOME_KEY);
+  });
+  await notifyChanged();
 }
 
 // ---------------------------------------------------------------------------

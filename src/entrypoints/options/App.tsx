@@ -20,8 +20,10 @@ import {
   onRecordsChanged,
   putRecord,
   queryRecords,
+  getHomeSettings,
   renameFolder,
   setFolderImageSize,
+  setHomeImageSize,
   statusChange,
   updateRecord,
   type SortKey,
@@ -148,6 +150,7 @@ export function App() {
   const folders = loadedFolders ?? NO_FOLDERS;
   const [counts, setCounts] = useState<Map<string, number>>(new Map());
   const [folder, setFolder] = useStoredFolder();
+  const [homeSize, setHomeSize] = useState<ImageSize>('medium');
   const [modal, setModal] = useState<Modal>();
   const [view, setView] = useViewMode();
 
@@ -164,6 +167,7 @@ export function App() {
     void countRecords().then(setTotal);
     void listTags().then(setAllTags);
     void listFolders().then(setFolders);
+    void getHomeSettings().then((h) => setHomeSize(h?.imageSize ?? 'medium'));
     void folderCounts().then(setCounts);
   }, [revision]);
 
@@ -173,8 +177,10 @@ export function App() {
   // Home holds every record that isn't in a folder.
   const homeCount = total === undefined ? undefined : Math.max(0, total - [...counts.values()].reduce((a, b) => a + b, 0));
   const placeCount = isFolderId(activeFolder) ? (counts.get(activeFolder) ?? 0) : homeCount;
-  // The open folder's image size; Home uses the default.
-  const imageSize: ImageSize = (isFolderId(activeFolder) && folders.find((f) => f.id === activeFolder)?.imageSize) || 'medium';
+  // The open place's image size (Home's lives in its own settings).
+  const imageSize: ImageSize = isFolderId(activeFolder)
+    ? (folders.find((f) => f.id === activeFolder)?.imageSize ?? 'medium')
+    : homeSize;
 
   // If the selected tag disappears (last record with it deleted or retagged), stop filtering by it.
   const activeTag = tag && allTags.includes(tag) ? tag : '';
@@ -239,7 +245,8 @@ export function App() {
         onNew={() => setModal({ kind: 'folder-new' })}
         onRename={(f) => setModal({ kind: 'folder-rename', folder: f })}
         onDelete={(f) => setModal({ kind: 'folder-delete', folder: f, count: counts.get(f.id) ?? 0 })}
-        onImageSize={(f, size) => void setFolderImageSize(f.id, size)}
+        homeImageSize={homeSize}
+        onImageSize={(f, size) => void (f ? setFolderImageSize(f.id, size) : setHomeImageSize(size))}
       />
 
       <div className="toolbar">
@@ -671,6 +678,7 @@ function FolderBar({
   onRename,
   onDelete,
   onImageSize,
+  homeImageSize,
 }: {
   folders: Folder[];
   counts: Map<string, number>;
@@ -680,7 +688,9 @@ function FolderBar({
   onNew: () => void;
   onRename: (f: Folder) => void;
   onDelete: (f: Folder) => void;
-  onImageSize: (f: Folder, size: ImageSize) => void;
+  /** Folder, or null for Home. */
+  onImageSize: (f: Folder | null, size: ImageSize) => void;
+  homeImageSize: ImageSize;
 }) {
   const selected = folders.find((f) => f.id === value);
   const chip = (v: FolderFilter, label: string, count: number | undefined) => (
@@ -698,32 +708,39 @@ function FolderBar({
           + New folder
         </button>
       </div>
-      {selected && (
-        <div className="row">
-          <button type="button" className="btn btn-small" onClick={() => onRename(selected)}>
-            Rename folder
-          </button>
-          <button type="button" className="btn btn-small btn-ghost" onClick={() => onDelete(selected)}>
-            Delete folder
-          </button>
-          <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>
-            Image size
-          </span>
-          <div className="segmented size-picker" role="group" aria-label="Image size for this folder">
-            {IMAGE_SIZES.map((s) => (
-              <button
-                key={s}
-                type="button"
-                aria-pressed={(selected.imageSize ?? 'medium') === s}
-                onClick={() => onImageSize(selected, s)}
-                title={{ small: 'Small', medium: 'Medium (default)', large: 'Large', xlarge: 'Extra large' }[s]}
-              >
-                {IMAGE_SIZE_LABEL[s]}
-              </button>
-            ))}
-          </div>
+      {/* Home can only change its image size; folders can also be renamed and deleted. */}
+      <div className="row">
+        {selected && (
+          <>
+            <button type="button" className="btn btn-small" onClick={() => onRename(selected)}>
+              Rename folder
+            </button>
+            <button type="button" className="btn btn-small btn-ghost" onClick={() => onDelete(selected)}>
+              Delete folder
+            </button>
+          </>
+        )}
+        <span className="muted" style={{ fontSize: 12, marginLeft: selected ? 8 : 0 }}>
+          Image size
+        </span>
+        <div
+          className="segmented size-picker"
+          role="group"
+          aria-label={selected ? `Image size for ${selected.name}` : 'Image size for Home'}
+        >
+          {IMAGE_SIZES.map((s) => (
+            <button
+              key={s}
+              type="button"
+              aria-pressed={(selected ? (selected.imageSize ?? 'medium') : homeImageSize) === s}
+              onClick={() => onImageSize(selected ?? null, s)}
+              title={{ small: 'Small', medium: 'Medium (default)', large: 'Large', xlarge: 'Extra large' }[s]}
+            >
+              {IMAGE_SIZE_LABEL[s]}
+            </button>
+          ))}
         </div>
-      )}
+      </div>
     </nav>
   );
 }

@@ -114,3 +114,29 @@ describe('parseBackup with folders', () => {
     }
   });
 });
+
+describe('Home settings in backups', () => {
+  const base = () => buildBackup([], [], []);
+
+  it('round-trips the Home image size', () => {
+    const b = buildBackup([], [], [], { imageSize: 'large', updatedAt: 5 });
+    expect(parseBackup(JSON.stringify(b)).home).toEqual({ imageSize: 'large', updatedAt: 5 });
+  });
+
+  it('treats missing or malformed Home settings as absent, and drops unknown sizes', () => {
+    expect(parseBackup(JSON.stringify(base())).home).toBeUndefined();
+    expect(parseBackup(JSON.stringify({ ...base(), home: 'x' })).home).toBeUndefined();
+    expect(parseBackup(JSON.stringify({ ...base(), home: { imageSize: 'large' } })).home).toBeUndefined();
+    expect(parseBackup(JSON.stringify({ ...base(), home: { imageSize: 'huge', updatedAt: 1 } })).home).toEqual({
+      updatedAt: 1,
+    });
+  });
+
+  it('imports Home settings only when newer than the stored ones', () => {
+    const file = buildBackup([], [], [], { imageSize: 'xlarge', updatedAt: 200 });
+    expect(planImport([], [], file).writeHome).toEqual({ imageSize: 'xlarge', updatedAt: 200 });
+    expect(planImport([], [], file, { updatedAt: 100 }).writeHome).toEqual({ imageSize: 'xlarge', updatedAt: 200 });
+    expect(planImport([], [], file, { imageSize: 'small', updatedAt: 300 }).writeHome).toBeUndefined();
+    expect(planImport([], [], base(), { updatedAt: 1 }).writeHome).toBeUndefined();
+  });
+});
