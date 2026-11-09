@@ -482,8 +482,7 @@ dialog.viewer {
   display: flex;
   flex-direction: column;
 }
-.url-entry + .url-entry,
-.url-table-add {
+.url-entry + .url-entry {
   border-top: 1px solid var(--border);
 }
 .url-input-row {
@@ -520,6 +519,8 @@ dialog.viewer {
   width: 100%;
   padding: 8px;
   border: 0;
+  /* Divider from the last URL (set here: "border: 0" above would otherwise remove it). */
+  border-top: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
   text-align: left;
