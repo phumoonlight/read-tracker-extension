@@ -45,3 +45,12 @@ describe('v3 -> v4 (otherUrls)', () => {
     expect(migrateRecord({ ...r } as unknown as Record<string, unknown>, 3)).toEqual(r);
   });
 });
+
+describe('v4 -> v5 (two states)', () => {
+  it('turns "reading" into "unread" and leaves the others alone', () => {
+    const base = rec({ images: [] }) as unknown as Record<string, unknown>;
+    expect(migrateRecord({ ...base, status: 'reading' }, 4).status).toBe('unread');
+    expect(migrateRecord({ ...base, status: 'read', readAt: 5 }, 4)).toMatchObject({ status: 'read', readAt: 5 });
+    expect(migrateRecord({ ...base, status: 'unread' }, 4).status).toBe('unread');
+  });
+});

@@ -7,7 +7,6 @@ import type { ReadingRecord } from '@/lib/types';
 
 const BADGE: Record<ReadingRecord['status'], { text: string; color: string }> = {
   read: { text: '✓', color: '#1a7f37' },
-  reading: { text: '•', color: '#bf6a02' },
   unread: { text: '•', color: '#0969da' },
 };
 
@@ -30,7 +29,7 @@ export default defineBackground(() => {
       // Tab closed between the event and the update.
     });
 
-    // Series progress: remember the latest chapter visited while reading.
+    // Series progress: remember the latest chapter visited while the record isn't read yet.
     // (The record may have several URLs: what counts is that this page matched one of its series prefixes.)
     if (
       visited &&
@@ -38,11 +37,11 @@ export default defineBackground(() => {
       key &&
       match &&
       matchedEntry(match, key)?.matchMode === 'prefix' &&
-      match.status === 'reading' &&
+      match.status !== 'read' &&
       match.lastReadUrl !== url
     ) {
       await updateRecord(match.id, (r) =>
-        r.status === 'reading' && r.lastReadUrl !== url ? { lastReadUrl: url } : {},
+        r.status !== 'read' && r.lastReadUrl !== url ? { lastReadUrl: url } : {},
       );
     }
   }

@@ -3,7 +3,7 @@
 A Chrome extension for keeping a reading list on your own machine. No account, no server: everything is
 stored in the browser.
 
-- The toolbar badge shows whether the current page is in your list: **✓** read, **•** unread or reading.
+- The toolbar badge shows whether the current page is in your list: **✓** read, **•** unread.
 - Each record tracks specific pages: the badge shows when you're on one of its URLs.
 - Attach up to 3 images to each record: upload files, paste an image, screenshot the tab, or use the page's
   og:image. Images are kept at full resolution; click one to view it full size.
@@ -50,7 +50,7 @@ change.
   or deleted. Deleting a folder keeps its records (they move to Home). Move a record by choosing a folder (or
   Home) in its **Manage** dialog or in the popup. The list remembers which place you had open. Search and filters
   apply within the open place.
-- **Read mode:** **Status** (the default) is the usual unread / reading / read. **Revisit** is for things you come
+- **Read mode:** **Status** (the default) is Unread / Read, set with the button group in each row. **Revisit** is for things you come
   back to again and again: each record gets an **Update read** button (press and hold it for a second) that
   records when you last read it. The list always shows the least recently read first (never read at the top), and
   after **Update read** the record moves to the bottom to wait its turn.

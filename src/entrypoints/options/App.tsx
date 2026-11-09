@@ -4,6 +4,7 @@ import { RecordForm, newUrlRow, urlRowsFor, type RecordFormResult } from '@/comp
 import { UrlLink } from '@/components/UrlLink';
 import { ImageStrip } from '@/components/Thumbnail';
 import { HoldButton } from '@/components/HoldButton';
+import { StatusPicker } from '@/components/StatusPicker';
 import { ImagePicker } from '@/components/ImagePicker';
 import { ImageViewer } from '@/components/ImageViewer';
 import { exportToFile, importFromFile } from '@/lib/backup-io';
@@ -503,28 +504,16 @@ function Card({
           </div>
         )}
       </div>
-      {/* Update read sits in the middle column; images span the row below the text. */}
-      {revisit && <div className="card-center">{updateRead}</div>}
+      {/* Middle column: Unread / Read buttons, or Update read in Revisit places. Images span the row below. */}
+      <div className="card-center">
+        {revisit ? (
+          updateRead
+        ) : (
+          <StatusPicker value={record.status} onChange={(s) => void updateRecord(record.id, (r) => statusChange(r, s))} />
+        )}
+      </div>
       {record.images.length > 0 && <ImageStrip record={record} onOpen={onView} original={originalImages} />}
       <div className="card-actions">
-        {!revisit && (
-          <select
-            value={record.status}
-            aria-label="Status"
-            onChange={(e) => {
-              // Read the value now: the select is controlled, so by the time updateRecord's
-              // callback runs (after an IndexedDB read), React has reset it to the old status.
-              const status = e.target.value as ReadStatus;
-              void updateRecord(record.id, (r) => statusChange(r, status));
-            }}
-          >
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {STATUS_LABEL[s]}
-              </option>
-            ))}
-          </select>
-        )}
         <button type="button" className="btn btn-small" onClick={onEdit} aria-label={`Manage ${record.title}`}>
           Manage
         </button>
@@ -826,7 +815,7 @@ function PlaceDialog({
         <small className="muted">
           {(settings?.readMode ?? 'status') === 'revisit'
             ? 'Revisit: hold “Update read” on a record to record when you last read it. The least recently read come first.'
-            : 'Status: mark records unread, reading or read.'}
+            : 'Status: mark records unread or read.'}
         </small>
       </div>
 

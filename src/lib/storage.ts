@@ -33,7 +33,7 @@ const REVISION_KEY = 'recordsRevision';
 interface Row extends ReadingRecord {
   /** Lowercased title for case-insensitive title sort. */
   _title: string;
-  /** Status sort rank; the status index is walked backwards, so unread (2) comes first. */
+  /** Status sort rank; the status index is walked backwards, so unread (1) comes first. */
   _rank: number;
   /** readAt, or 0 if never read: the Revisit order (least recently read first). */
   _readSort: number;
@@ -41,7 +41,7 @@ interface Row extends ReadingRecord {
   _matchKeys: string[];
 }
 
-const RANK: Record<ReadStatus, number> = { unread: 2, reading: 1, read: 0 };
+const RANK: Record<ReadStatus, number> = { unread: 1, read: 0 };
 
 function toRow(r: ReadingRecord): Row {
   const row: Row = {

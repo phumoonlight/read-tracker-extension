@@ -157,6 +157,13 @@ describe('parseBackup (validation)', () => {
     expect(parseBackup(text).images).toEqual([img('c', 'r')]);
   });
 
+  it('imports a "reading" record from an older backup as unread, and rejects it in a current one', () => {
+    const old = JSON.stringify({ format: BACKUP_FORMAT, version: 4, records: [{ ...rec(), status: 'reading' }], images: [] });
+    expect(parseBackup(old).records[0]?.status).toBe('unread');
+    const current = JSON.stringify({ format: BACKUP_FORMAT, version: SCHEMA_VERSION, records: [{ ...rec(), status: 'reading' }], images: [] });
+    expect(() => parseBackup(current)).toThrow(/"status"/);
+  });
+
   it('validates extra URLs', () => {
     const bad = (otherUrls: unknown) =>
       JSON.stringify({ format: BACKUP_FORMAT, version: SCHEMA_VERSION, records: [{ ...rec(), otherUrls }], images: [] });

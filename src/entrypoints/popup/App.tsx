@@ -107,7 +107,7 @@ function AddPage({
           const created = createRecord({ ...v, prefix: v.matchKey });
           if ('error' in created) throw new Error(created.error);
           const record: ReadingRecord =
-            hasSeries(created) && created.status === 'reading' ? { ...created, lastReadUrl: tab.url } : created;
+            hasSeries(created) && created.status !== 'read' ? { ...created, lastReadUrl: tab.url } : created;
           await putRecord(record);
           onAdded(record);
         }}
@@ -146,8 +146,8 @@ function CurrentRecord({
   async function setStatus(status: ReadStatus) {
     const next = await updateRecord(record.id, (r) => ({
       ...statusChange(r, status),
-      // Starting a series from this page counts as visiting it.
-      ...(viaPrefix && status === 'reading' ? { lastReadUrl: tab.url } : {}),
+      // Marking a series unread from this page counts as visiting it.
+      ...(viaPrefix && status === 'unread' ? { lastReadUrl: tab.url } : {}),
     }));
     if (next) onChange(next);
   }

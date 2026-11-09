@@ -1,14 +1,14 @@
 /** Bump when the stored record shape changes, and add a step in migrate.ts. */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export type MatchMode = 'exact' | 'prefix';
-export type ReadStatus = 'unread' | 'reading' | 'read';
+/** Two states. (Schema v5 removed 'reading'; such records became 'unread'.) */
+export type ReadStatus = 'unread' | 'read';
 
-export const STATUSES: readonly ReadStatus[] = ['unread', 'reading', 'read'];
+export const STATUSES: readonly ReadStatus[] = ['unread', 'read'];
 
 export const STATUS_LABEL: Record<ReadStatus, string> = {
   unread: 'Unread',
-  reading: 'Reading',
   read: 'Read',
 };
 
@@ -21,7 +21,7 @@ export interface ReadingRecord {
   matchKey: string;
   matchMode: MatchMode;
   status: ReadStatus;
-  /** Prefix records only: the raw URL of the last matching page visited while status was "reading". */
+  /** Series (prefix) URLs only: the raw URL of the last matching page visited while not yet read. */
   lastReadUrl?: string;
   tags: string[];
   /**
@@ -87,7 +87,7 @@ export interface HomeSettings {
 
 /**
  * How a place (Home or a folder) tracks reading:
- * - 'status': unread / reading / read (the default).
+ * - 'status': unread / read (the default).
  * - 'revisit': things you come back to repeatedly. Holding "Update read" stamps readAt,
  *   and the list is always least recently read first (never read at the top).
  */

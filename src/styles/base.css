@@ -15,7 +15,6 @@
   --focus: #1f232880;
 
   --status-unread: #0969da;
-  --status-reading: #bf6a02;
   --status-read: #1a7f37;
 
   /* Thumbnail placeholder: hsl(var(--hue) <sat> <lightness>), hue set per site. */
@@ -47,7 +46,6 @@
     --focus: #ffffff99;
 
     --status-unread: #4493f8;
-    --status-reading: #d29922;
     --status-read: #3fb950;
 
     --ph-sat: 35%;
@@ -221,9 +219,6 @@ textarea {
 }
 [data-status='unread'] {
   --dot: var(--status-unread);
-}
-[data-status='reading'] {
-  --dot: var(--status-reading);
 }
 [data-status='read'] {
   --dot: var(--status-read);

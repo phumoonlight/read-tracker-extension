@@ -50,12 +50,12 @@ public/icon/             extension icons
 ## Data model
 
 `ReadingRecord` (src/lib/types.ts): `id` (crypto.randomUUID), `title`, `url` (as entered), `matchKey`,
-`matchMode` ("exact" | "prefix"), `status` ("unread" | "reading" | "read"), `lastReadUrl?`, `tags` (lowercase,
+`matchMode` ("exact" | "prefix"), `status` ("unread" | "read"; schema v5 turned "reading" into "unread"), `lastReadUrl?`, `tags` (lowercase,
 unique), `folderId?`, `notes?`, `images` (ids, max `MAX_IMAGES` = 3, first = cover), `createdAt`, `updatedAt`,
-`readAt?`, `otherUrls?`. Timestamps are epoch milliseconds. Current `SCHEMA_VERSION` is 4 (v4 added `otherUrls`; v2 added `folderId`; v3 replaced
+`readAt?`, `otherUrls?`. Timestamps are epoch milliseconds. Current `SCHEMA_VERSION` is 5 (v5 removed "reading"; v4 added `otherUrls`; v2 added `folderId`; v3 replaced
 `hasThumbnail` with `images`, mapping an old thumbnail to image id `legacyImageId(recordId)` = `legacy-<recordId>`).
 
-Read modes (`readMode?` on `Folder` and `HomeSettings`; absent = `status`): **Status** is unread / reading / read.
+Read modes (`readMode?` on `Folder` and `HomeSettings`; absent = `status`): **Status** is unread / read (an Unread | Read button group in the row's centre column).
 **Revisit** is for things read again and again: cards show a press-and-hold "Update read" button (`HoldButton`, `HOLD_MS` = 1 s; `markReadNow`: status `read`, `readAt` = now)
 and "Last read …" instead of a status, the list is always least recently read first (`queryRecords` sort `revisit`
 over the `readOrder` index `[_readSort, createdAt]`, where the derived `_readSort` = `readAt ?? 0`, so never-read
@@ -113,7 +113,7 @@ Rules:
 - `updatedAt` must change on every edit; import merge depends on it. Use `updateRecord()`, which sets it and is
   atomic (read and write in one transaction). An empty patch is a no-op.
 - Change status through `statusChange()` so `readAt` stays in step (set on read, cleared otherwise).
-- `lastReadUrl` is only meaningful for prefix records and only updated while status is "reading".
+- `lastReadUrl` is only meaningful for prefix records and only updated while the record is not read.
 
 ### Changing the schema
 
@@ -162,7 +162,7 @@ Home.
 ## Background worker
 
 Listens to `tabs.onUpdated` (url change / load complete), `tabs.onActivated` and record changes in storage, then sets
-badge text and color per tab: `✓` green = read, `•` orange = reading, `•` blue = unread, empty = not in the list.
+badge text and color per tab: `✓` green = read, `•` blue = unread, empty = not in the list.
 It keeps no copy of the list: each event is a few index lookups. MV3 workers are short-lived, so never keep state
 there that isn't in storage.
 

@@ -19,6 +19,8 @@ const MIGRATIONS: Record<number, (r: RawRecord) => RawRecord> = {
   // v4 adds optional `otherUrls`. Absent means only the main URL, so v3 records are valid.
   // (Bumped anyway so an older build refuses v4 backups instead of silently dropping URLs.)
   3: (r) => r,
+  // v5 has two states: unread / read. "reading" becomes "unread".
+  4: (r) => (r.status === 'reading' ? { ...r, status: 'unread' } : r),
 };
 
 /** Bring a stored or imported record up to SCHEMA_VERSION. Throws if `fromVersion` is newer than this build. */
