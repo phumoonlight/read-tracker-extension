@@ -483,9 +483,10 @@ dialog.viewer {
 }
 .icon-btn {
   flex-shrink: 0;
-  /* As tall as the input beside it, and square. */
+  /* Square-ish: fixed width (the input's height), height stretched to match the input. */
+  width: 40px;
+  min-height: 40px;
   align-self: stretch;
-  aspect-ratio: 1;
   display: grid;
   place-items: center;
   padding: 0;
