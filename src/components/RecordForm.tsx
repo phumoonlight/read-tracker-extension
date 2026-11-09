@@ -179,15 +179,8 @@ export function RecordForm({
         </div>
       )}
 
-      {/* Folder and tags side by side. */}
-      {(showFolder || !compact) && (
-        <div className="form-pair">
-          {showFolder && <FolderSelect folders={folders} value={v.folderId} onChange={(id) => set('folderId', id)} />}
-          {!compact && (
-            <TagInput value={v.tags} onChange={(tags) => set('tags', tags)} suggestions={tagSuggestions} />
-          )}
-        </div>
-      )}
+      {showFolder && <FolderSelect folders={folders} value={v.folderId} onChange={(id) => set('folderId', id)} />}
+      {!compact && <TagInput value={v.tags} onChange={(tags) => set('tags', tags)} suggestions={tagSuggestions} />}
       {children}
 
       {/* Notes last: they're only shown here, not on the list. */}
