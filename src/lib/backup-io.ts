@@ -9,7 +9,7 @@ import {
   parseManifest,
   parseRecordLine,
   planImport,
-  toJsonLine,
+  recordLine,
   typeForImagePath,
   type BackupCounts,
 } from './backup';
@@ -42,10 +42,10 @@ export async function exportToFile(): Promise<number> {
   const manifest = buildManifest({ records: records.length, images: files.length }, folders, home);
   const json = (v: unknown) => new Blob([JSON.stringify(v, null, 2)], { type: 'application/json' });
   // One Blob part per line: no single giant string.
-  const jsonl = (items: unknown[]) => new Blob(items.map(toJsonLine), { type: 'application/x-ndjson' });
+  const recordsFile = new Blob(records.map(recordLine), { type: 'application/x-ndjson' });
   const zip = await createZip([
     { name: BACKUP_MANIFEST, data: json(manifest) },
-    { name: BACKUP_RECORDS, data: jsonl(records) },
+    { name: BACKUP_RECORDS, data: recordsFile },
     ...files,
   ]);
   download(zip, `read-tracker-backup-${new Date().toISOString().slice(0, 10)}.zip`);

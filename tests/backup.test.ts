@@ -10,10 +10,13 @@ import {
   parseManifest,
   parseRecordLine,
   planImport,
-  toJsonLine,
+  RECORD_KEYS,
+  decodeRecord,
+  encodeRecord,
+  recordLine,
   typeForImagePath,
 } from '@/lib/backup';
-import { MAX_IMAGES, MAX_URLS, SCHEMA_VERSION, type BackupImage } from '@/lib/types';
+import { MAX_IMAGES, MAX_URLS, SCHEMA_VERSION, type BackupImage, type ReadingRecord } from '@/lib/types';
 import { rec } from './fixtures';
 
 const img = (id: string, recordId: string): BackupImage => ({ id, recordId, file: `images/${id}.webp` });
@@ -103,11 +106,13 @@ describe('planImport (merge by id)', () => {
 });
 
 describe('parseRecordLine (validation)', () => {
-  const parse = (patch: object) => parseRecordLine(JSON.stringify({ ...rec(), ...patch }), 1, SCHEMA_VERSION);
+  /** A records.jsonl line for rec() with these (possibly invalid) fields. */
+  const line = (patch: object) => JSON.stringify(encodeRecord({ ...rec(), ...patch } as ReadingRecord));
+  const parse = (patch: object) => parseRecordLine(line(patch), 1, SCHEMA_VERSION);
 
   it('accepts a valid record', () => {
     const r = rec({ id: 'a', lastReadUrl: 'https://example.com/ch-2' });
-    expect(parseRecordLine(toJsonLine(r).trim(), 1, SCHEMA_VERSION)).toEqual(r);
+    expect(parseRecordLine(recordLine(r).trim(), 1, SCHEMA_VERSION)).toEqual(r);
   });
 
   it('rejects lines that are not JSON objects, with the line number', () => {
@@ -128,7 +133,7 @@ describe('parseRecordLine (validation)', () => {
   });
 
   it('rejects non-http(s) links, naming the line', () => {
-    expect(() => parseRecordLine(JSON.stringify({ ...rec(), url: 'javascript:x' }), 9, SCHEMA_VERSION)).toThrow(
+    expect(() => parseRecordLine(line({ url: 'javascript:x' }), 9, SCHEMA_VERSION)).toThrow(
       /records\.jsonl line 9: missing or invalid "url"/,
     );
     expect(() => parse({ url: 'site.com/x' })).toThrow(/"url"/);
@@ -153,7 +158,7 @@ describe('parseRecordLine (validation)', () => {
   });
 
   it('rejects records from a newer schema', () => {
-    expect(() => parseRecordLine(JSON.stringify(rec()), 1, SCHEMA_VERSION + 1)).toThrow(/supports up to/);
+    expect(() => parseRecordLine(line({}), 1, SCHEMA_VERSION + 1)).toThrow(/supports up to/);
   });
 });
 
@@ -253,5 +258,60 @@ describe('planImport issues', () => {
     expect(planImport([], [], buildBackup([rec({ id: 'a', images: ['i'] })], [], [img('i', 'a')])).issues).toEqual([]);
     const many = Array.from({ length: 105 }, (_, i) => `issue ${i}`);
     expect(describeIssues(many)).toEqual({ shown: many.slice(0, 100), more: 5 });
+  });
+});
+
+describe('records.jsonl compact form', () => {
+  it('uses unique keys of at most 3 characters', () => {
+    const keys = Object.values(RECORD_KEYS);
+    expect(keys.every((k) => k.length <= 3)).toBe(true);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('leaves out defaults and derivable values', () => {
+    const r = rec({ id: 'a', title: 'T', url: 'https://www.x.com/a?utm_source=z', matchKey: 'x.com/a', createdAt: 1, updatedAt: 2 });
+    expect(encodeRecord(r)).toEqual({ id: 'a', ttl: 'T', sts: 'unread', ca: 1, ua: 2, url: 'https://www.x.com/a?utm_source=z' });
+  });
+
+  it('keeps values that are not derivable or not default', () => {
+    const r = rec({
+      id: 'a',
+      url: 'https://x.com/series/1',
+      matchMode: 'prefix',
+      matchKey: 'x.com/series', // a custom series prefix
+      tags: ['t'],
+      images: ['i'],
+      folderId: 'f',
+      notes: 'n',
+      status: 'read',
+      readAt: 5,
+      lastReadUrl: 'https://x.com/series/2',
+      otherUrls: [
+        { url: 'https://y.com/a', matchMode: 'exact', matchKey: 'y.com/a' },
+        { url: 'https://z.com/s/1', matchMode: 'prefix', matchKey: 'z.com/s' },
+      ],
+    });
+    const o = encodeRecord(r);
+    expect(o).toMatchObject({ mm: 'prefix', mk: 'x.com/series', tag: ['t'], img: ['i'], fid: 'f', nt: 'n', ra: 5 });
+    expect(o.ou).toEqual([{ url: 'https://y.com/a' }, { url: 'https://z.com/s/1', mm: 'prefix', mk: 'z.com/s' }]);
+    // And back, exactly.
+    expect(parseRecordLine(recordLine(r).trim(), 1, SCHEMA_VERSION)).toEqual(r);
+  });
+
+  it('round-trips the fixture and ignores unknown keys', () => {
+    const r = rec();
+    expect(parseRecordLine(recordLine(r).trim(), 1, SCHEMA_VERSION)).toEqual(r);
+    expect(decodeRecord({ ...encodeRecord(r), zzz: 1 })).toEqual(decodeRecord(encodeRecord(r)));
+  });
+
+  it('names the short key in errors', () => {
+    expect(() => parseRecordLine(JSON.stringify({ ...encodeRecord(rec()), ttl: 5 }), 4, SCHEMA_VERSION)).toThrow(
+      'records.jsonl line 4: missing or invalid "title" (key "ttl").',
+    );
+  });
+
+  it('is much shorter than the full JSON', () => {
+    const r = rec({ url: 'https://www.pinterest.com/pin/1031042908451702272/', matchKey: 'pinterest.com/pin/1031042908451702272' });
+    expect(recordLine(r).length).toBeLessThan(JSON.stringify(r).length * 0.6);
   });
 });

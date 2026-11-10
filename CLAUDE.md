@@ -136,7 +136,8 @@ Rules:
 
 1. Bump `SCHEMA_VERSION` in `src/lib/types.ts`.
 2. Add `MIGRATIONS[oldVersion] = (r) => newShape` in `src/lib/migrate.ts`.
-3. Update `assertRecord` in `src/lib/backup.ts` and the test fixture in `tests/fixtures.ts`.
+3. Update `assertRecord` and `RECORD_KEYS` (short key for records.jsonl) in `src/lib/backup.ts`, and the test
+   fixture in `tests/fixtures.ts`.
 4. If you need a new index or store, bump `DB_VERSION` in `src/lib/db.ts` and add an `if (oldVersion < N)` step
    to `upgrade()`. Never edit an existing step.
 
@@ -151,7 +152,11 @@ from `SCHEMA_VERSION`; bump it when the files in the ZIP change):
   `home`. Read first (`openBackup`), so the Backup page previews counts and rejects newer backups before reading
   records.
 - `records.jsonl`: one record per line, read as a stream (`lib/lines.ts` `readLines`), never as one string. A bad
-  line is fatal and names its line (`parseRecordLine`; nothing is written).
+  line is fatal and names its line (`parseRecordLine`; nothing is written). Lines are compact (`encodeRecord` /
+  `decodeRecord`): keys of at most 3 characters (`RECORD_KEYS`: id, ttl, url, mk, mm, sts, lru, tag, fid, nt, img,
+  ca, ua, ra, ou; `URL_KEYS` inside `ou`), and left out when absent, empty (tags, images), default (`mm` "exact") or
+  derivable (`mk` equal to `computeMatchKey(url, mm)`; restored on import). Adding a record field without a key in
+  `RECORD_KEYS` is a type error. Migrations run on the decoded (long-key) record.
 - `images/<id>.<ext>` (`imagePath`, `imageStem`): original files. There is no image list: on import each id in a
   record's `images` is looked up by file-name stem among the ZIP's entries (`imageIndex` + `imagesFromZip`; any
   extension, first record listing an id gets it).

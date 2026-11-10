@@ -1,7 +1,7 @@
 import { normalizeDomain } from './domains';
 import { cleanFolderName } from './folders';
 import { migrateRecord } from './migrate';
-import { isHttpUrl } from './records';
+import { computeMatchKey, isHttpUrl } from './records';
 import {
   BACKUP_FORMAT,
   FOLDER_NAME_MAX,
@@ -17,6 +17,7 @@ import {
   type ImageSize,
   type ReadMode,
   type ReadingRecord,
+  type UrlEntry,
 } from './types';
 
 export interface ImportPlan {
@@ -42,7 +43,8 @@ const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object
 
 /** `where` names the record in errors, e.g. "Record #3" or "records.jsonl line 3". */
 function assertRecord(r: unknown, where: string): asserts r is ReadingRecord {
-  const bad = (field: string) => new Error(`${where}: missing or invalid "${field}".`);
+  const bad = (field: keyof ReadingRecord) =>
+    new Error(`${where}: missing or invalid "${field}" (key "${RECORD_KEYS[field]}").`);
   if (!isObj(r)) throw new Error(`${where} is not an object.`);
   for (const f of ['id', 'title', 'url', 'matchKey'] as const) if (typeof r[f] !== 'string') throw bad(f);
   if (r.matchMode !== 'exact' && r.matchMode !== 'prefix') throw bad('matchMode');
@@ -138,9 +140,97 @@ function checkVersion(version: unknown): number {
   return version;
 }
 
+// ---------------------------------------------------------------------------
+// records.jsonl lines: short keys, defaults and derivable values left out.
+
+/**
+ * Key of each record field in records.jsonl (at most 3 characters). The type makes adding a
+ * ReadingRecord field without a key here a compile error.
+ */
+export const RECORD_KEYS = {
+  id: 'id',
+  title: 'ttl',
+  url: 'url',
+  matchKey: 'mk',
+  matchMode: 'mm',
+  status: 'sts',
+  lastReadUrl: 'lru',
+  tags: 'tag',
+  folderId: 'fid',
+  notes: 'nt',
+  images: 'img',
+  createdAt: 'ca',
+  updatedAt: 'ua',
+  readAt: 'ra',
+  otherUrls: 'ou',
+} as const satisfies Record<keyof ReadingRecord, string>;
+
+/** Keys inside each `ou` (otherUrls) entry. */
+export const URL_KEYS = { url: 'url', matchKey: 'mk', matchMode: 'mm' } as const satisfies Record<keyof UrlEntry, string>;
+
+/** matchKey as it would be computed from the URL; when the stored one equals it, the file leaves it out. */
+function derivedMatchKey(url: unknown, matchMode: unknown): string | undefined {
+  if (typeof url !== 'string' || (matchMode !== 'exact' && matchMode !== 'prefix')) return undefined;
+  const key = computeMatchKey(url, matchMode);
+  return typeof key === 'string' ? key : undefined;
+}
+
+/** A URL (main or extra) in the file's form: mm left out when "exact", mk when derivable. */
+function encodeUrl(url: unknown, matchMode: unknown, matchKey: unknown, out: Record<string, unknown>) {
+  out[URL_KEYS.url] = url;
+  if (matchMode !== 'exact') out[URL_KEYS.matchMode] = matchMode;
+  if (matchKey !== derivedMatchKey(url, matchMode)) out[URL_KEYS.matchKey] = matchKey;
+}
+
+function decodeUrl(o: Record<string, unknown>): Record<string, unknown> {
+  const matchMode = o[URL_KEYS.matchMode] ?? 'exact';
+  const matchKey = o[URL_KEYS.matchKey] ?? derivedMatchKey(o[URL_KEYS.url], matchMode);
+  return { url: o[URL_KEYS.url], matchMode, ...(matchKey !== undefined ? { matchKey } : {}) };
+}
+
+/**
+ * A record as one records.jsonl object: short keys (RECORD_KEYS); absent / empty optional
+ * fields, empty tags and images, matchMode "exact" and derivable matchKeys are left out.
+ */
+export function encodeRecord(r: ReadingRecord): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [field, key] of Object.entries(RECORD_KEYS) as [keyof ReadingRecord, string][]) {
+    const v = r[field];
+    if (v === undefined || field === 'url' || field === 'matchKey' || field === 'matchMode') continue;
+    if (Array.isArray(v) && v.length === 0) continue;
+    if (field === 'otherUrls' && Array.isArray(v)) {
+      out[key] = (v as UrlEntry[]).map((e) => {
+        const o: Record<string, unknown> = {};
+        encodeUrl(e.url, e.matchMode, e.matchKey, o);
+        return o;
+      });
+    } else {
+      out[key] = v;
+    }
+  }
+  // The main URL's fields use the record's own keys (url / mm / mk), same rules as extra URLs.
+  encodeUrl(r.url, r.matchMode, r.matchKey, out);
+  return out;
+}
+
+/** Inverse of encodeRecord, before validation (unknown keys are ignored). */
+export function decodeRecord(o: Record<string, unknown>): Record<string, unknown> {
+  const r: Record<string, unknown> = {};
+  for (const [field, key] of Object.entries(RECORD_KEYS)) if (o[key] !== undefined) r[field] = o[key];
+  Object.assign(r, decodeUrl(o));
+  r.tags ??= [];
+  r.images ??= [];
+  const extra = o[RECORD_KEYS.otherUrls];
+  if (Array.isArray(extra)) r.otherUrls = extra.map((e) => (isObj(e) ? decodeUrl(e) : e));
+  return r;
+}
+
+/** One records.jsonl line (newline-terminated). */
+export const recordLine = (r: ReadingRecord) => toJsonLine(encodeRecord(r));
+
 function parseRecordValue(raw: unknown, where: string, version: number): ReadingRecord {
   if (!isObj(raw)) throw new Error(`${where} is not an object.`);
-  const r = migrateRecord(raw, version);
+  const r = migrateRecord(decodeRecord(raw), version);
   assertRecord(r, where);
   return r;
 }
@@ -231,7 +321,7 @@ export function parseRecordLine(line: string, lineNo: number, version: number): 
   return parseRecordValue(raw, where, version);
 }
 
-/** One JSON value per line, newline-terminated (records.jsonl). */
+/** One JSON value per line, newline-terminated. */
 export const toJsonLine = (v: unknown) => `${JSON.stringify(v)}\n`;
 
 /** Keep the newest copy per id (a file may repeat an id). */
