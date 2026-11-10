@@ -22,7 +22,9 @@ Run `npm test` and `npm run compile` before declaring work done.
 ```
 src/
   entrypoints/
-    background.ts        service worker: badge per tab, series progress (lastReadUrl)
+    background.ts        service worker: badge per tab, series progress (lastReadUrl), link marking (registers the
+                         content script, answers its lookups)
+    link-marks.content.ts  content script (registration: 'runtime', never in the manifest): dims marked links
     popup/               toolbar popup (short): add page (title + folder chips), or read state only; links to Manage
     options/             full list page (options_ui, open_in_tab): folder bar, record list, search, filters, Manage dialog (edit + delete)
     backup/              Backup page (backup.html, linked from the list header): export / import (.zip), erase all data
@@ -37,6 +39,8 @@ src/
     migrate.ts           migrateRecord + MIGRATIONS table
     db.ts                IndexedDB open/upgrade (stores, indexes, DB_VERSION), withTx/req helpers
     storage.ts           records repository: lookups, paged queries, atomic writes, change signal
+    changes.ts           change signal key + onRecordsChanged (no IndexedDB, so the content script can use it)
+    link-marks.ts        link marking rules (linkMark, marksLinks), message type, origins (pure)
     images.ts            StoredImage, getImage/getImagePreview, prepareImage (validate + preview), sniffImageType
     tab.ts               active tab, captureVisibleTab, og:image lookup/download
     records.ts           createRecord, computeMatchKey, tag helpers
@@ -75,7 +79,17 @@ at most one folder: `createFolder` / `setFolderDomains` refuse a clash in the sa
 drops a clashing domain from incoming folders. The popup's Add form preselects `folderForUrl(folders, tab.url)`,
 else Home. Edited as chips (`TagInput` with `chipPrefix=""`, `addText=addDomainText`) in New folder / Manage folder.
 
-`Folder`: `id`, `name`, `imageSize?` (`small` | `medium` | `large` | `xlarge`; absent = medium), `readMode?`, `createdAt`,
+Link marking (`markLinks?: true` on `Folder` and `HomeSettings`; absent = off, stored only when on; carried in
+backups): links on websites to records of a place with it on get `data-read-tracker="unread|read"` and are dimmed
+(opacity .6 / .3). Revisit places mark every record `read` (`linkMark`). The content script
+(`entrypoints/link-marks.content.ts`) is registered by the background with `scripting.registerContentScripts` only
+while `marksLinks(folders, home)` and the optional host permission (`LINK_MARK_ORIGINS`, requested from the Manage
+dialog's click) are both true, and injected into open tabs when it gets registered (it runs once per page). It sends
+the page's link URLs in batches (`LINK_MARKS_MESSAGE`); the background answers with `linkMarks(urls)` (storage.ts: one
+transaction, each index tag looked up once, same match as the badge). It rescans on DOM changes (throttled) and
+asks again for everything on the change signal. The dialog warns when marking is on without the permission (e.g. after an import).
+
+`Folder`: `id`, `name`, `imageSize?` (`small` | `medium` | `large` | `xlarge`; absent = medium), `readMode?`, `markLinks?`, `createdAt`,
 `updatedAt`. `imageSize` applies while that folder is open. Home has no Folder record: its size is `HomeSettings` in the `meta`
 store (key `home`, `getHomeSettings` / `setHomeImageSize`), exported as `home` in backups and merged newer-wins.
 Home can't be renamed or deleted. In either place, the list's image tile height scales with it
@@ -212,7 +226,8 @@ current page while the popup is open), `scripting` (read og:image meta), `favico
 `chrome-extension://<id>/_favicon/?pageUrl=…`, see `faviconUrl` and `components/UrlLink.tsx`; Chrome returns a
 generic globe for sites it has no icon for).
 `optional_host_permissions: ["<all_urls>"]` is requested at runtime for a single origin, only when an og:image
-download is blocked by CORS. Don't add install-time permissions without a strong reason.
+download is blocked by CORS, or as `http://*/*` + `https://*/*` when link marking is turned on. WXT adds a runtime
+content script's `matches` to `host_permissions`, so `link-marks.content.ts` must not declare `matches`. Don't add install-time permissions without a strong reason.
 
 ## Conventions
 

@@ -56,6 +56,8 @@ export interface Folder {
    * this folder. Each domain belongs to at most one folder. Absent = none.
    */
   domains?: string[];
+  /** Dim links to this folder's records on websites (see lib/link-marks.ts). Absent = off. */
+  markLinks?: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -81,11 +83,12 @@ export interface BackupFile {
   home?: HomeSettings;
 }
 
-/** Settings for Home, the place for records without a folder (it has no Folder record). */
-/** Home's settings. Home always uses the Status read mode (it has no read mode setting). */
+/** Settings for Home, the place for records without a folder (it has no Folder record). Home always uses the Status read mode (it has no read mode setting). */
 export interface HomeSettings {
   /** Absent = 'medium'. */
   imageSize?: ImageSize;
+  /** Dim links to Home's records on websites. Absent = off. */
+  markLinks?: boolean;
   updatedAt: number;
 }
 

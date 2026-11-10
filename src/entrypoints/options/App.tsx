@@ -31,8 +31,10 @@ import {
   updateHomeSettings,
   statusChange,
   updateRecord,
+  type PlaceSettings,
   type SortKey,
 } from '@/lib/storage';
+import { hasLinkMarkAccess, requestLinkMarkAccess } from '@/lib/tab';
 import {
   FOLDER_NAME_MAX,
   IMAGE_SIZES,
@@ -45,7 +47,6 @@ import {
   type Folder,
   type HomeSettings,
   type ImageSize,
-  type ReadMode,
   type ReadingRecord,
   type ReadStatus,
 } from '@/lib/types';
@@ -418,7 +419,14 @@ export function App() {
           onSettings={(patch) => {
             // Changing mode starts from the first page of the new order.
             if (patch.readMode) setLimit(PAGE);
-            void (openFolder ? updateFolderSettings(openFolder.id, patch) : updateHomeSettings({ imageSize: patch.imageSize }));
+            if (openFolder) {
+              void updateFolderSettings(openFolder.id, patch);
+            } else {
+              // Home has no read mode. Pass only the keys that are set (an undefined key would reset it).
+              const { readMode: _ignored, ...homePatch } = patch;
+              void _ignored;
+              void updateHomeSettings(homePatch);
+            }
           }}
           onDelete={() =>
             openFolder && setModal({ kind: 'folder-delete', folder: openFolder, count: counts.get(openFolder.id) ?? 0 })
@@ -822,7 +830,7 @@ function PlaceDialog({
   onRename: (name: string) => Promise<unknown>;
   /** Save the folder's preferred domains (throws if another folder already has one). */
   onDomains: (domains: string[]) => Promise<unknown>;
-  onSettings: (patch: { imageSize?: ImageSize; readMode?: ReadMode }) => void;
+  onSettings: (patch: PlaceSettings) => void;
   onDelete: () => void;
 }) {
   const settings = folder ?? home;
@@ -831,6 +839,12 @@ function PlaceDialog({
   const [nameMsg, setNameMsg] = useState<{ text: string; error?: boolean }>();
   const [domainMsg, setDomainMsg] = useState<string>();
   const [saving, setSaving] = useState(false);
+  const [markMsg, setMarkMsg] = useState<string>();
+  /** Whether the site access link marking needs is granted (it can be on without it, e.g. after an import). */
+  const [linkAccess, setLinkAccess] = useState<boolean>();
+  useEffect(() => {
+    void hasLinkMarkAccess().then(setLinkAccess, () => setLinkAccess(false));
+  }, []);
   const nameChanged = !!folder && name.trim() !== folder.name;
 
   return (
@@ -938,6 +952,57 @@ function PlaceDialog({
           </>
         ) : (
           <small className="muted">Status: mark records unread or read. Home always uses Status.</small>
+        )}
+      </div>
+
+      <div className="field">
+        <span>Mark links on websites</span>
+        <div className="segmented size-picker" role="group" aria-label={`Mark links to ${placeName} records on websites`}>
+          {[false, true].map((on) => (
+            <button
+              key={String(on)}
+              type="button"
+              aria-pressed={!!settings?.markLinks === on}
+              onClick={async () => {
+                setMarkMsg(undefined);
+                // The permission prompt needs the click's user gesture: ask before anything else.
+                if (on) {
+                  const granted = await requestLinkMarkAccess().catch(() => false);
+                  setLinkAccess(granted);
+                  if (!granted) {
+                    setMarkMsg('Marking links needs access to websites. It stays off.');
+                    return;
+                  }
+                }
+                onSettings({ markLinks: on });
+              }}
+            >
+              {on ? 'On' : 'Off'}
+            </button>
+          ))}
+        </div>
+        {markMsg ? (
+          <span className="error">{markMsg}</span>
+        ) : settings?.markLinks && linkAccess === false ? (
+          <span className="error">
+            On, but the extension has no access to websites, so links aren't marked.{' '}
+            <button
+              type="button"
+              className="btn btn-small"
+              onClick={async () => setLinkAccess(await requestLinkMarkAccess().catch(() => false))}
+            >
+              Allow
+            </button>
+          </span>
+        ) : (
+          <small className="muted">
+            {settings?.markLinks
+              ? folder?.readMode === 'revisit'
+                ? 'Links to records here are dimmed on websites (Revisit: every record counts as read, the most dimmed).'
+                : 'Links to records here are dimmed on websites: unread a little, read more.'
+              : 'Off: websites are left as they are.'}{' '}
+            Marking reads the links on every page you open, and a site's own scripts could see which of its links are marked.
+          </small>
         )}
       </div>
 

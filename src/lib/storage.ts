@@ -1,4 +1,5 @@
 import { browser } from 'wxt/browser';
+import { REVISION_KEY } from './changes';
 import { FOLDERS, IDX, IMAGES, META, RECORDS, req, withTx } from './db';
 import { isPermutation, type NewImage, type StoredImage } from './images';
 import { domainConflictError } from './domains';
@@ -17,17 +18,18 @@ import {
   type ReadStatus,
 } from './types';
 import { newId } from './ids';
+import { linkMark, marksLinks, type LinkMark } from './link-marks';
+import { normalizeUrl } from './url';
 
 /**
  * Records repository on IndexedDB (see db.ts for the layout).
  *
  * Folders live in the same database and share the change signal.
  *
- * Every write also bumps "recordsRevision" in chrome.storage.local. IndexedDB has no
- * change events, but storage.onChanged reaches every extension context and wakes
- * the background worker, so that key is the change signal.
+ * Every write also bumps "recordsRevision" in chrome.storage.local (the change signal,
+ * see changes.ts).
  */
-const REVISION_KEY = 'recordsRevision';
+export { onRecordsChanged } from './changes';
 
 // ---------------------------------------------------------------------------
 // Row mapping: rows carry derived fields used only by indexes.
@@ -111,15 +113,6 @@ async function notifyChanged() {
   await browser.storage.local.set({ [REVISION_KEY]: `${Date.now()}-${Math.random()}` });
 }
 
-/** Calls `fn` whenever any record is added, changed or removed (in any context). Returns an unsubscribe function. */
-export function onRecordsChanged(fn: () => void): () => void {
-  const listener = (changes: Record<string, unknown>, area: string) => {
-    if (area === 'local' && REVISION_KEY in changes) fn();
-  };
-  browser.storage.onChanged.addListener(listener);
-  return () => browser.storage.onChanged.removeListener(listener);
-}
-
 // ---------------------------------------------------------------------------
 // Reads
 
@@ -151,6 +144,36 @@ export async function findRecordForUrl(normalizedUrl: string): Promise<ReadingRe
     const hits = await Promise.all(tags.map((t) => req(index.getAll(t)) as Promise<Row[]>));
     const match = chooseMatch(normalizedUrl, new Map(tags.map((t, i) => [t, hits[i] ?? []])));
     return match && fromRow(match as Row);
+  });
+}
+
+/**
+ * Link marking: for each URL (raw, as found in a page), how a link to it is marked, or null
+ * (not a record, or its place doesn't mark links). Same match as the badge; one transaction,
+ * and each index tag is looked up once however many links share it (e.g. a site's host).
+ */
+export async function linkMarks(urls: readonly string[]): Promise<(LinkMark | null)[]> {
+  await ensureReady();
+  return withTx([RECORDS, FOLDERS, META], 'readonly', async (tx) => {
+    const [folders, storedHome] = await Promise.all([
+      req(tx.objectStore(FOLDERS).getAll()) as Promise<Folder[]>,
+      req(tx.objectStore(META).get(HOME_KEY)) as Promise<HomeSettings | undefined>,
+    ]);
+    const home = storedHome && withoutReadMode(storedHome);
+    const places = new Map(folders.map((f) => [f.id, f]));
+    if (!marksLinks(folders, home)) return urls.map(() => null);
+
+    const keys = urls.map((u) => normalizeUrl(u));
+    const tags = [...new Set(keys.flatMap((k) => (k ? lookupTags(k) : [])))];
+    const index = tx.objectStore(RECORDS).index(IDX.matchKeys);
+    // index.get gives the first row per tag, the same one chooseMatch takes from getAll.
+    const hits = await Promise.all(tags.map((t) => req(index.get(t)) as Promise<Row | undefined>));
+    const byTag = new Map(tags.map((t, i) => [t, hits[i] ? [hits[i]] : []]));
+    return keys.map((k) => {
+      const match = k ? chooseMatch(k, byTag) : undefined;
+      if (!match) return null;
+      return linkMark(match, match.folderId === undefined ? home : places.get(match.folderId));
+    });
   });
 }
 
@@ -447,19 +470,20 @@ function withoutReadMode<T extends object>(s: T): Omit<T, 'readMode'> {
   return rest;
 }
 
-/** Display settings shared by Home and folders. Defaults are stored as absent. */
-type PlaceSettings = { imageSize?: ImageSize; readMode?: ReadMode };
+/** Settings shared by Home and folders. Defaults are stored as absent. */
+export type PlaceSettings = { imageSize?: ImageSize; readMode?: ReadMode; markLinks?: boolean };
 
 /** Apply a settings change, dropping fields that are back at their default. */
 function withSettings<T extends PlaceSettings>(current: T, patch: PlaceSettings): T {
   const next = { ...current, ...patch };
   if (next.imageSize === 'medium') delete next.imageSize;
   if (next.readMode === 'status') delete next.readMode;
+  if (!next.markLinks) delete next.markLinks;
   return next;
 }
 
 /** Change Home's settings (merged with the stored ones). Home has no read mode setting. */
-export async function updateHomeSettings(patch: { imageSize?: ImageSize }): Promise<void> {
+export async function updateHomeSettings(patch: Omit<PlaceSettings, 'readMode'>): Promise<void> {
   await ensureReady();
   await withTx(META, 'readwrite', async (tx) => {
     const store = tx.objectStore(META);
@@ -550,7 +574,7 @@ export async function renameFolder(id: string, name: string): Promise<void> {
   await notifyChanged();
 }
 
-/** Change a folder's display settings (image size, read mode). Defaults are stored as absent. */
+/** Change a folder's settings (image size, read mode, link marking). Defaults are stored as absent. */
 export async function updateFolderSettings(id: string, patch: PlaceSettings): Promise<void> {
   await ensureReady();
   await withTx(FOLDERS, 'readwrite', async (tx) => {

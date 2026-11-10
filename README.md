@@ -59,6 +59,10 @@ change.
   back to again and again: each record gets an **Update read** button (press and hold it for a second) that
   records when you last read it. The list always shows the least recently read first (never read at the top), and
   after **Update read** the record moves to the bottom to wait its turn.
+- **Mark links on websites** (in **Manage folder** / **Manage Home**, off by default): while on, links on any website
+  that point to records in that place are dimmed: unread a little, read more. In a Revisit folder every record counts
+  as read (the most dimmed). Turning it on the first time asks for access to all websites; the page's links are
+  matched inside the extension, but a site's own scripts could see which of its links are dimmed.
 - **Backup:** in the full list, click **Backup** (top right) to open the Backup page with **Export backup** and
   **Import backup**. The export is a `.zip` with `manifest.json` (summary, folders, settings), `records.jsonl` (one
   record per line) and an `images` folder of the original files named by image id (any unzip tool can open it).
@@ -78,7 +82,7 @@ change.
 | `activeTab` | Screenshot the page when you ask for it from the popup |
 | `scripting` | Read the page's og:image tag |
 | `favicon` | Show each site's icon next to its name, from the icons Chrome already has stored (no network requests) |
-| Optional site access | Asked for one site at a time, only if an og:image can't be downloaded otherwise |
+| Optional site access | Asked for one site at a time, only if an og:image can't be downloaded otherwise; or for all sites when you turn on **Mark links on websites** (the link script runs only while some place has it on) |
 
 ## Other scripts
 

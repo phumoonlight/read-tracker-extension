@@ -1,4 +1,5 @@
 import { browser, type Browser } from 'wxt/browser';
+import { LINK_MARK_ORIGINS } from './link-marks';
 
 export async function getActiveTab(): Promise<Browser.tabs.Tab | undefined> {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
@@ -82,4 +83,16 @@ export async function downloadImage(imageUrl: string, tabId: number): Promise<Bl
 /** Must be called from a user gesture. */
 export function requestOriginAccess(origin: string): Promise<boolean> {
   return browser.permissions.request({ origins: [`${origin}/*`] });
+}
+
+/**
+ * Access to every http(s) site, for link marking (the optional host permission). Must be
+ * called from a user gesture, before any other await.
+ */
+export function requestLinkMarkAccess(): Promise<boolean> {
+  return browser.permissions.request({ origins: LINK_MARK_ORIGINS });
+}
+
+export function hasLinkMarkAccess(): Promise<boolean> {
+  return browser.permissions.contains({ origins: LINK_MARK_ORIGINS });
 }

@@ -90,6 +90,14 @@ describe('folders in manifest.json', () => {
     expect(parse(undefined)).not.toHaveProperty('imageSize');
   });
 
+  it('keeps link marking only when on', () => {
+    const parse = (markLinks: unknown) => parseManifest(manifest({ folders: [{ ...folder('f', 'A'), markLinks }] })).folders[0];
+    expect(parse(true)?.markLinks).toBe(true);
+    expect(parse(false)).not.toHaveProperty('markLinks');
+    expect(parse('yes')).not.toHaveProperty('markLinks');
+    expect(parse(undefined)).not.toHaveProperty('markLinks');
+  });
+
   it('merges a newer folder image size like any other folder change', () => {
     const local = folder('f1', 'Art', 100);
     const plan = planImport([], [local], buildBackup([], [{ ...folder('f1', 'Art', 200), imageSize: 'large' }], []));
@@ -103,6 +111,11 @@ describe('Home settings in backups', () => {
   it('round-trips the Home image size', () => {
     const m = buildManifest({ records: 0, images: 0 }, [], { imageSize: 'large', updatedAt: 5 });
     expect(parseManifest(JSON.stringify(m)).home).toEqual({ imageSize: 'large', updatedAt: 5 });
+  });
+
+  it('round-trips Home link marking', () => {
+    const m = buildManifest({ records: 0, images: 0 }, [], { markLinks: true, updatedAt: 5 });
+    expect(parseManifest(JSON.stringify(m)).home).toEqual({ markLinks: true, updatedAt: 5 });
   });
 
   it('treats missing or malformed Home settings as absent, and drops unknown sizes', () => {

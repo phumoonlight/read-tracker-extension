@@ -97,6 +97,7 @@ function parseHome(v: unknown): HomeSettings | undefined {
   const imageSize = parseImageSize(v.imageSize);
   return {
     ...(imageSize && imageSize !== 'medium' ? { imageSize } : {}),
+    ...(v.markLinks === true ? { markLinks: true } : {}),
     // Home is always Status: a read mode from an older file is ignored.
     updatedAt: v.updatedAt,
   };
@@ -124,6 +125,7 @@ function parseFolder(f: unknown, i: number, issues?: string[]): Folder {
     ...(imageSize && imageSize !== 'medium' ? { imageSize } : {}),
     ...parseReadMode(f.readMode),
     ...(domains.length ? { domains } : {}),
+    ...(f.markLinks === true ? { markLinks: true } : {}),
     createdAt: f.createdAt as number,
     updatedAt: f.updatedAt as number,
   };
