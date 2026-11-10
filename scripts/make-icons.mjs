@@ -1,4 +1,4 @@
-// Generates public/icon/{16,32,48,128}.png (an open book with a check mark) using only Node's zlib.
+// Generates public/icon/{16,32,48,128}.png (an open book on a blue tile; read state is shown by the action badge, not the icon) using only Node's zlib.
 // Run: node scripts/make-icons.mjs
 import { deflateSync } from 'node:zlib';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -48,24 +48,13 @@ function png(size, pixel) {
   ]);
 }
 
-const BLUE = [9, 105, 218, 1], WHITE = [255, 255, 255, 1], GREEN = [26, 127, 55, 1], NONE = [0, 0, 0, 0];
+const BLUE = [9, 105, 218, 1], WHITE = [255, 255, 255, 1], NONE = [0, 0, 0, 0];
 const roundRect = (x, y, x0, y0, x1, y1, r) => {
   const cx = Math.max(x0 + r, Math.min(x, x1 - r)), cy = Math.max(y0 + r, Math.min(y, y1 - r));
   return (x - cx) ** 2 + (y - cy) ** 2 <= r * r && x >= x0 && x <= x1 && y >= y0 && y <= y1;
 };
-const distToSeg = (px, py, ax, ay, bx, by) => {
-  const t = Math.max(0, Math.min(1, ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / ((bx - ax) ** 2 + (by - ay) ** 2)));
-  return Math.hypot(px - (ax + t * (bx - ax)), py - (ay + t * (by - ay)));
-};
 
 function pixel(x, y) {
-  // check-mark badge, bottom right
-  const inBadge = (x - 0.72) ** 2 + (y - 0.72) ** 2 <= 0.25 ** 2;
-  if (inBadge) {
-    const d = Math.min(distToSeg(x, y, 0.6, 0.72, 0.69, 0.81), distToSeg(x, y, 0.69, 0.81, 0.85, 0.63));
-    return d < 0.045 ? WHITE : GREEN;
-  }
-  if ((x - 0.72) ** 2 + (y - 0.72) ** 2 <= 0.29 ** 2) return NONE; // gap ring around badge
   if (!roundRect(x, y, 0.04, 0.04, 0.96, 0.96, 0.2)) return NONE;
   // open book: two white pages
   const page = (x0, x1) => x >= x0 && x <= x1 && y >= 0.26 && y <= 0.74;
