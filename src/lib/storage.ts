@@ -504,23 +504,63 @@ export async function listFolders(): Promise<Folder[]> {
   return withTx(FOLDERS, 'readonly', async (tx) => sortFolders((await req(tx.objectStore(FOLDERS).getAll())) as Folder[]));
 }
 
-/** Number of records in each folder (from the folderId index; no record values loaded). */
-export async function folderCounts(): Promise<Map<string, number>> {
+/** Records in a place, and how many of them are unread. */
+export interface PlaceCount {
+  total: number;
+  unread: number;
+}
+
+export interface PlaceCounts {
+  /** Records without a folder. */
+  home: PlaceCount;
+  /** By folder id; a folder with no records is absent. */
+  folders: Map<string, PlaceCount>;
+}
+
+/** Walk an index's keys (no record values loaded). */
+function eachIndexKey(
+  index: IDBIndex,
+  range: IDBKeyRange | undefined,
+  fn: (key: IDBValidKey, primaryKey: IDBValidKey) => void,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const r = index.openKeyCursor(range);
+    r.onsuccess = () => {
+      const c = r.result;
+      if (!c) return resolve();
+      fn(c.key, c.primaryKey);
+      c.continue();
+    };
+    r.onerror = () => reject(r.error);
+  });
+}
+
+/**
+ * Record and unread counts of Home and every folder, from index keys only (status and
+ * folderId indexes joined on the record id; no record values loaded).
+ */
+export async function placeCounts(): Promise<PlaceCounts> {
   await ensureReady();
   return withTx(RECORDS, 'readonly', async (tx) => {
-    const counts = new Map<string, number>();
-    await new Promise<void>((resolve, reject) => {
-      const r = tx.objectStore(RECORDS).index(IDX.folderId).openKeyCursor();
-      r.onsuccess = () => {
-        const c = r.result;
-        if (!c) return resolve();
-        const id = String(c.key);
-        counts.set(id, (counts.get(id) ?? 0) + 1);
-        c.continue();
-      };
-      r.onerror = () => reject(r.error);
+    const store = tx.objectStore(RECORDS);
+    const unreadIds = new Set<IDBValidKey>();
+    // Status index keys are [_rank, updatedAt]; everything from [RANK.unread] up is unread.
+    await eachIndexKey(store.index(IDX.status), IDBKeyRange.lowerBound([RANK.unread]), (_k, id) => unreadIds.add(id));
+    const total = await req(store.count());
+    const folders = new Map<string, PlaceCount>();
+    const home: PlaceCount = { total, unread: unreadIds.size };
+    await eachIndexKey(store.index(IDX.folderId), undefined, (key, id) => {
+      const fid = String(key);
+      const c = folders.get(fid) ?? { total: 0, unread: 0 };
+      c.total++;
+      home.total--;
+      if (unreadIds.has(id)) {
+        c.unread++;
+        home.unread--;
+      }
+      folders.set(fid, c);
     });
-    return counts;
+    return { home, folders };
   });
 }
 

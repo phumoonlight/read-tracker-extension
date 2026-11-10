@@ -11,11 +11,10 @@ import { decodeFolderFilter, encodeFolderFilter } from '@/lib/folders';
 import { addDomainText } from '@/lib/domains';
 import { createRecord, formatAgo, formatDateTime, hasSeries, urlEntries } from '@/lib/records';
 import {
-  countRecords,
   createFolder,
   deleteFolder,
   deleteRecord,
-  folderCounts,
+  placeCounts,
   getRecord,
   listFolders,
   allTagCounts,
@@ -31,6 +30,8 @@ import {
   updateHomeSettings,
   statusChange,
   updateRecord,
+  type PlaceCount,
+  type PlaceCounts,
   type PlaceSettings,
   type SortKey,
 } from '@/lib/storage';
@@ -151,14 +152,14 @@ export function App() {
   const [sort, setSort] = useState<ListSort>('updated');
   const [limit, setLimit] = useState(PAGE);
   const [page, setPage] = useState<{ records: ReadingRecord[]; hasMore: boolean }>();
-  const [total, setTotal] = useState<number>();
   /** Tags used in the open place, with counts. */
   const [placeTags, setPlaceTags] = useState<[string, number][]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<ReadStatus, number>>();
   // undefined until first loaded, so a remembered folder isn't mistaken for a deleted one.
   const [loadedFolders, setFolders] = useState<Folder[]>();
   const folders = loadedFolders ?? NO_FOLDERS;
-  const [counts, setCounts] = useState<Map<string, number>>(new Map());
+  // Record / unread counts of Home and each folder; undefined until first loaded.
+  const [counts, setCounts] = useState<PlaceCounts>();
   const [folder, setFolder] = useStoredFolder();
   const [home, setHome] = useState<HomeSettings>();
   const [modal, setModal] = useState<Modal>();
@@ -174,18 +175,20 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    void countRecords().then(setTotal);
     void listFolders().then(setFolders);
     void getHomeSettings().then(setHome);
-    void folderCounts().then(setCounts);
+    void placeCounts().then(setCounts);
   }, [revision]);
 
   // If the selected folder was deleted (here or in another window), go back to Home.
   const activeFolder: FolderFilter =
     !isFolderId(folder) || loadedFolders === undefined || folders.some((f) => f.id === folder) ? folder : HOME;
-  // Home holds every record that isn't in a folder.
-  const homeCount = total === undefined ? undefined : Math.max(0, total - [...counts.values()].reduce((a, b) => a + b, 0));
-  const placeCount = isFolderId(activeFolder) ? (counts.get(activeFolder) ?? 0) : homeCount;
+  const total = counts && [...counts.folders.values()].reduce((a, c) => a + c.total, counts.home.total);
+  const placeCount = !counts
+    ? undefined
+    : isFolderId(activeFolder)
+      ? (counts.folders.get(activeFolder)?.total ?? 0)
+      : counts.home.total;
   // The open place's settings (Home's live in their own record).
   const openFolder = isFolderId(activeFolder) ? folders.find((f) => f.id === activeFolder) : undefined;
   const placeSettings = isFolderId(activeFolder) ? openFolder : home;
@@ -272,7 +275,6 @@ export function App() {
       <FolderBar
         folders={folders}
         counts={counts}
-        homeCount={homeCount}
         value={activeFolder}
         onChange={(f) => {
           // Tag filters belong to the place they were chosen in.
@@ -429,7 +431,7 @@ export function App() {
             }
           }}
           onDelete={() =>
-            openFolder && setModal({ kind: 'folder-delete', folder: openFolder, count: counts.get(openFolder.id) ?? 0 })
+            openFolder && setModal({ kind: 'folder-delete', folder: openFolder, count: counts?.folders.get(openFolder.id)?.total ?? 0 })
           }
         />
       )}
@@ -771,15 +773,13 @@ function TagFilter({
 function FolderBar({
   folders,
   counts,
-  homeCount,
   value,
   onChange,
   onNew,
   onManage,
 }: {
   folders: Folder[];
-  counts: Map<string, number>;
-  homeCount: number | undefined;
+  counts: PlaceCounts | undefined;
   value: FolderFilter;
   onChange: (v: FolderFilter) => void;
   onNew: () => void;
@@ -787,17 +787,30 @@ function FolderBar({
   onManage: () => void;
 }) {
   const selected = folders.find((f) => f.id === value);
-  const chip = (v: FolderFilter, label: string, count: number | undefined) => (
+  const NONE: PlaceCount = { total: 0, unread: 0 };
+  // Status places show "unread / read"; Revisit places (no statuses) show the record count.
+  const chip = (v: FolderFilter, label: string, count: PlaceCount | undefined, revisit: boolean) => (
     <button key={v === HOME ? 'home' : `f-${v}`} type="button" className="folder-chip" aria-pressed={value === v} onClick={() => onChange(v)}>
       {label}
-      {count !== undefined && <span className="folder-count">{count}</span>}
+      {count &&
+        (revisit ? (
+          <span className="folder-count">{count.total}</span>
+        ) : (
+          <span className="folder-count" title={`${count.unread} unread, ${count.total - count.unread} read`}>
+            {count.unread}
+            <span className="folder-count-sep">/</span>
+            {count.total - count.unread}
+          </span>
+        ))}
     </button>
   );
   return (
     <nav className="folder-bar" aria-label="Folders">
       <div className="folder-chips">
-        {chip(HOME, 'Home', homeCount)}
-        {folders.map((f) => chip(f.id, f.name, counts.get(f.id) ?? 0))}
+        {chip(HOME, 'Home', counts?.home, false)}
+        {folders.map((f) =>
+          chip(f.id, f.name, counts && (counts.folders.get(f.id) ?? NONE), f.readMode === 'revisit'),
+        )}
         {/* + New folder and Manage sit together at the right end of the row. */}
         <button type="button" className="btn btn-small btn-ghost folder-actions-start" onClick={onNew}>
           + New folder

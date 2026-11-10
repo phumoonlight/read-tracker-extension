@@ -133,7 +133,9 @@ How data is read:
 - List page: `queryRecords()` walks the sort index, filters rows as it goes (search, status, tag, folder), and stops
   after `limit` matches (60 per page, more on scroll). Cover previews load only when a card nears the viewport;
   originals load only in the viewer.
-  Folder counts come from the `folderId` index keys (`folderCounts`), not from record values.
+  Folder bar counts come from index keys only (`placeCounts`: the `status` index's unread range joined with the
+  `folderId` index on record id; Home = total minus the folders), not from record values. Status places' chips
+  show `unread/read`, Revisit folders show the record count.
 - Tag filter: a chip row under the search box (`TagFilter`) lists the tags used in the open place with counts
   (`placeStats(place)`, one pass over that place's records, also gives the status counts); several can be selected and `queryRecords({ tags })` keeps
   records that have all of them. Selection resets when switching place.
