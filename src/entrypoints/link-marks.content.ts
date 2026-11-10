@@ -31,16 +31,17 @@ export default defineContentScript({
     if (!document.getElementById(STYLE_ID)) {
       const style = document.createElement('style');
       style.id = STYLE_ID;
-      // Dimmed (opacity: unread 0.5, read 0.2, so read is the most dimmed), and the link's text glows in the badge colors
-      // (blue unread, green read). base.css tokens don't exist on web pages, so the colors are here.
-      const rule = (mark: LinkMark, opacity: number, glow: string) => {
+      // Dimmed (opacity: unread 0.5, read 0.2, so read is the most dimmed) and blurred (unread 1px,
+      // read 2px), and the link's text glows in the badge colors (blue unread, green read).
+      // base.css tokens don't exist on web pages, so the colors are here.
+      const rule = (mark: LinkMark, opacity: number, blur: number, glow: string) => {
         const a = `a[${LINK_MARK_ATTR}="${mark}"]`;
         return (
-          `${a}{opacity:${opacity}!important}` +
+          `${a}{opacity:${opacity}!important;filter:blur(${blur}px)!important}` +
           `${a},${a} *{text-shadow:0 0 3px ${glow},0 0 8px ${glow}!important}`
         );
       };
-      style.textContent = rule('unread', 0.5, '#0969da') + rule('read', 0.2, '#1a7f37');
+      style.textContent = rule('unread', 0.5, 1, '#0969da') + rule('read', 0.2, 2, '#1a7f37');
       (document.head ?? document.documentElement).append(style);
     }
 
