@@ -2,7 +2,7 @@ import type { Folder, HomeSettings, ReadingRecord } from './types';
 
 /**
  * Link marking: on websites, links to records in a place (Home or a folder) with
- * `markLinks` on are dimmed. Unread a little, read more. In a Revisit place every record
+ * `markLinks` on are dimmed and glow (unread more dimmed than read). In a Revisit place every record
  * counts as read.
  */
 export type LinkMark = 'unread' | 'read';
