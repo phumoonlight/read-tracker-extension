@@ -4,6 +4,8 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   srcDir: 'src',
   modules: ['@wxt-dev/module-react'],
+  // Zip name without the version (default is {{name}}-{{version}}-{{browser}}.zip).
+  zip: { artifactTemplate: '{{name}}-{{browser}}.zip' },
   manifest: {
     name: 'Read Tracker',
     description: 'A local-only reading list. Shows the read state of the current page.',
