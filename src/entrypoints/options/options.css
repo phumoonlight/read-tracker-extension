@@ -388,13 +388,9 @@
 .fav-toggle:focus-visible .fav-star {
   opacity: 1;
 }
+/* On = btn-primary (its hover keeps the accent background) */
 .fav-filter {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-.fav-filter[aria-pressed='true'] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-text);
 }

@@ -306,7 +306,7 @@ export function App() {
         />
         <button
           type="button"
-          className="btn fav-filter"
+          className={`btn fav-filter${favOnly ? ' btn-primary' : ''}`}
           aria-pressed={favOnly}
           onClick={() => resetting(setFavOnly)(!favOnly)}
           title={favOnly ? 'Showing favorites only; click to show all' : 'Show favorites only'}
