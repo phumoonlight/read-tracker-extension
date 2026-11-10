@@ -17,6 +17,10 @@ npm run icons        # regenerate public/icon/*.png (scripts/make-icons.mjs, Nod
 
 Run `npm test` and `npm run compile` before declaring work done.
 
+The extension is installed unpacked (not on the Chrome Web Store). `manifest.key` in `wxt.config.ts` pins its ID to
+`dbdkjjjmnbpfmfgfbmcgkmledmnmbamj` on every PC and folder; IndexedDB data lives under that ID, so never change or
+remove the key. The private key is outside the repo and isn't needed to build.
+
 ## Layout
 
 ```
