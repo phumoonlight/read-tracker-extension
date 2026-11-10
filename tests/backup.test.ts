@@ -130,6 +130,7 @@ describe('parseRecordLine (validation)', () => {
     expect(() => parse({ notes: 5 })).toThrow(/"notes"/);
     expect(() => parse({ readAt: 'yesterday' })).toThrow(/"readAt"/);
     for (const folderId of [5, '']) expect(() => parse({ folderId })).toThrow(/"folderId"/);
+    for (const favorite of [false, 1, 'yes']) expect(() => parse({ favorite })).toThrow(/"favorite"/);
   });
 
   it('rejects non-http(s) links, naming the line', () => {
@@ -285,6 +286,7 @@ describe('records.jsonl compact form', () => {
       notes: 'n',
       status: 'read',
       readAt: 5,
+      favorite: true,
       lastReadUrl: 'https://x.com/series/2',
       otherUrls: [
         { url: 'https://y.com/a', matchMode: 'exact', matchKey: 'y.com/a' },
@@ -292,7 +294,7 @@ describe('records.jsonl compact form', () => {
       ],
     });
     const o = encodeRecord(r);
-    expect(o).toMatchObject({ mm: 'prefix', mk: 'x.com/series', tag: ['t'], img: ['i'], fid: 'f', nt: 'n', ra: 5 });
+    expect(o).toMatchObject({ mm: 'prefix', mk: 'x.com/series', tag: ['t'], img: ['i'], fid: 'f', nt: 'n', ra: 5, fav: true });
     expect(o.ou).toEqual([{ url: 'https://y.com/a' }, { url: 'https://z.com/s/1', mm: 'prefix', mk: 'z.com/s' }]);
     // And back, exactly.
     expect(parseRecordLine(recordLine(r).trim(), 1, SCHEMA_VERSION)).toEqual(r);

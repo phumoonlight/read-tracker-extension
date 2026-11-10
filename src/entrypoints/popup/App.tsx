@@ -4,7 +4,7 @@ import { HoldButton } from '@/components/HoldButton';
 import { folderForUrl } from '@/lib/domains';
 import { matchedEntry } from '@/lib/match';
 import { createRecord, formatAgo, formatDateTime, hasSeries } from '@/lib/records';
-import { findRecordForUrl, listFolders, markReadNow, putRecord, statusChange, updateRecord } from '@/lib/storage';
+import { findRecordForUrl, listFolders, markReadNow, putRecord, setFavorite, statusChange, updateRecord } from '@/lib/storage';
 import { getActiveTab } from '@/lib/tab';
 import type { Folder, ReadingRecord } from '@/lib/types';
 import { displayUrl, normalizeUrl } from '@/lib/url';
@@ -167,7 +167,22 @@ function CurrentRecord({
     <>
       <div className="popup-body">
         <div className="popup-record-info">
-          <div className="current-title">{record.title}</div>
+          <div className="current-title-row">
+            <div className="current-title">{record.title}</div>
+            <button
+              type="button"
+              className="btn btn-small btn-ghost fav-toggle"
+              aria-pressed={!!record.favorite}
+              aria-label={record.favorite ? 'Remove from favorites' : 'Add to favorites'}
+              title={record.favorite ? 'Remove from favorites' : 'Add to favorites'}
+              onClick={async () => {
+                const next = await setFavorite(record.id, !record.favorite);
+                if (next) onChange(next);
+              }}
+            >
+              <span className="fav-star" aria-hidden="true">⭐</span>
+            </button>
+          </div>
           {/* Relative time ("10 min ago"); the exact date and time are in the tooltip. */}
           <div
             className="current-meta"

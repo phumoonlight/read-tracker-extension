@@ -64,6 +64,7 @@ function assertRecord(r: unknown, where: string): asserts r is ReadingRecord {
   if (r.lastReadUrl !== undefined && !isHttpUrl(r.lastReadUrl)) throw bad('lastReadUrl');
   if (r.notes !== undefined && typeof r.notes !== 'string') throw bad('notes');
   if (r.readAt !== undefined && typeof r.readAt !== 'number') throw bad('readAt');
+  if (r.favorite !== undefined && r.favorite !== true) throw bad('favorite');
   if (r.folderId !== undefined && (typeof r.folderId !== 'string' || !r.folderId)) throw bad('folderId');
   if (r.otherUrls !== undefined) {
     const ok =
@@ -165,6 +166,7 @@ export const RECORD_KEYS = {
   updatedAt: 'ua',
   readAt: 'ra',
   otherUrls: 'ou',
+  favorite: 'fav',
 } as const satisfies Record<keyof ReadingRecord, string>;
 
 /** Keys inside each `ou` (otherUrls) entry. */

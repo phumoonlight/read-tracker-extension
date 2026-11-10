@@ -41,6 +41,8 @@ export interface ReadingRecord {
   createdAt: number;
   updatedAt: number;
   readAt?: number;
+  /** Starred by the user (the list can show only these). Absent = not a favorite; never stored as false. */
+  favorite?: true;
 }
 
 /** A flat group of records. A record is in at most one folder. */

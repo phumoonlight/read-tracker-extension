@@ -69,7 +69,7 @@ public/icon/             extension icons
 `ReadingRecord` (src/lib/types.ts): `id` (`newId()` in lib/ids.ts: a cuid2; records made earlier have UUIDs, which stay. Ids are opaque strings, never parse them), `title`, `url` (as entered), `matchKey`,
 `matchMode` ("exact" | "prefix"), `status` ("unread" | "read"), `lastReadUrl?`, `tags` (lowercase,
 unique), `folderId?`, `notes?`, `images` (ids, max `MAX_IMAGES` = 3, first = cover), `createdAt`, `updatedAt`,
-`readAt?`, `otherUrls?`. Timestamps are epoch milliseconds. Current `SCHEMA_VERSION` is 1 (reset before the first
+`readAt?`, `otherUrls?`, `favorite?: true` (starred; absent = no, never stored as false; key `fav` in backups). Timestamps are epoch milliseconds. Current `SCHEMA_VERSION` is 1 (reset before the first
 release; there are no migrations yet).
 
 Read modes (`readMode?` on `Folder` only; absent = `status`. **Home is always Status**: it has no read mode,
@@ -143,6 +143,8 @@ How data is read:
 - Tag filter: a chip row under the search box (`TagFilter`) lists the tags used in the open place with counts
   (`placeStats(place)`, one pass over that place's records, also gives the status counts); several can be selected and `queryRecords({ tags })` keeps
   records that have all of them. Selection resets when switching place.
+- Favorites: a ⭐ toggle on each row (`setFavorite`) and in the popup; the toolbar's ⭐ Favorites button filters the
+  open place/tab (`queryRecords({ favorite: true })`, count from `placeStats(place).favorites`).
 - Status places show **Unread / Read tabs** (`StatusTabs`, counts from `placeStats`; default Unread) instead of a
   status filter; the list queries one status. Revisit places have no tabs. The sort menu has no status sort.
 - `getAllRecords()` is for export/import only.

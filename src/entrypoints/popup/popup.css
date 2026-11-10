@@ -121,3 +121,22 @@ body {
   flex-direction: column;
   gap: 2px;
 }
+
+.current-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.fav-star {
+  display: inline-block;
+  line-height: 1;
+}
+.fav-toggle[aria-pressed='false'] .fav-star {
+  filter: grayscale(1);
+  opacity: 0.45;
+}
+.fav-toggle:hover .fav-star,
+.fav-toggle:focus-visible .fav-star {
+  opacity: 1;
+}

@@ -25,6 +25,7 @@ import {
   getHomeSettings,
   markReadNow,
   renameFolder,
+  setFavorite,
   setFolderDomains,
   updateFolderSettings,
   updateHomeSettings,
@@ -149,12 +150,15 @@ export function App() {
   const [status, setStatus] = useState<ReadStatus>('unread');
   /** Selected tag filters (records must have all of them). */
   const [selTags, setSelTags] = useState<string[]>([]);
+  /** Show only favorites (kept when switching place, like the status tab). */
+  const [favOnly, setFavOnly] = useState(false);
   const [sort, setSort] = useState<ListSort>('updated');
   const [limit, setLimit] = useState(PAGE);
   const [page, setPage] = useState<{ records: ReadingRecord[]; hasMore: boolean }>();
   /** Tags used in the open place, with counts. */
   const [placeTags, setPlaceTags] = useState<[string, number][]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<ReadStatus, number>>();
+  const [favCounts, setFavCounts] = useState<Record<ReadStatus, number>>();
   // undefined until first loaded, so a remembered folder isn't mistaken for a deleted one.
   const [loadedFolders, setFolders] = useState<Folder[]>();
   const folders = loadedFolders ?? NO_FOLDERS;
@@ -210,6 +214,7 @@ export function App() {
       if (stale) return;
       setPlaceTags(st.tags);
       setStatusCounts(st.status);
+      setFavCounts(st.favorites);
     });
     return () => {
       stale = true;
@@ -228,7 +233,9 @@ export function App() {
   };
 
   // "N shown of M": M is the open tab's count (or the whole place in Revisit).
-  const shownOf = revisit ? placeCount : statusCounts?.[status];
+  // Favorites in the open tab (or the whole place in Revisit); with the favorites filter on, M counts only those.
+  const favCount = favCounts && (revisit ? favCounts.unread + favCounts.read : favCounts[status]);
+  const shownOf = favOnly ? favCount : revisit ? placeCount : statusCounts?.[status];
 
   // Load the first `limit` matches. Any change re-runs it; stale responses are dropped.
   useEffect(() => {
@@ -236,6 +243,7 @@ export function App() {
     void queryRecords({
       search,
       status: revisit ? undefined : status,
+      favorite: favOnly,
       tags: activeTags,
       folder: activeFolder,
       sort: revisit ? 'revisit' : sort,
@@ -246,7 +254,7 @@ export function App() {
     return () => {
       stale = true;
     };
-  }, [search, status, activeTags.join('\u0000'), activeFolder, sort, revisit, limit, revision]);
+  }, [search, status, favOnly, activeTags.join('\u0000'), activeFolder, sort, revisit, limit, revision]);
 
   // Any filter change starts again from the first page.
   function resetting<T>(set: (v: T) => void) {
@@ -296,6 +304,16 @@ export function App() {
           onChange={(e) => resetting(setQuery)(e.target.value)}
           aria-label="Search"
         />
+        <button
+          type="button"
+          className="btn fav-filter"
+          aria-pressed={favOnly}
+          onClick={() => resetting(setFavOnly)(!favOnly)}
+          title={favOnly ? 'Showing favorites only; click to show all' : 'Show favorites only'}
+        >
+          <span className="fav-star" aria-hidden="true">⭐</span> Favorites
+          {favCount !== undefined && <span className="tag-chip-count">{favCount}</span>}
+        </button>
         {/* Revisit places have a fixed order (least recently read first), so no sort menu. */}
         {!revisit && (
           <select value={sort} onChange={(e) => resetting(setSort)(e.target.value as ListSort)} aria-label="Sort">
@@ -324,6 +342,8 @@ export function App() {
             ? 'Your list is empty. Open a page and use the toolbar button to add it.'
             : search || activeTags.length > 0
               ? 'No records here match these filters.'
+              : favOnly
+                ? 'No favorites here. Star a record with ⭐ to add it.'
               : !revisit && (placeCount ?? 0) > 0
                 ? status === 'unread'
                   ? 'Nothing unread here.'
@@ -582,11 +602,29 @@ function Card({
       </div>
       {record.images.length > 0 && <ImageStrip record={record} onOpen={onView} original={originalImages} />}
       <div className="card-actions">
+        <FavoriteButton record={record} />
         <button type="button" className="btn btn-small" onClick={onEdit} aria-label={`Manage ${record.title}`}>
           Manage
         </button>
       </div>
     </article>
+  );
+}
+
+/** ⭐ toggle: bright when the record is a favorite, faded otherwise. */
+function FavoriteButton({ record }: { record: ReadingRecord }) {
+  const on = !!record.favorite;
+  return (
+    <button
+      type="button"
+      className="btn btn-small btn-ghost fav-toggle"
+      aria-pressed={on}
+      aria-label={on ? `Remove ${record.title} from favorites` : `Add ${record.title} to favorites`}
+      title={on ? 'Remove from favorites' : 'Add to favorites'}
+      onClick={() => void setFavorite(record.id, !on)}
+    >
+      <span className="fav-star" aria-hidden="true">⭐</span>
+    </button>
   );
 }
 

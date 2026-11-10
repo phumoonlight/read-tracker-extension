@@ -21,13 +21,13 @@
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(180px, 3fr) minmax(160px, 1fr);
+  grid-template-columns: minmax(180px, 3fr) auto minmax(160px, 1fr);
   gap: 8px;
 }
 
 @media (max-width: 640px) {
   .toolbar {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: auto 1fr;
   }
   .toolbar > :first-child {
     grid-column: 1 / -1;
@@ -372,4 +372,29 @@
 /* Mark read / Mark unread in a row's centre column */
 .toggle-read {
   font-weight: 700;
+}
+
+/* Favorites: the star emoji, faded and grey when off */
+.fav-star {
+  display: inline-block;
+  line-height: 1;
+}
+.fav-toggle[aria-pressed='false'] .fav-star,
+.fav-filter[aria-pressed='false'] .fav-star {
+  filter: grayscale(1);
+  opacity: 0.45;
+}
+.fav-toggle:hover .fav-star,
+.fav-toggle:focus-visible .fav-star {
+  opacity: 1;
+}
+.fav-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.fav-filter[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
 }

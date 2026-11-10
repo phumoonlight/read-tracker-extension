@@ -56,6 +56,7 @@ function toRow(r: ReadingRecord): Row {
     _matchKeys: recordMatchTags(r),
   };
   if (!row.otherUrls?.length) delete row.otherUrls;
+  if (!row.favorite) delete row.favorite;
   // Keep Home (no folder) as an absent property (not stored as undefined).
   if (row.folderId === undefined) delete row.folderId;
   return row;
@@ -207,6 +208,8 @@ export interface PlaceStats {
   tags: [string, number][];
   /** Records per status. */
   status: Record<ReadStatus, number>;
+  /** Favorites per status. */
+  favorites: Record<ReadStatus, number>;
 }
 
 /**
@@ -223,11 +226,13 @@ export async function placeStats(place: string | null): Promise<PlaceStats> {
         : ((await req(store.index(IDX.folderId).getAll(place))) as Row[]);
     const tags = new Map<string, number>();
     const status: Record<ReadStatus, number> = { unread: 0, read: 0 };
+    const favorites: Record<ReadStatus, number> = { unread: 0, read: 0 };
     for (const r of rows) {
       status[r.status] = (status[r.status] ?? 0) + 1;
+      if (r.favorite) favorites[r.status] = (favorites[r.status] ?? 0) + 1;
       for (const t of r.tags) tags.set(t, (tags.get(t) ?? 0) + 1);
     }
-    return { tags: [...tags].sort(([a], [b]) => a.localeCompare(b)), status };
+    return { tags: [...tags].sort(([a], [b]) => a.localeCompare(b)), status, favorites };
   });
 }
 
@@ -239,6 +244,8 @@ export interface RecordQuery {
   status?: ReadStatus;
   /** Records must have every one of these tags. */
   tags?: string[];
+  /** Only favorites. */
+  favorite?: boolean;
   /** undefined = every record, null = only records without a folder, string = that folder. */
   folder?: string | null;
   sort: SortKey;
@@ -263,6 +270,7 @@ export async function queryRecords(q: RecordQuery): Promise<{ records: ReadingRe
   const search = q.search?.trim().toLowerCase();
   const matches = (r: Row) =>
     (!q.status || r.status === q.status) &&
+    (!q.favorite || r.favorite === true) &&
     (!q.tags?.length || q.tags.every((t) => r.tags.includes(t))) &&
     (q.folder === undefined || (r.folderId ?? null) === q.folder) &&
     (!search ||
@@ -634,6 +642,10 @@ export const setFolderImageSize = (id: string, size: ImageSize) => updateFolderS
  */
 export const markReadNow = (id: string) =>
   updateRecord(id, () => ({ status: 'read' as const, readAt: Date.now() }));
+
+/** Star or unstar a record (absent when off). A no-op if it is already in that state. */
+export const setFavorite = (id: string, on: boolean) =>
+  updateRecord(id, (r) => (!!r.favorite === on ? {} : { favorite: on ? (true as const) : undefined }));
 
 /**
  * Delete a folder. Its records are kept and moved to Home (with updatedAt bumped,
