@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "wxt",
-    "build": "wxt build",
+    "build": "wxt build && wxt zip",
     "zip": "wxt zip",
     "compile": "tsc --noEmit",
     "test": "vitest run",
