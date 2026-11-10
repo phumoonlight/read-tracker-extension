@@ -41,7 +41,13 @@ export default defineContentScript({
           `${a},${a} *{text-shadow:0 0 3px ${glow},0 0 8px ${glow}!important}`
         );
       };
-      style.textContent = rule('unread', 0.5, 1, '#0969da') + rule('read', 0.2, 2, '#1a7f37');
+      // Hovering (or keyboard focus) shows the link sharp and fully visible again; the glow stays.
+      const marked = `a[${LINK_MARK_ATTR}]`;
+      style.textContent =
+        rule('unread', 0.5, 1, '#0969da') +
+        rule('read', 0.2, 2, '#1a7f37') +
+        `${marked}{transition:opacity .15s,filter .15s!important}` +
+        `${marked}:hover,${marked}:focus-visible{opacity:1!important;filter:none!important}`;
       (document.head ?? document.documentElement).append(style);
     }
 

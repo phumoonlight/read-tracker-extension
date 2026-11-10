@@ -61,7 +61,8 @@ change.
   after **Update read** the record moves to the bottom to wait its turn.
 - **Mark links on websites** (in **Manage folder** / **Manage Home**, off by default): while on, links on any website
   that point to records in that place are dimmed and their text glows: unread dimmed to 50% and slightly blurred with a blue
-  glow, read dimmed to 20% and blurred more with a green glow. In a Revisit folder every record counts as read. Turning it on the first time asks for access to all websites; the page's links are
+  glow, read dimmed to 20% and blurred more with a green glow. Hover over
+  a marked link to see it clearly. In a Revisit folder every record counts as read. Turning it on the first time asks for access to all websites; the page's links are
   matched inside the extension, but a site's own scripts could see which of its links are dimmed.
 - **Backup:** in the full list, click **Backup** (top right) to open the Backup page with **Export backup** and
   **Import backup**. The export is a `.zip` with `manifest.json` (summary, folders, settings), `records.jsonl` (one
