@@ -998,8 +998,8 @@ function PlaceDialog({
           <small className="muted">
             {settings?.markLinks
               ? folder?.readMode === 'revisit'
-                ? 'Links to records here are dimmed on websites (Revisit: every record counts as read, the most dimmed).'
-                : 'Links to records here are dimmed on websites: unread a little, read more.'
+                ? 'Links to records here are dimmed with a green glow on websites (Revisit: every record counts as read).'
+                : 'Links to records here are marked on websites: unread dimmed a little with a blue glow, read dimmed more with a green glow.'
               : 'Off: websites are left as they are.'}{' '}
             Marking reads the links on every page you open, and a site's own scripts could see which of its links are marked.
           </small>

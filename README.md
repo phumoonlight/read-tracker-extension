@@ -60,7 +60,8 @@ change.
   records when you last read it. The list always shows the least recently read first (never read at the top), and
   after **Update read** the record moves to the bottom to wait its turn.
 - **Mark links on websites** (in **Manage folder** / **Manage Home**, off by default): while on, links on any website
-  that point to records in that place are dimmed: unread a little, read more. In a Revisit folder every record counts
+  that point to records in that place are dimmed and their text glows: unread dimmed a little with a blue glow, read
+  dimmed more with a green glow. In a Revisit folder every record counts
   as read (the most dimmed). Turning it on the first time asks for access to all websites; the page's links are
   matched inside the extension, but a site's own scripts could see which of its links are dimmed.
 - **Backup:** in the full list, click **Backup** (top right) to open the Backup page with **Export backup** and

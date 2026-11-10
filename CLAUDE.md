@@ -81,7 +81,8 @@ else Home. Edited as chips (`TagInput` with `chipPrefix=""`, `addText=addDomainT
 
 Link marking (`markLinks?: true` on `Folder` and `HomeSettings`; absent = off, stored only when on; carried in
 backups): links on websites to records of a place with it on get `data-read-tracker="unread|read"` and are dimmed
-(opacity .6 / .3). Revisit places mark every record `read` (`linkMark`). The content script
+(opacity .6 / .3) with a text glow in the badge colors (`text-shadow`, blue unread / green read; colors are
+literals in the content script, since base.css tokens don't exist on web pages). Revisit places mark every record `read` (`linkMark`). The content script
 (`entrypoints/link-marks.content.ts`) is registered by the background with `scripting.registerContentScripts` only
 while `marksLinks(folders, home)` and the optional host permission (`LINK_MARK_ORIGINS`, requested from the Manage
 dialog's click) are both true, and injected into open tabs when it gets registered (it runs once per page). It sends
