@@ -67,7 +67,8 @@ export function App() {
       <section className="backup-section">
         <h2>Export</h2>
         <p className="muted">
-          Saves every record, folder and setting to one ZIP file, with the original image files in an{' '}
+          Saves every record, folder and setting, and the board read history, to one ZIP file, with the original
+          image files in an{' '}
           <code>images</code> folder that you can open or extract with any unzip tool.
         </p>
         <div className="row">
@@ -138,11 +139,11 @@ export function App() {
               {plural(pending.counts.records, 'record')}, {plural(pending.counts.folders, 'folder')} and{' '}
               {plural(pending.counts.images, 'image')}
             </strong>
-            .
+            {pending.counts.boardPosts ? <>, plus {plural(pending.counts.boardPosts, 'read board post')}</> : null}.
           </p>
           <p className="muted" style={{ margin: 0 }}>
-            Records and folders that exist both here and in the backup keep the most recently edited copy. Nothing is
-            deleted.
+            Records and folders that exist both here and in the backup keep the most recently edited copy. Board read
+            history is merged. Nothing is deleted.
           </p>
           <div className="dialog-actions">
             <button type="button" className="btn" disabled={busy} onClick={() => setPending(undefined)} autoFocus>
@@ -159,7 +160,9 @@ export function App() {
                   const r = await pending.run();
                   setResult(r);
                   setImportMsg({
-                    text: `Imported: ${r.added} added, ${r.updated} updated, ${r.skipped} unchanged.`,
+                    text:
+                      `Imported: ${r.added} added, ${r.updated} updated, ${r.skipped} unchanged.` +
+                      (r.boardPosts ? ` ${plural(r.boardPosts, 'board post')} marked read.` : ''),
                   });
                 } catch (err) {
                   setImportMsg({ text: `Import failed: ${err instanceof Error ? err.message : err}`, error: true });
@@ -178,7 +181,10 @@ export function App() {
 
       <section className="backup-section backup-danger">
         <h2>Erase all data</h2>
-        <p className="muted">Deletes every record, image and folder, and resets Home's settings. This can't be undone.</p>
+        <p className="muted">
+          Deletes every record, image and folder and the board read history, and resets Home's settings. This can't be
+          undone.
+        </p>
         <div className="row">
           <button
             type="button"
@@ -207,7 +213,7 @@ export function App() {
             ) : (
               'every record and folder'
             )}
-            , all their images, and Home's settings. It can't be undone, so export a backup first if you might want
+            , all their images, the board read history and Home's settings. It can't be undone, so export a backup first if you might want
             them back.
           </p>
           <div className="dialog-actions">

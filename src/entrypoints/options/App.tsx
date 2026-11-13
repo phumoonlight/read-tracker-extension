@@ -271,6 +271,9 @@ export function App() {
       <header className="page-header">
         <h1>Reading list</h1>
         <div className="row">
+          <a className="btn" href="/boards.html">
+            Boards
+          </a>
           <a className="btn" href="/backup.html">
             Backup
           </a>

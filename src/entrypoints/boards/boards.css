@@ -1,0 +1,54 @@
+.page-header p {
+  margin: 0;
+}
+
+/* On / Off next to the switch button */
+.board-state {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.board-state.is-on {
+  color: var(--status-read);
+}
+
+/* Per-board table: scrolls sideways on its own at phone width, never the page. */
+.board-table-wrap {
+  overflow-x: auto;
+}
+.board-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.board-table th,
+.board-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+.board-table th {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.board-table .n {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.board-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.floor-input {
+  width: 9em;
+  padding: 4px 8px;
+  text-align: right;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.board-preview {
+  margin: 0;
+  padding-left: 20px;
+}

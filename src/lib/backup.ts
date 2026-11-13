@@ -240,17 +240,21 @@ function parseRecordValue(raw: unknown, where: string, version: number): Reading
 }
 
 // ---------------------------------------------------------------------------
-// ZIP backup: manifest.json + records.jsonl + images/<id>.<ext>
+// ZIP backup: manifest.json + records.jsonl + images/<id>.<ext> (+ boards.json, layout 2)
 
-/** Version of the ZIP's file layout (separate from the record SCHEMA_VERSION). */
-export const BACKUP_LAYOUT = 1;
+/** Version of the ZIP's file layout (separate from the record SCHEMA_VERSION). 2 added boards.json. */
+export const BACKUP_LAYOUT = 2;
 export const BACKUP_MANIFEST = 'manifest.json';
 export const BACKUP_RECORDS = 'records.jsonl';
+/** Board read history, in Booru explorer's export format (boards.ts BoardFile). Left out when empty. */
+export const BACKUP_BOARDS = 'boards.json';
 
 export interface BackupCounts {
   records: number;
   folders: number;
   images: number;
+  /** Read board posts in boards.json (floors not counted). Absent in layout 1. */
+  boardPosts?: number;
 }
 
 /** manifest.json: read first, so an import can be checked and previewed without reading the records. */
@@ -307,7 +311,12 @@ export function parseManifest(text: string, issues: string[] = []): BackupManife
     layout,
     version,
     exportedAt: typeof data.exportedAt === 'number' ? data.exportedAt : 0,
-    counts: { records: count(c.records), folders: folders.length, images: count(c.images) },
+    counts: {
+      records: count(c.records),
+      folders: folders.length,
+      images: count(c.images),
+      ...(count(c.boardPosts) ? { boardPosts: count(c.boardPosts) } : {}),
+    },
     folders,
     ...(home ? { home } : {}),
   };

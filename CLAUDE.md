@@ -11,7 +11,8 @@ npm run dev          # WXT dev mode: opens a Chrome profile with the extension l
 npm run build        # production build -> .output/chrome-mv3/
 npm run zip          # zip for the Chrome Web Store -> .output/*.zip
 npm run compile      # tsc --noEmit
-npm test             # vitest run (tests/**/*.test.ts)
+npm test             # vitest run (tests/**/*.test.ts); on Windows run it from a `C:\` path with an upper-case drive
+                     # letter: from `c:\...` vitest loads twice and every suite fails with "reading 'config'"
 npm run icons        # regenerate public/icon/*.png (scripts/make-icons.mjs, Node only)
 ```
 
@@ -33,13 +34,17 @@ src/
     background.ts        service worker: badge per tab, series progress (lastReadUrl), link marking (registers the
                          content script, answers its lookups)
     link-marks.content.ts  content script (registration: 'runtime', never in the manifest): dims marked links
+    board-marks.content.ts content script (registration: 'runtime'): board marking (📖 dock, fade) on image boards
     popup/               toolbar popup (short): add page (title + folder chips), or read state only; links to Manage
     options/             full list page (options_ui, open_in_tab): folder bar, record list, search, filters, Manage dialog (edit + delete)
     backup/              Backup page (backup.html, linked from the list header): export / import (.zip), erase all data
                          (`wipeAllData`, one transaction; a dialog with a 3 s `HoldButton`)
+    boards/              Boards page (boards.html, linked from the list header and the 📖 dock): board marking switch,
+                         per-board table (posts, size, "read up to", clear), import of a Booru explorer .json
   components/            shared React UI (RecordForm, ImagePicker, ImageViewer, Thumbnail (cover), UrlLink, HoldButton,
                          StatusPicker, Dialog)
-  lib/                   framework-free logic (only db.ts / storage.ts / tab.ts / images.ts touch browser APIs)
+  lib/                   framework-free logic (only db.ts / storage.ts / tab.ts / images.ts / board-store.ts /
+                         board-prefs.ts / changes.ts touch browser APIs)
     types.ts             ReadingRecord, Folder, SCHEMA_VERSION, BackupFile
     folders.ts           folder name rules (folderNameError), newFolder, sortFolders
     url.ts               normalizeUrl, isTrackingParam, suggestPrefix
@@ -49,6 +54,9 @@ src/
     storage.ts           records repository: lookups, paged queries, atomic writes, change signal
     changes.ts           change signal key + onRecordsChanged (no IndexedDB, so the content script can use it)
     link-marks.ts        link marking rules (linkMark, marksLinks), message type, origins (pure)
+    boards.ts            board marking (pure): BOARDS, post ids, packed buckets, messages, prefs shape, .json format
+    board-store.ts       board read history in IndexedDB (query, mark, floor, stats, clear, import), own change signal
+    board-prefs.ts       board marking prefs in chrome.storage.local (enabled / paused / dock side)
     images.ts            StoredImage, getImage/getImagePreview, prepareImage (validate + preview), sniffImageType
     tab.ts               active tab, captureVisibleTab, og:image lookup/download
     records.ts           createRecord, computeMatchKey, tag helpers
@@ -126,9 +134,11 @@ Storage: IndexedDB database `read-tracker` (layout in `src/lib/db.ts`, no third-
   those few stay 300px because the originals were never kept.
 - `meta`: `recordVersion` (record `SCHEMA_VERSION`; pre-release builds used `schemaVersion`, numbered up to 5, which
   is dropped on startup) and `home` (`HomeSettings`).
-- `chrome.storage.local` holds only `recordsRevision`, bumped after every write. IndexedDB has no change events;
+- `boardReads` (keyPath `[site, bucket]`, DB v7) and `boardFloors` (keyPath `site`): board read history, see
+  "Board marking".
+- `chrome.storage.local` holds `recordsRevision`, bumped after every write. IndexedDB has no change events;
   `storage.onChanged` reaches every context and wakes the service worker, so this key is the change signal
-  (`onRecordsChanged`).
+  (`onRecordsChanged`). Also `boardsRevision` (board history change signal, `onBoardsChanged`) and `boardPrefs`.
 
 How data is read:
 - Badge and popup: `findRecordForUrl()` looks up `lookupTags(url)` (the exact tag `e|<url>`, then `p|<key>` for each
@@ -159,6 +169,30 @@ Rules:
 - Change status through `statusChange()` so `readAt` stays in step (set on read, cleared otherwise).
 - `lastReadUrl` is only meaningful for prefix records and only updated while the record is not read.
 
+### Board marking
+
+Merged from the "Booru explorer" extension (only its read marking; not its hover preview or save button). On
+Gelbooru, Konachan (.com/.net = one board) and pixiv (`BOARDS` in `lib/boards.ts`: host, `postId(url)`), post
+thumbnails marked read are faded. Board posts are **not records**: only post numbers are stored, per board, and they
+never appear in the list.
+- Storage (`board-store.ts`): ids grouped 65536 to a row (`[site, bucket]`), each row a sorted `Uint16Array` of
+  offsets or an 8 KB bitmap past a quarter full (`packRow`). A per-board **floor** ("read up to"): every id at or below
+  it is read without being stored; setting one prunes the ids it covers in the same transaction; ids under it can't be
+  unmarked. Writes bump `boardsRevision` (not `recordsRevision`, so link marking doesn't rescan).
+- Prefs (`boardPrefs` in chrome.storage.local, `board-prefs.ts`): `enabled` (Boards page switch), `paused` (dock's
+  "Read marking" off: nothing faded or recorded), `side` (dock dragged right). Absent = default.
+- `board-marks.content.ts` is registered by the background (`document_start`) only while `enabled` and the optional
+  host permission for `BOARD_ORIGINS` (requested by the Boards page's Turn on click) are both true, and injected into
+  open board tabs then. Turning off stops running copies (they remove the dock and attributes). It tags post links
+  that wrap an `<img>`, asks the background which ids are read (`BOARD_QUERY_MESSAGE`, batched), writes with
+  `BOARD_MARK_MESSAGE` (painted first; `markedAt` keeps an older answer from undoing a newer mark), and asks again for
+  everything on `onBoardsChanged`. Dock: hold "Mark this page read" (600 ms; skips pixiv bookmarks, read off the heart's
+  pink each time, never stored), mark the open post, marking mode (clicks mark instead of navigating; Esc leaves).
+- Toolbar badge: a board post page with no matching record shows ✓ / • from the board history while `enabled`.
+- Import: the Boards page reads Booru explorer's export (`parseBoardFile`: `{ format: "booru-explorer-reads",
+  version: 1, exported, sites: { board: [ids] }, floors }`); merge only (ids unioned, higher floor wins,
+  `importBoardReads`, one transaction). Unknown boards are reported and skipped.
+
 ### Changing the schema
 
 1. Bump `SCHEMA_VERSION` in `src/lib/types.ts`.
@@ -173,8 +207,8 @@ versions migrate on import; backups from newer versions (schema or `BACKUP_LAYOU
 
 ### Backup and images
 
-Backups are **ZIP files** (`lib/zip.ts`, own writer/reader, no dependency). Layout 1 (`BACKUP_LAYOUT`, separate
-from `SCHEMA_VERSION`; bump it when the files in the ZIP change):
+Backups are **ZIP files** (`lib/zip.ts`, own writer/reader, no dependency). Layout 2 (`BACKUP_LAYOUT`, separate
+from `SCHEMA_VERSION`; bump it when the files in the ZIP change; layout 1 had no `boards.json` and still imports):
 - `manifest.json` (`BackupManifest`): format, `layout`, record schema `version`, `exportedAt`, `counts`, `folders`,
   `home`. Read first (`openBackup`), so the Backup page previews counts and rejects newer backups before reading
   records.
@@ -184,6 +218,9 @@ from `SCHEMA_VERSION`; bump it when the files in the ZIP change):
   ca, ua, ra, ou; `URL_KEYS` inside `ou`), and left out when absent, empty (tags, images), default (`mm` "exact") or
   derivable (`mk` equal to `computeMatchKey(url, mm)`; restored on import). Adding a record field without a key in
   `RECORD_KEYS` is a type error. Migrations run on the decoded (long-key) record.
+- `boards.json` (`BACKUP_BOARDS`, left out when empty): board read history in the Booru explorer export format
+  (`buildBoardFile` / `parseBoardFile`), merged on import like the Boards page import; `counts.boardPosts` in the
+  manifest for the preview.
 - `images/<id>.<ext>` (`imagePath`, `imageStem`): original files. There is no image list: on import each id in a
   record's `images` is looked up by file-name stem among the ZIP's entries (`imageIndex` + `imagesFromZip`; any
   extension, first record listing an id gets it).
@@ -239,8 +276,10 @@ current page while the popup is open), `scripting` (read og:image meta), `favico
 `chrome-extension://<id>/_favicon/?pageUrl=…`, see `faviconUrl` and `components/UrlLink.tsx`; Chrome returns a
 generic globe for sites it has no icon for).
 `optional_host_permissions: ["<all_urls>"]` is requested at runtime for a single origin, only when an og:image
-download is blocked by CORS, or as `http://*/*` + `https://*/*` when link marking is turned on. WXT adds a runtime
-content script's `matches` to `host_permissions`, so `link-marks.content.ts` must not declare `matches`. Don't add install-time permissions without a strong reason.
+download is blocked by CORS, as `http://*/*` + `https://*/*` when link marking is turned on, or as `BOARD_ORIGINS`
+when board marking is turned on. WXT adds a runtime
+content script's `matches` to `host_permissions`, so `link-marks.content.ts` and `board-marks.content.ts` must not declare `matches` (and an entrypoint name can't be
+shared: the Boards page is `boards`, its content script `board-marks`). Don't add install-time permissions without a strong reason.
 
 ## Conventions
 

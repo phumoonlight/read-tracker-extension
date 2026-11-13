@@ -18,3 +18,15 @@ export function onRecordsChanged(fn: () => void): () => void {
   browser.storage.onChanged.addListener(listener);
   return () => browser.storage.onChanged.removeListener(listener);
 }
+
+/** Change signal for board read history (board-store.ts): its own key, so link marking doesn't rescan on every board mark. */
+export const BOARDS_REVISION_KEY = 'boardsRevision';
+
+/** Calls `fn` whenever board read history changes (in any context). Returns an unsubscribe function. */
+export function onBoardsChanged(fn: () => void): () => void {
+  const listener = (changes: Record<string, unknown>, area: string) => {
+    if (area === 'local' && BOARDS_REVISION_KEY in changes) fn();
+  };
+  browser.storage.onChanged.addListener(listener);
+  return () => browser.storage.onChanged.removeListener(listener);
+}

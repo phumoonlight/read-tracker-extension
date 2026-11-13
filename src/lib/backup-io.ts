@@ -1,4 +1,5 @@
 import {
+  BACKUP_BOARDS,
   BACKUP_MANIFEST,
   BACKUP_RECORDS,
   buildManifest,
@@ -13,6 +14,8 @@ import {
   typeForImagePath,
   type BackupCounts,
 } from './backup';
+import { getBoardReads, importBoardReads } from './board-store';
+import { boardPostCount, buildBoardFile, isEmptyBoardReads, parseBoardFile, type BoardReads } from './boards';
 import { getImage, prepareImage, type StoredImage } from './images';
 import { readLines } from './lines';
 import { applyImport, getAllRecords, getHomeSettings, listFolders } from './storage';
@@ -20,14 +23,20 @@ import type { BackupFile, ReadingRecord } from './types';
 import { createZip, looksLikeZip, readZip, readZipEntry, type ZipEntry, type ZipInput } from './zip';
 
 /**
- * Export everything to a .zip (layout 1):
+ * Export everything to a .zip (layout 2):
  *   manifest.json   format, versions, export time, counts, folders, Home settings
  *   records.jsonl   one record per line
  *   images/<id>.ext original image files (found by id on import: no separate list)
+ *   boards.json     board read history (Booru explorer's format); left out when empty
  * Returns the number of records.
  */
 export async function exportToFile(): Promise<number> {
-  const [records, folders, home] = await Promise.all([getAllRecords(), listFolders(), getHomeSettings()]);
+  const [records, folders, home, boards] = await Promise.all([
+    getAllRecords(),
+    listFolders(),
+    getHomeSettings(),
+    getBoardReads(),
+  ]);
   const files: ZipInput[] = [];
   const stems = new Set<string>();
   for (const r of records) {
@@ -39,13 +48,23 @@ export async function exportToFile(): Promise<number> {
       files.push({ name: imagePath(id, img.blob.type), data: img.blob });
     }
   }
-  const manifest = buildManifest({ records: records.length, images: files.length }, folders, home);
+  const boardPosts = boardPostCount(boards);
+  const manifest = buildManifest(
+    { records: records.length, images: files.length, ...(boardPosts ? { boardPosts } : {}) },
+    folders,
+    home,
+  );
   const json = (v: unknown) => new Blob([JSON.stringify(v, null, 2)], { type: 'application/json' });
+  // Compact: one sorted id list per board can be tens of thousands of numbers.
+  const boardsFile = isEmptyBoardReads(boards)
+    ? []
+    : [{ name: BACKUP_BOARDS, data: new Blob([JSON.stringify(buildBoardFile(boards))], { type: 'application/json' }) }];
   // One Blob part per line: no single giant string.
   const recordsFile = new Blob(records.map(recordLine), { type: 'application/x-ndjson' });
   const zip = await createZip([
     { name: BACKUP_MANIFEST, data: json(manifest) },
     { name: BACKUP_RECORDS, data: recordsFile },
+    ...boardsFile,
     ...files,
   ]);
   download(zip, `read-tracker-backup-${new Date().toISOString().slice(0, 10)}.zip`);
@@ -65,6 +84,8 @@ export interface ImportResult {
   added: number;
   updated: number;
   skipped: number;
+  /** Board posts newly marked read (from boards.json). */
+  boardPosts: number;
   /** What was dropped or changed, for the user. Empty when everything came in as is. */
   issues: string[];
 }
@@ -106,6 +127,11 @@ export async function openBackup(file: File): Promise<OpenedBackup> {
           `${BACKUP_MANIFEST} lists ${manifest.counts.records} records but ${BACKUP_RECORDS} has ${records.length}.`,
         );
       }
+      // Board history is small and parsed up front: a bad boards.json stops the import too.
+      const boardsEntry = entries.get(BACKUP_BOARDS);
+      const boards = boardsEntry
+        ? parseBoardFile(await (await readZipEntry(file, boardsEntry)).text(), issues)
+        : undefined;
       const backup: BackupFile = {
         format: manifest.format,
         version: manifest.version,
@@ -115,7 +141,7 @@ export async function openBackup(file: File): Promise<OpenedBackup> {
         images: [],
         ...(manifest.home ? { home: manifest.home } : {}),
       };
-      return mergeBackup(file, entries, backup, issues);
+      return mergeBackup(file, entries, backup, issues, boards);
     },
   };
 }
@@ -126,6 +152,7 @@ async function mergeBackup(
   entries: Map<string, ZipEntry>,
   backup: BackupFile,
   issues: string[],
+  boards?: BoardReads,
 ): Promise<ImportResult> {
   // Each record's images are found by id among the ZIP's files; an id without
   // a file is reported by planImport on its record.
@@ -156,5 +183,6 @@ async function mergeBackup(
     : plan.write;
 
   await applyImport(plan.writeFolders, write, images, plan.deleteImages, plan.writeHome);
-  return { added: plan.added, updated: plan.updated, skipped: plan.skipped, issues };
+  const boardPosts = boards && !isEmptyBoardReads(boards) ? await importBoardReads(boards) : 0;
+  return { added: plan.added, updated: plan.updated, skipped: plan.skipped, boardPosts, issues };
 }
