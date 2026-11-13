@@ -140,3 +140,46 @@ body {
 .fav-toggle:focus-visible .fav-star {
   opacity: 1;
 }
+
+/* Board marking (on image boards), above the add / record view */
+.board-panel {
+  border-bottom: 1px solid var(--border);
+}
+.board-panel-head,
+.board-panel-foot,
+.board-panel-off {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.board-panel-foot .muted,
+.board-panel-off .muted {
+  font-size: 16px;
+}
+.board-panel .link-button {
+  align-self: auto;
+  flex: none;
+}
+.board-post-state {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.board-post-state.is-unread {
+  color: var(--status-unread);
+}
+.board-post-state.is-read {
+  color: var(--status-read);
+}
+.board-pause {
+  flex: none;
+}
+.board-pause[aria-pressed='false'] {
+  color: var(--text-muted);
+}
+/* Hold to mark the page | Start marking, side by side */
+.board-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}

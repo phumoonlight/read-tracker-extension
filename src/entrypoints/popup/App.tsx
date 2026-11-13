@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { browser, type Browser } from 'wxt/browser';
 import { HoldButton } from '@/components/HoldButton';
+import { boardForHost } from '@/lib/boards';
 import { folderForUrl } from '@/lib/domains';
 import { matchedEntry } from '@/lib/match';
 import { createRecord, formatAgo, formatDateTime, hasSeries } from '@/lib/records';
@@ -8,6 +9,7 @@ import { findRecordForUrl, listFolders, markReadNow, putRecord, setFavorite, sta
 import { getActiveTab } from '@/lib/tab';
 import type { Folder, ReadingRecord } from '@/lib/types';
 import { displayUrl, normalizeUrl } from '@/lib/url';
+import { BoardPanel } from './BoardPanel';
 
 type ActiveTab = Browser.tabs.Tab & { id: number; url: string };
 
@@ -68,6 +70,7 @@ export function App() {
       {state.kind === 'untrackable' && (
         <p className="muted popup-body">This page can't be tracked (only http and https pages).</p>
       )}
+      {state.kind === 'ready' && <BoardSection tab={state.tab} />}
       {state.kind === 'ready' &&
         (state.record ? (
           <CurrentRecord
@@ -81,6 +84,12 @@ export function App() {
         ))}
     </main>
   );
+}
+
+/** Board marking controls on top, when the tab is on an image board (see BoardPanel). */
+function BoardSection({ tab }: { tab: ActiveTab }) {
+  const board = boardForHost(new URL(tab.url).hostname);
+  return board ? <BoardPanel board={board} tabId={tab.id} url={tab.url} /> : null;
 }
 
 /** Add the current page: title and folder only. It starts unread. */

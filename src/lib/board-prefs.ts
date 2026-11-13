@@ -11,13 +11,12 @@ export async function getBoardPrefs(): Promise<BoardPrefs> {
   return parseBoardPrefs(got[BOARD_PREFS_KEY]);
 }
 
-/** Merge a patch; `false` / 'left' are stored as absent. */
-export async function updateBoardPrefs(patch: { enabled?: boolean; paused?: boolean; side?: 'left' | 'right' }) {
+/** Merge a patch; `false` is stored as absent. */
+export async function updateBoardPrefs(patch: { enabled?: boolean; paused?: boolean }) {
   const cur = await getBoardPrefs();
   const next = parseBoardPrefs({
     enabled: patch.enabled ?? cur.enabled,
     paused: patch.paused ?? cur.paused,
-    side: patch.side ?? cur.side,
   });
   await browser.storage.local.set({ [BOARD_PREFS_KEY]: next });
 }

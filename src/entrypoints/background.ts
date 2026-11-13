@@ -2,7 +2,7 @@ import { browser } from 'wxt/browser';
 import { defineBackground } from 'wxt/utils/define-background';
 import { getBoardPrefs, onBoardPrefsChanged } from '@/lib/board-prefs';
 import { markBoardReads, onBoardsChanged, queryBoardReads } from '@/lib/board-store';
-import { BOARD_ORIGINS, boardPostOf, isBoardMark, isBoardQuery, isOpenBoards } from '@/lib/boards';
+import { BOARD_ORIGINS, boardPostOf, isBoardMark, isBoardQuery } from '@/lib/boards';
 import { isLinkMarksRequest, LINK_MARK_ORIGINS, marksLinks } from '@/lib/link-marks';
 import { matchedEntry } from '@/lib/match';
 import {
@@ -159,7 +159,7 @@ export default defineBackground(() => {
         ),
       );
     } else if (!wanted && registered) {
-      // Copies already running in open pages remove their dock when prefs say off.
+      // Copies already running in open pages stop (unfade, drop attributes) when prefs say off.
       await browser.scripting.unregisterContentScripts({ ids: [BOARD_SCRIPT_ID] });
     }
   }
@@ -190,12 +190,6 @@ export default defineBackground(() => {
         () => sendResponse({ changed: 0 }),
       );
       return true;
-    }
-    if (isOpenBoards(msg)) {
-      // A content script can't open extension pages itself.
-      void browser.tabs.create({ url: browser.runtime.getURL('/boards.html') });
-      // Answered so the sender's promise resolves instead of rejecting ("port closed").
-      sendResponse({});
     }
   });
 

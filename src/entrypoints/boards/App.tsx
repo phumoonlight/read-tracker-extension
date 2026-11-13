@@ -84,7 +84,7 @@ function FloorInput({ board, floor, onCommit }: { board: Board; floor: number; o
 type FloorChange = { board: Board; floor: number; previous: number; covered: number };
 
 /**
- * Boards page (boards.html, opened from the list page header and from the 📖 dock on a
+ * Boards page (boards.html, opened from the list page header and from the popup on a
  * board): turn board marking on or off, see and trim what is stored per board, and import
  * a Booru explorer export.
  */
@@ -130,7 +130,7 @@ export function App() {
       return;
     }
     await updateBoardPrefs({ enabled: true });
-    setSwitchMsg({ text: 'Board marking is on. Open boards get the 📖 dock now.' });
+    setSwitchMsg({ text: 'Board marking is on. Its controls are in the toolbar popup on board pages.' });
   }
 
   async function commitFloor(board: Board, floor: number, previous: number) {
@@ -155,9 +155,10 @@ export function App() {
       <section className="backup-section">
         <h2>Board marking</h2>
         <p className="muted">
-          Adds a 📖 button at the bottom of board pages: hold <strong>Mark this page read</strong> to mark every post
-          in the listing (pixiv bookmarks are left alone), mark the open post, or <strong>Start marking</strong> to
-          mark thumbnails by clicking them. The toolbar badge shows ✓ on a read post's page.
+          On a board page, the toolbar popup shows the board controls on top: mark the open post, hold{' '}
+          <strong>Mark this page read</strong> to mark every post in the listing (pixiv bookmarks are left alone), or{' '}
+          <strong>Start marking</strong> to mark thumbnails by clicking them. The toolbar badge shows ✓ on a read
+          post's page.
         </p>
         {prefs && (
           <div className="row">
@@ -180,7 +181,7 @@ export function App() {
             )}
             {enabled && prefs.paused && (
               <button type="button" className="btn" onClick={() => void updateBoardPrefs({ paused: false })}>
-                Resume (paused from the dock)
+                Resume (paused from the popup)
               </button>
             )}
           </div>

@@ -202,7 +202,6 @@ export function groupByBucket(ids: Iterable<number>): Map<number, number[]> {
 
 export const BOARD_QUERY_MESSAGE = 'read-tracker:board-query';
 export const BOARD_MARK_MESSAGE = 'read-tracker:board-mark';
-export const OPEN_BOARDS_MESSAGE = 'read-tracker:open-boards';
 /** Most ids per message (the content script sends larger pages in chunks). */
 export const BOARD_BATCH = 1000;
 
@@ -231,22 +230,47 @@ function isIdsMessage(m: unknown, type: string): m is { site: BoardKey; ids: num
 export const isBoardQuery = (m: unknown): m is BoardQueryRequest => isIdsMessage(m, BOARD_QUERY_MESSAGE);
 export const isBoardMark = (m: unknown): m is BoardMarkRequest =>
   isIdsMessage(m, BOARD_MARK_MESSAGE) && typeof (m as { read?: unknown }).read === 'boolean';
-export const isOpenBoards = (m: unknown): boolean =>
-  typeof m === 'object' && m !== null && (m as { type?: unknown }).type === OPEN_BOARDS_MESSAGE;
+
+/**
+ * Popup -> content script of the active tab (tabs.sendMessage): what is on the page, mark
+ * the whole page, or start / stop marking mode. Every request is answered with BoardPageInfo.
+ */
+export const BOARD_PAGE_MESSAGE = 'read-tracker:board-page';
+
+export type BoardPageRequest =
+  | { type: typeof BOARD_PAGE_MESSAGE; action: 'info' }
+  | { type: typeof BOARD_PAGE_MESSAGE; action: 'mark-page' }
+  | { type: typeof BOARD_PAGE_MESSAGE; action: 'marking'; on: boolean };
+
+export interface BoardPageInfo {
+  /** Post thumbnails on the page (distinct posts). */
+  posts: number;
+  /** How many of them are read. */
+  read: number;
+  /** How many are bookmarked on the board (pixiv), which "Mark this page read" skips. */
+  kept: number;
+  /** Marking mode is on (clicking thumbnails marks them). */
+  marking: boolean;
+}
+
+export function isBoardPageRequest(m: unknown): m is BoardPageRequest {
+  if (typeof m !== 'object' || m === null) return false;
+  const o = m as Record<string, unknown>;
+  if (o.type !== BOARD_PAGE_MESSAGE) return false;
+  return o.action === 'info' || o.action === 'mark-page' || (o.action === 'marking' && typeof o.on === 'boolean');
+}
 
 // ---------------------------------------------------------------------------
 // Preferences (chrome.storage.local, so the content script reads them without IndexedDB
-// and hears changes): whether board marking is on at all, paused in the page, dock side.
+// and hears changes): whether board marking is on at all, and paused from the popup.
 
 export const BOARD_PREFS_KEY = 'boardPrefs';
 
 export interface BoardPrefs {
   /** The content script is registered (with the host permission). Absent = off. */
   enabled?: true;
-  /** "Read marking" switched off from the dock: nothing fades, nothing is recorded. */
+  /** "Read marking" switched off in the popup: nothing fades, nothing is recorded. */
   paused?: true;
-  /** Which side of the page the dock sits on. Absent = left. */
-  side?: 'right';
 }
 
 export function parseBoardPrefs(v: unknown): BoardPrefs {
@@ -254,7 +278,6 @@ export function parseBoardPrefs(v: unknown): BoardPrefs {
   return {
     ...(o.enabled === true ? { enabled: true } : {}),
     ...(o.paused === true ? { paused: true } : {}),
-    ...(o.side === 'right' ? { side: 'right' } : {}),
   };
 }
 

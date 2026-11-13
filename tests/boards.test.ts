@@ -5,6 +5,7 @@ import {
   BOARD_FILE_FORMAT,
   BOARD_MARK_MESSAGE,
   BOARD_ORIGINS,
+  BOARD_PAGE_MESSAGE,
   BOARD_QUERY_MESSAGE,
   boardByKey,
   boardPostCount,
@@ -13,6 +14,7 @@ import {
   buildBoardFile,
   groupByBucket,
   isBoardMark,
+  isBoardPageRequest,
   isBoardQuery,
   isEmptyBoardReads,
   packRow,
@@ -117,6 +119,15 @@ describe('messages', () => {
     expect(isBoardMark({ type: BOARD_MARK_MESSAGE, site: 'konachan', ids: [5] })).toBe(false);
     expect(isBoardMark(null)).toBe(false);
   });
+
+  it('accepts popup page requests', () => {
+    expect(isBoardPageRequest({ type: BOARD_PAGE_MESSAGE, action: 'info' })).toBe(true);
+    expect(isBoardPageRequest({ type: BOARD_PAGE_MESSAGE, action: 'mark-page' })).toBe(true);
+    expect(isBoardPageRequest({ type: BOARD_PAGE_MESSAGE, action: 'marking', on: true })).toBe(true);
+    expect(isBoardPageRequest({ type: BOARD_PAGE_MESSAGE, action: 'marking' })).toBe(false);
+    expect(isBoardPageRequest({ type: BOARD_PAGE_MESSAGE, action: 'delete' })).toBe(false);
+    expect(isBoardPageRequest({ type: BOARD_QUERY_MESSAGE, action: 'info' })).toBe(false);
+  });
 });
 
 describe('Booru explorer files', () => {
@@ -168,8 +179,9 @@ describe('Booru explorer files', () => {
 describe('prefs and bookmark colour', () => {
   it('stores only what differs from the defaults', () => {
     expect(parseBoardPrefs(undefined)).toEqual({});
-    expect(parseBoardPrefs({ enabled: true, paused: false, side: 'left' })).toEqual({ enabled: true });
-    expect(parseBoardPrefs({ paused: true, side: 'right', junk: 1 })).toEqual({ paused: true, side: 'right' });
+    expect(parseBoardPrefs({ enabled: true, paused: false })).toEqual({ enabled: true });
+    // `side` was the dock's position (the dock is gone); old stored values are dropped.
+    expect(parseBoardPrefs({ paused: true, side: 'right', junk: 1 })).toEqual({ paused: true });
   });
 
   it("recognises pixiv's heart pink, not white, grey or black", () => {

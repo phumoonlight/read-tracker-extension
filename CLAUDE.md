@@ -34,12 +34,13 @@ src/
     background.ts        service worker: badge per tab, series progress (lastReadUrl), link marking (registers the
                          content script, answers its lookups)
     link-marks.content.ts  content script (registration: 'runtime', never in the manifest): dims marked links
-    board-marks.content.ts content script (registration: 'runtime'): board marking (📖 dock, fade) on image boards
-    popup/               toolbar popup (short): add page (title + folder chips), or read state only; links to Manage
+    board-marks.content.ts content script (registration: 'runtime'): board marking (fade, marking mode) on image boards
+    popup/               toolbar popup (short): add page (title + folder chips), or read state only; links to Manage.
+                         On a board page, board marking controls on top (BoardPanel.tsx)
     options/             full list page (options_ui, open_in_tab): folder bar, record list, search, filters, Manage dialog (edit + delete)
     backup/              Backup page (backup.html, linked from the list header): export / import (.zip), erase all data
                          (`wipeAllData`, one transaction; a dialog with a 3 s `HoldButton`)
-    boards/              Boards page (boards.html, linked from the list header and the 📖 dock): board marking switch,
+    boards/              Boards page (boards.html, linked from the list header and the popup): board marking switch,
                          per-board table (posts, size, "read up to", clear), import of a Booru explorer .json
   components/            shared React UI (RecordForm, ImagePicker, ImageViewer, Thumbnail (cover), UrlLink, HoldButton,
                          StatusPicker, Dialog)
@@ -56,7 +57,7 @@ src/
     link-marks.ts        link marking rules (linkMark, marksLinks), message type, origins (pure)
     boards.ts            board marking (pure): BOARDS, post ids, packed buckets, messages, prefs shape, .json format
     board-store.ts       board read history in IndexedDB (query, mark, floor, stats, clear, import), own change signal
-    board-prefs.ts       board marking prefs in chrome.storage.local (enabled / paused / dock side)
+    board-prefs.ts       board marking prefs in chrome.storage.local (enabled / paused)
     images.ts            StoredImage, getImage/getImagePreview, prepareImage (validate + preview), sniffImageType
     tab.ts               active tab, captureVisibleTab, og:image lookup/download
     records.ts           createRecord, computeMatchKey, tag helpers
@@ -179,15 +180,20 @@ never appear in the list.
   offsets or an 8 KB bitmap past a quarter full (`packRow`). A per-board **floor** ("read up to"): every id at or below
   it is read without being stored; setting one prunes the ids it covers in the same transaction; ids under it can't be
   unmarked. Writes bump `boardsRevision` (not `recordsRevision`, so link marking doesn't rescan).
-- Prefs (`boardPrefs` in chrome.storage.local, `board-prefs.ts`): `enabled` (Boards page switch), `paused` (dock's
-  "Read marking" off: nothing faded or recorded), `side` (dock dragged right). Absent = default.
+- Prefs (`boardPrefs` in chrome.storage.local, `board-prefs.ts`): `enabled` (Boards page switch), `paused` (popup's
+  "Read marking" off: nothing faded or recorded). Absent = default.
 - `board-marks.content.ts` is registered by the background (`document_start`) only while `enabled` and the optional
   host permission for `BOARD_ORIGINS` (requested by the Boards page's Turn on click) are both true, and injected into
-  open board tabs then. Turning off stops running copies (they remove the dock and attributes). It tags post links
+  open board tabs then. Turning off stops running copies (they remove their attributes, style and banner). It tags post links
   that wrap an `<img>`, asks the background which ids are read (`BOARD_QUERY_MESSAGE`, batched), writes with
   `BOARD_MARK_MESSAGE` (painted first; `markedAt` keeps an older answer from undoing a newer mark), and asks again for
-  everything on `onBoardsChanged`. Dock: hold "Mark this page read" (600 ms; skips pixiv bookmarks, read off the heart's
-  pink each time, never stored), mark the open post, marking mode (clicks mark instead of navigating; Esc leaves).
+  everything on `onBoardsChanged`.
+- Controls are in the **popup** (`popup/BoardPanel.tsx`, on top when the tab's host is a board; there is no on-page
+  dock). The open post is read and marked in IndexedDB directly; page actions go to the tab's script with
+  `tabs.sendMessage` (`BOARD_PAGE_MESSAGE`: `info`, `mark-page`, `marking`; each answered with `BoardPageInfo`): hold
+  "Mark this page read" (600 ms; skips pixiv bookmarks, read off the heart's pink each time, never stored), marking
+  mode (clicks mark instead of navigating; the popup closes, a banner on the page shows it, Esc / Stop leaves). No
+  answer = the script isn't in the tab (the popup says to reload).
 - Toolbar badge: a board post page with no matching record shows ✓ / • from the board history while `enabled`.
 - Import: the Boards page reads Booru explorer's export (`parseBoardFile`: `{ format: "booru-explorer-reads",
   version: 1, exported, sites: { board: [ids] }, floors }`); merge only (ids unioned, higher floor wins,
