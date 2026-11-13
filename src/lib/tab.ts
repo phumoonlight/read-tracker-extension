@@ -1,6 +1,5 @@
 import { browser, type Browser } from 'wxt/browser';
 import { LINK_MARK_ORIGINS } from './link-marks';
-import { BOARD_ORIGINS } from './boards';
 
 export async function getActiveTab(): Promise<Browser.tabs.Tab | undefined> {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
@@ -96,13 +95,4 @@ export function requestLinkMarkAccess(): Promise<boolean> {
 
 export function hasLinkMarkAccess(): Promise<boolean> {
   return browser.permissions.contains({ origins: LINK_MARK_ORIGINS });
-}
-
-/** Access to the board sites, for board marking. Must be called from a user gesture, before any other await. */
-export function requestBoardAccess(): Promise<boolean> {
-  return browser.permissions.request({ origins: BOARD_ORIGINS });
-}
-
-export function hasBoardAccess(): Promise<boolean> {
-  return browser.permissions.contains({ origins: BOARD_ORIGINS });
 }

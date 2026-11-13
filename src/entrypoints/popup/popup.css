@@ -146,15 +146,13 @@ body {
   border-bottom: 1px solid var(--border);
 }
 .board-panel-head,
-.board-panel-foot,
-.board-panel-off {
+.board-panel-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
-.board-panel-foot .muted,
-.board-panel-off .muted {
+.board-panel-foot .muted {
   font-size: 16px;
 }
 .board-panel .link-button {

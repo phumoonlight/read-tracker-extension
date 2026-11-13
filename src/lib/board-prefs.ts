@@ -12,10 +12,9 @@ export async function getBoardPrefs(): Promise<BoardPrefs> {
 }
 
 /** Merge a patch; `false` is stored as absent. */
-export async function updateBoardPrefs(patch: { enabled?: boolean; paused?: boolean }) {
+export async function updateBoardPrefs(patch: { paused?: boolean }) {
   const cur = await getBoardPrefs();
   const next = parseBoardPrefs({
-    enabled: patch.enabled ?? cur.enabled,
     paused: patch.paused ?? cur.paused,
   });
   await browser.storage.local.set({ [BOARD_PREFS_KEY]: next });

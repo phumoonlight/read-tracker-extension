@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { browser } from 'wxt/browser';
 import { ConfirmDialog, Dialog } from '@/components/Dialog';
 import { describeIssues } from '@/lib/backup';
 import { getBoardPrefs, onBoardPrefsChanged, updateBoardPrefs } from '@/lib/board-prefs';
@@ -15,7 +14,6 @@ import {
   type BoardPrefs,
   type ParsedBoardFile,
 } from '@/lib/boards';
-import { hasBoardAccess, requestBoardAccess } from '@/lib/tab';
 
 type Message = { text: string; error?: boolean };
 
@@ -46,14 +44,12 @@ function Issues({ issues }: { issues: string[] }) {
 
 /**
  * Boards page (boards.html, opened from the list page header and from the popup on a
- * board): turn board marking on or off, see and clear what is stored per board, and import
+ * board): see whether board marking is paused, see and clear what is stored per board, and import
  * a Booru explorer export.
  */
 export function App() {
   const [prefs, setPrefs] = useState<BoardPrefs>();
-  const [granted, setGranted] = useState<boolean>();
   const [stats, setStats] = useState<Record<BoardKey, BoardStat>>();
-  const [switchMsg, setSwitchMsg] = useState<Message>();
   const [tableMsg, setTableMsg] = useState<Message>();
   const [importMsg, setImportMsg] = useState<Message>();
   const [issues, setIssues] = useState<string[]>([]);
@@ -63,35 +59,15 @@ export function App() {
 
   useEffect(() => {
     const loadStats = () => boardStats().then(setStats, () => setStats(undefined));
-    const loadAccess = () => hasBoardAccess().then(setGranted);
     void getBoardPrefs().then(setPrefs);
     void loadStats();
-    void loadAccess();
     const offPrefs = onBoardPrefsChanged(setPrefs);
     const offBoards = onBoardsChanged(() => void loadStats());
-    browser.permissions.onAdded.addListener(loadAccess);
-    browser.permissions.onRemoved.addListener(loadAccess);
     return () => {
       offPrefs();
       offBoards();
-      browser.permissions.onAdded.removeListener(loadAccess);
-      browser.permissions.onRemoved.removeListener(loadAccess);
     };
   }, []);
-
-  const enabled = !!prefs?.enabled;
-
-  async function turnOn() {
-    setSwitchMsg(undefined);
-    // permissions.request must be the first await (it needs the click's user gesture).
-    const ok = await requestBoardAccess().catch(() => false);
-    if (!ok) {
-      setSwitchMsg({ text: 'Board marking needs access to the board sites.', error: true });
-      return;
-    }
-    await updateBoardPrefs({ enabled: true });
-    setSwitchMsg({ text: 'Board marking is on. Its controls are in the toolbar popup on board pages.' });
-  }
 
   return (
     <div className="page">
@@ -112,43 +88,16 @@ export function App() {
           On a board page, the toolbar popup shows the board controls on top: mark the open post, hold{' '}
           <strong>Mark this page read</strong> to mark every post in the listing (pixiv bookmarks are left alone), or{' '}
           <strong>Start marking</strong> to mark thumbnails by clicking them. The toolbar badge shows ✓ on a read
-          post's page.
+          post's page. It's always on; the popup's <strong>Read marking</strong> button pauses it.
         </p>
-        {prefs && (
+        {prefs?.paused && (
           <div className="row">
-            <span className={`board-state${enabled ? ' is-on' : ''}`}>{enabled ? 'On' : 'Off'}</span>
-            {enabled ? (
-              <button
-                type="button"
-                className="btn"
-                onClick={() => {
-                  setSwitchMsg(undefined);
-                  void updateBoardPrefs({ enabled: false });
-                }}
-              >
-                Turn off
-              </button>
-            ) : (
-              <button type="button" className="btn btn-primary" onClick={() => void turnOn()}>
-                Turn on
-              </button>
-            )}
-            {enabled && prefs.paused && (
-              <button type="button" className="btn" onClick={() => void updateBoardPrefs({ paused: false })}>
-                Resume (paused from the popup)
-              </button>
-            )}
+            <span className="board-state">Paused: nothing is faded or recorded.</span>
+            <button type="button" className="btn" onClick={() => void updateBoardPrefs({ paused: false })}>
+              Resume
+            </button>
           </div>
         )}
-        {enabled && granted === false && (
-          <p className="error">
-            Board marking is on, but the extension has no access to the board sites, so nothing is marked.{' '}
-            <button type="button" className="btn btn-small" onClick={() => void turnOn()}>
-              Allow access
-            </button>
-          </p>
-        )}
-        {switchMsg && <span className={switchMsg.error ? 'error' : 'muted'}>{switchMsg.text}</span>}
       </section>
 
       <section className="backup-section">

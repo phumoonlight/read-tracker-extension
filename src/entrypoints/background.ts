@@ -19,7 +19,7 @@ import type { ReadingRecord } from '@/lib/types';
 /** Id of the runtime-registered link marking script, and its built file (entrypoints/link-marks.content.ts). */
 const LINK_SCRIPT_ID = 'link-marks';
 const LINK_SCRIPT_FILE = '/content-scripts/link-marks.js';
-/** Id of the runtime-registered board marking script, and its built file (entrypoints/board-marks.content.ts). */
+/** Board marking script (entrypoints/board-marks.content.ts, in the manifest): its built file, and the id older builds registered it under at runtime. */
 const BOARD_SCRIPT_ID = 'board-marks';
 const BOARD_SCRIPT_FILE = '/content-scripts/board-marks.js';
 
@@ -73,7 +73,8 @@ export default defineBackground(() => {
 
   async function boardPostState(url: string) {
     const post = boardPostOf(url);
-    if (!post || !(await getBoardPrefs()).enabled) return undefined;
+    // Paused in the popup: nothing is shown for boards.
+    if (!post || (await getBoardPrefs()).paused) return undefined;
     const { read } = await queryBoardReads(post.board.key, [post.id]).catch(() => ({ read: [] as number[] }));
     const status: ReadingRecord['status'] = read.length ? 'read' : 'unread';
     return { label: post.board.label, id: post.id, status };
@@ -136,43 +137,25 @@ export default defineBackground(() => {
   };
 
   // ---------------------------------------------------------------------------
-  // Board marking: the board script is registered only while it is turned on (Boards page)
-  // and the board host permission is granted.
+  // Board marking is always on: its content script is in the manifest. Chrome doesn't run
+  // manifest scripts in tabs that were already open, so on install / reload it is injected
+  // there (it runs once per page). Builds up to 0.1.9 registered it at runtime under this
+  // id; that registration outlives updates, so it is removed.
 
-  async function syncBoardScript() {
-    const [prefs, granted] = await Promise.all([
-      getBoardPrefs(),
-      browser.permissions.contains({ origins: BOARD_ORIGINS }),
-    ]);
-    const wanted = !!prefs.enabled && granted;
-    const registered = (await browser.scripting.getRegisteredContentScripts({ ids: [BOARD_SCRIPT_ID] })).length > 0;
-    if (wanted && !registered) {
-      await browser.scripting.registerContentScripts([
-        { id: BOARD_SCRIPT_ID, js: [BOARD_SCRIPT_FILE.slice(1)], matches: BOARD_ORIGINS, runAt: 'document_start' },
-      ]);
-      const tabs = await browser.tabs.query({ url: BOARD_ORIGINS });
-      await Promise.all(
-        tabs.map((t) =>
-          t.id === undefined
-            ? undefined
-            : browser.scripting.executeScript({ target: { tabId: t.id }, files: [BOARD_SCRIPT_FILE] }).catch(() => {}),
-        ),
-      );
-    } else if (!wanted && registered) {
-      // Copies already running in open pages stop (unfade, drop attributes) when prefs say off.
-      await browser.scripting.unregisterContentScripts({ ids: [BOARD_SCRIPT_ID] });
-    }
+  async function setUpBoardScript() {
+    const old = await browser.scripting.getRegisteredContentScripts({ ids: [BOARD_SCRIPT_ID] });
+    if (old.length) await browser.scripting.unregisterContentScripts({ ids: [BOARD_SCRIPT_ID] });
+    const tabs = await browser.tabs.query({ url: BOARD_ORIGINS });
+    await Promise.all(
+      tabs.map((t) =>
+        t.id === undefined
+          ? undefined
+          : browser.scripting.executeScript({ target: { tabId: t.id }, files: [BOARD_SCRIPT_FILE] }).catch(() => {
+              // Closed meanwhile, or a page scripts can't run in.
+            }),
+      ),
+    );
   }
-
-  let boardSync = Promise.resolve();
-  const queueBoardSync = () => {
-    boardSync = boardSync.then(syncBoardScript).catch((e) => console.error('Board marking:', e));
-  };
-
-  const syncAll = () => {
-    queueLinkSync();
-    queueBoardSync();
-  };
 
   browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (sender.id !== browser.runtime.id) return;
@@ -193,8 +176,8 @@ export default defineBackground(() => {
     }
   });
 
-  browser.permissions.onAdded.addListener(syncAll);
-  browser.permissions.onRemoved.addListener(syncAll);
+  browser.permissions.onAdded.addListener(queueLinkSync);
+  browser.permissions.onRemoved.addListener(queueLinkSync);
 
   onRecordsChanged(() => {
     void refreshAllTabs();
@@ -202,17 +185,15 @@ export default defineBackground(() => {
   });
 
   onBoardsChanged(() => void refreshAllTabs());
-  onBoardPrefsChanged(() => {
-    void refreshAllTabs();
-    queueBoardSync();
-  });
+  onBoardPrefsChanged(() => void refreshAllTabs());
 
   browser.runtime.onInstalled.addListener(() => {
     void refreshAllTabs();
-    syncAll();
+    queueLinkSync();
+    setUpBoardScript().catch((e) => console.error('Board marking:', e));
   });
   browser.runtime.onStartup.addListener(() => {
     void refreshAllTabs();
-    syncAll();
+    queueLinkSync();
   });
 });

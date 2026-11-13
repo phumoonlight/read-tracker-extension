@@ -70,19 +70,6 @@ export function BoardPanel({ board, tabId, url }: { board: Board; tabId: number;
 
   if (!prefs) return null;
 
-  if (!prefs.enabled) {
-    return (
-      <div className="popup-body board-panel">
-        <div className="board-panel-off">
-          <span className="muted">{board.label}: board marking is off.</span>
-          <button type="button" className="link-button" onClick={openBoards}>
-            Turn on
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const paused = !!prefs.paused;
 
   return (

@@ -3,6 +3,7 @@ import { defineContentScript } from 'wxt/utils/define-content-script';
 import { getBoardPrefs, onBoardPrefsChanged } from '@/lib/board-prefs';
 import {
   BOARD_BATCH,
+  BOARD_ORIGINS,
   BOARD_MARK_MESSAGE,
   BOARD_QUERY_MESSAGE,
   boardForHost,
@@ -24,41 +25,44 @@ import { onBoardsChanged } from '@/lib/changes';
  * asks this script about the page, to mark the whole page, or to start marking mode
  * (thumbnail clicks mark instead of navigating; a banner shows while it is on).
  *
- * Registered by the background at runtime (never in the manifest) while board marking is
- * on and the board host permission is granted. Post numbers are read from link URLs; the
+ * Always on: in the manifest for BOARD_ORIGINS (the popup can pause it). Post numbers are
+ * read from link URLs; the
  * read history lives in the extension's IndexedDB and is asked for through the background.
  * Changes to the page: attributes on post links, one <style>, and the marking-mode banner
  * (its own closed shadow root).
  */
 export default defineContentScript({
-  registration: 'runtime',
+  // Always on: declared in the manifest for the board hosts (install-time host permission).
+  matches: BOARD_ORIGINS,
+  runAt: 'document_start',
   noScriptStartedPostMessage: true,
   main() {
-    // Injected again into already-open tabs when marking is turned on: run once per page.
-    const flag = '__readTrackerBoards';
-    const w = window as unknown as Record<string, boolean>;
-    if (w[flag]) return;
-    w[flag] = true;
+    // Also injected into already-open board tabs when the extension is installed or
+    // reloaded (see background). One copy per page: a copy that is already here (e.g. a
+    // dead one left by the previous extension instance, in the same isolated world) is
+    // stopped and this one takes over.
+    const handover = '__readTrackerBoards';
+    const w = window as unknown as Record<string, unknown>;
+    const previous = w[handover];
+    if (typeof previous === 'function') previous();
+    let session: { stop(): void } | undefined;
+    let replaced = false;
+    w[handover] = () => {
+      replaced = true;
+      session?.stop();
+    };
 
     const board = boardForHost(location.hostname);
     if (!board) return;
 
-    let session: { stop(): void } | undefined;
-    /** Set once a change event arrives: the first read may then be older than it. */
-    let changed = false;
-    const apply = (prefs: BoardPrefs) => {
-      if (prefs.enabled && !session) session = startMarking(board, prefs);
-      else if (!prefs.enabled && session) {
-        session.stop();
-        session = undefined;
-      }
+    // Start once the prefs are known (so a paused board doesn't fade first); later
+    // changes (pause / resume) are handled inside.
+    const start = (prefs: BoardPrefs) => {
+      if (session || replaced) return;
+      session = startMarking(board, prefs);
     };
     try {
-      onBoardPrefsChanged((prefs) => {
-        changed = true;
-        apply(prefs);
-      });
-      void getBoardPrefs().then((prefs) => !changed && apply(prefs), () => {});
+      void getBoardPrefs().then(start, () => start({}));
     } catch {
       // Extension context gone (reloaded under this page).
     }
@@ -82,7 +86,7 @@ function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
    * Anchors already looked at, with the href they had then: looked at again only when the
    * href changes (pixiv and paginated grids reuse <a> elements for other posts).
    */
-  const examined = new WeakMap<Element, string>();
+  const examined = new WeakMap<Element, { href: string; post: boolean }>();
   /** Marking mode: clicking a thumbnail marks it instead of opening it. */
   let marking = false;
   /**
@@ -156,7 +160,9 @@ function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
     }
     for (const a of document.links) {
       const href = a.href;
-      if (examined.get(a) === href) continue;
+      const before = examined.get(a);
+      // Skip what's done, unless a post link lost its tag (another copy stopping removes them).
+      if (before?.href === href && (!before.post || a.hasAttribute(POST_ATTR))) continue;
       const id = postIdOf(href);
       // A post link without a picture is a title or caption: not faded. Not remembered
       // either, since pixiv mounts a card's thumbnail over several renders.
@@ -167,7 +173,7 @@ function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
         }
         continue;
       }
-      examined.set(a, href);
+      examined.set(a, { href, post: id !== null });
       if (id === null) {
         // Was a post before its href changed: it isn't one now.
         a.removeAttribute(POST_ATTR);
@@ -411,9 +417,9 @@ function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
     if (seen.size) void ask([...seen]);
   });
 
-  // Paused changed in the popup (enabled is handled by main()).
+  // Paused / resumed in the popup.
   const unsubscribePrefs = onBoardPrefsChanged((next) => {
-    if (stopped || !next.enabled) return;
+    if (stopped) return;
     prefs = next;
     if (!active()) setMarking(false);
     paintRead();

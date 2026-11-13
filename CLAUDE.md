@@ -34,13 +34,13 @@ src/
     background.ts        service worker: badge per tab, series progress (lastReadUrl), link marking (registers the
                          content script, answers its lookups)
     link-marks.content.ts  content script (registration: 'runtime', never in the manifest): dims marked links
-    board-marks.content.ts content script (registration: 'runtime'): board marking (fade, marking mode) on image boards
+    board-marks.content.ts content script (in the manifest, matches BOARD_ORIGINS): board marking (fade, marking mode)
     popup/               toolbar popup (short): add page (title + folder chips), or read state only; links to Manage.
                          On a board page, board marking controls on top (BoardPanel.tsx)
     options/             full list page (options_ui, open_in_tab): folder bar, record list, search, filters, Manage dialog (edit + delete)
     backup/              Backup page (backup.html, linked from the list header): export / import (.zip), erase all data
                          (`wipeAllData`, one transaction; a dialog with a 3 s `HoldButton`)
-    boards/              Boards page (boards.html, linked from the list header and the popup): board marking switch,
+    boards/              Boards page (boards.html, linked from the list header and the popup): paused state / Resume,
                          per-board table (posts, size, clear), import of a Booru explorer .json
   components/            shared React UI (RecordForm, ImagePicker, ImageViewer, Thumbnail (cover), UrlLink, HoldButton,
                          StatusPicker, Dialog)
@@ -57,7 +57,7 @@ src/
     link-marks.ts        link marking rules (linkMark, marksLinks), message type, origins (pure)
     boards.ts            board marking (pure): BOARDS, post ids, packed buckets, messages, prefs shape, .json format
     board-store.ts       board read history in IndexedDB (query, mark, stats, clear, import), own change signal
-    board-prefs.ts       board marking prefs in chrome.storage.local (enabled / paused)
+    board-prefs.ts       board marking prefs in chrome.storage.local (paused)
     images.ts            StoredImage, getImage/getImagePreview, prepareImage (validate + preview), sniffImageType
     tab.ts               active tab, captureVisibleTab, og:image lookup/download
     records.ts           createRecord, computeMatchKey, tag helpers
@@ -180,11 +180,14 @@ never appear in the list.
   offsets (2 bytes a post) or an 8 KB bitmap (1 bit per post) once more than 4096 of its posts are read, whichever is
   smaller (`packRow`, re-decided on every write). There is **no floor / "read up to"** (removed by request): only
   marked posts. Writes bump `boardsRevision` (not `recordsRevision`, so link marking doesn't rescan).
-- Prefs (`boardPrefs` in chrome.storage.local, `board-prefs.ts`): `enabled` (Boards page switch), `paused` (popup's
-  "Read marking" off: nothing faded or recorded). Absent = default.
-- `board-marks.content.ts` is registered by the background (`document_start`) only while `enabled` and the optional
-  host permission for `BOARD_ORIGINS` (requested by the Boards page's Turn on click) are both true, and injected into
-  open board tabs then. Turning off stops running copies (they remove their attributes, style and banner). It tags post links
+- Board marking is **always on** (user request; there is no on/off switch). Prefs (`boardPrefs` in
+  chrome.storage.local, `board-prefs.ts`): only `paused` (popup's "Read marking" off: nothing faded or recorded, no
+  board badge). Absent = not paused. (`enabled` and `side` from older builds are ignored.)
+- `board-marks.content.ts` is a manifest content script (`matches: BOARD_ORIGINS`, `document_start`), so Chrome runs
+  it on every board page; its `matches` are install-time host access for those sites. On install / reload the
+  background injects it into board tabs already open, and removes the runtime registration (id `board-marks`) that
+  builds up to 0.1.9 made. It runs once per page (window flag); it stops itself only when the extension context is
+  gone (it removes its attributes, style and banner). It tags post links
   that wrap an `<img>`, asks the background which ids are read (`BOARD_QUERY_MESSAGE`, batched), writes with
   `BOARD_MARK_MESSAGE` (painted first; `markedAt` keeps an older answer from undoing a newer mark), and asks again for
   everything on `onBoardsChanged`.
@@ -194,7 +197,7 @@ never appear in the list.
   "Mark this page read" (600 ms; skips pixiv bookmarks, read off the heart's pink each time, never stored), marking
   mode (clicks mark instead of navigating; the popup closes, a banner on the page shows it, Esc / Stop leaves). No
   answer = the script isn't in the tab (the popup says to reload).
-- Toolbar badge: a board post page with no matching record shows ✓ / • from the board history while `enabled`.
+- Toolbar badge: a board post page with no matching record shows ✓ / • from the board history unless paused.
 - Import: the Boards page reads Booru explorer's export (`parseBoardFile`: `{ format: "booru-explorer-reads",
   version: 1, exported, sites: { board: [ids] }, floors? }`); merge only (ids unioned, `importBoardReads`, one
   transaction). A file's `floors` ("read up to N") is imported as posts 1..N marked read (`addRange`: whole buckets
@@ -285,10 +288,11 @@ current page while the popup is open), `scripting` (read og:image meta), `favico
 `chrome-extension://<id>/_favicon/?pageUrl=…`, see `faviconUrl` and `components/UrlLink.tsx`; Chrome returns a
 generic globe for sites it has no icon for).
 `optional_host_permissions: ["<all_urls>"]` is requested at runtime for a single origin, only when an og:image
-download is blocked by CORS, as `http://*/*` + `https://*/*` when link marking is turned on, or as `BOARD_ORIGINS`
-when board marking is turned on. WXT adds a runtime
-content script's `matches` to `host_permissions`, so `link-marks.content.ts` and `board-marks.content.ts` must not declare `matches` (and an entrypoint name can't be
-shared: the Boards page is `boards`, its content script `board-marks`). Don't add install-time permissions without a strong reason.
+download is blocked by CORS, or as `http://*/*` + `https://*/*` when link marking is turned on. WXT adds a runtime
+content script's `matches` to `host_permissions`, so `link-marks.content.ts` must not declare `matches`. The one
+install-time site access is `board-marks.content.ts`'s manifest `matches` (`BOARD_ORIGINS`: gelbooru, konachan, pixiv;
+always-on board marking, by request). An entrypoint name can't be shared: the Boards page is `boards`, its content
+script `board-marks`. Don't add install-time permissions without a strong reason.
 
 ## Conventions
 

@@ -329,13 +329,11 @@ export function isBoardPageRequest(m: unknown): m is BoardPageRequest {
 
 // ---------------------------------------------------------------------------
 // Preferences (chrome.storage.local, so the content script reads them without IndexedDB
-// and hears changes): whether board marking is on at all, and paused from the popup.
+// and hears changes). Board marking is always on; the popup can pause it.
 
 export const BOARD_PREFS_KEY = 'boardPrefs';
 
 export interface BoardPrefs {
-  /** The content script is registered (with the host permission). Absent = off. */
-  enabled?: true;
   /** "Read marking" switched off in the popup: nothing fades, nothing is recorded. */
   paused?: true;
 }
@@ -343,7 +341,6 @@ export interface BoardPrefs {
 export function parseBoardPrefs(v: unknown): BoardPrefs {
   const o = typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : {};
   return {
-    ...(o.enabled === true ? { enabled: true } : {}),
     ...(o.paused === true ? { paused: true } : {}),
   };
 }

@@ -2,13 +2,10 @@
   margin: 0;
 }
 
-/* On / Off next to the switch button */
+/* "Paused" next to the Resume button */
 .board-state {
   font-weight: 600;
   color: var(--text-muted);
-}
-.board-state.is-on {
-  color: var(--status-read);
 }
 
 /* Per-board table: scrolls sideways on its own at phone width, never the page. */
