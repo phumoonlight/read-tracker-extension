@@ -194,6 +194,8 @@ export default defineBackground(() => {
     if (isOpenBoards(msg)) {
       // A content script can't open extension pages itself.
       void browser.tabs.create({ url: browser.runtime.getURL('/boards.html') });
+      // Answered so the sender's promise resolves instead of rejecting ("port closed").
+      sendResponse({});
     }
   });
 

@@ -42,6 +42,8 @@ export default defineContentScript({
     if (!board) return;
 
     let session: { stop(): void } | undefined;
+    /** Set once a change event arrives: the first read may then be older than it. */
+    let changed = false;
     const apply = (prefs: BoardPrefs) => {
       if (prefs.enabled && !session) session = startMarking(board, prefs);
       else if (!prefs.enabled && session) {
@@ -50,8 +52,11 @@ export default defineContentScript({
       }
     };
     try {
-      onBoardPrefsChanged(apply);
-      void getBoardPrefs().then(apply, () => {});
+      onBoardPrefsChanged((prefs) => {
+        changed = true;
+        apply(prefs);
+      });
+      void getBoardPrefs().then((prefs) => !changed && apply(prefs), () => {});
     } catch {
       // Extension context gone (reloaded under this page).
     }
@@ -72,8 +77,11 @@ function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
   /** Ids asked about (or marked here), and the ones known to be read. */
   const seen = new Set<number>();
   const readIds = new Set<number>();
-  /** Anchors that are not post thumbnails, never looked at again. */
-  const examined = new WeakSet<Element>();
+  /**
+   * Anchors already looked at, with the href they had then: looked at again only when the
+   * href changes (pixiv and paginated grids reuse <a> elements for other posts).
+   */
+  const examined = new WeakMap<Element, string>();
   /** Marking mode: clicking a thumbnail marks it instead of opening it. */
   let marking = false;
   /** Everything at or below it is read (set on the Boards page). */
@@ -113,8 +121,9 @@ function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
     try {
       return (await browser.runtime.sendMessage(msg)) as T;
     } catch {
-      // The extension was reloaded or removed: this copy can't reach it any more.
-      stop();
+      // Stop only when the extension was reloaded or removed (this copy can't reach it any
+      // more: runtime.id is gone), not on a one-off failure such as a message nobody answered.
+      if (!browser.runtime?.id) stop();
       return undefined;
     }
   }
@@ -148,16 +157,25 @@ function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
       fresh.push(current);
     }
     for (const a of document.links) {
-      if (examined.has(a)) continue;
-      const id = postIdOf(a.href);
-      if (id === null) {
-        examined.add(a);
-        continue;
-      }
+      const href = a.href;
+      if (examined.get(a) === href) continue;
+      const id = postIdOf(href);
       // A post link without a picture is a title or caption: not faded. Not remembered
       // either, since pixiv mounts a card's thumbnail over several renders.
-      if (!a.querySelector('img')) continue;
-      examined.add(a);
+      if (id !== null && !a.querySelector('img')) {
+        if (a.getAttribute(POST_ATTR) !== String(id)) {
+          a.removeAttribute(POST_ATTR);
+          a.removeAttribute(READ_ATTR);
+        }
+        continue;
+      }
+      examined.set(a, href);
+      if (id === null) {
+        // Was a post before its href changed: it isn't one now.
+        a.removeAttribute(POST_ATTR);
+        a.removeAttribute(READ_ATTR);
+        continue;
+      }
       a.setAttribute(POST_ATTR, String(id));
       if (!seen.has(id)) {
         seen.add(id);
@@ -549,7 +567,12 @@ function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
       scan();
     });
   });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['href'],
+  });
 
   // Read history changed (another tab, the Boards page, an import): ask again for everything seen.
   const unsubscribe = onBoardsChanged(() => {
