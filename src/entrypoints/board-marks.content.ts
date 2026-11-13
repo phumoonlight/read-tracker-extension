@@ -274,12 +274,14 @@ function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
 
   // ---------------------------------------------------------------------------
   // Page styles: the fade and the marking-mode outline (colours that read on light and
-  // dark boards; base.css tokens don't exist on web pages).
+  // dark boards; base.css tokens don't exist on web pages). The fade is on the pictures, not
+  // the link: opacity on the link makes it a stacking context, and on pixiv that put the
+  // thumbnail under the card's placeholder layer (gone, not faded) and faded the title too.
 
   const style = document.createElement('style');
   style.textContent = `
-    [${READ_ATTR}] { opacity: .28 !important; transition: opacity .15s ease }
-    [${READ_ATTR}]:hover { opacity: .5 !important }
+    [${READ_ATTR}] img { opacity: .28 !important; transition: opacity .15s ease }
+    [${READ_ATTR}]:hover img { opacity: .5 !important }
     html[${MARKING_ATTR}] [${POST_ATTR}] { cursor: copy; outline: 1px dashed rgba(30, 136, 255, .5); outline-offset: 2px }
     html[${MARKING_ATTR}] [${POST_ATTR}]:hover { outline: 2px solid #1e88ff }
     html[${MARKING_ATTR}] [${READ_ATTR}] { outline-color: #12b76a }
