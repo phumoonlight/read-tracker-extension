@@ -230,7 +230,9 @@ export function addRange(
  * The run is written as one number, so a range imported from a big "read up to" doesn't
  * become millions of ids in the file. Full buckets are skipped without listing their ids.
  */
-export function rowsToFile(rows: readonly BucketRow[]): { upTo: number; ids: number[] } {
+export function rowsToFile(unsorted: readonly BucketRow[]): { upTo: number; ids: number[] } {
+  // The run walks buckets in order (IndexedDB returns them sorted; don't rely on it here).
+  const rows = [...unsorted].sort((a, b) => a.bucket - b.bucket);
   let upTo = RANGE_START - 1;
   let open = true;
   const ids: number[] = [];

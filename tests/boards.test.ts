@@ -200,6 +200,29 @@ describe('rowsToFile (export: a gap-free run 1..N as one number)', () => {
     expect(rowsToFile(rowsFor([0, 1, 2]))).toEqual({ upTo: 2, ids: [0] });
   });
 
+  it('round-trips random read sets exactly (file -> rows gives the same posts)', () => {
+    let seed = 7;
+    const rand = (n: number) => {
+      seed = (seed * 1103515245 + 12345) % 2 ** 31;
+      return seed % n;
+    };
+    const postsOf = (rows: ReturnType<typeof rowsFor>) =>
+      rows.flatMap((r) => [...rowOffsets(r)].map((o) => r.bucket * BUCKET_SIZE + o)).sort((x, y) => x - y);
+    for (let round = 0; round < 40; round++) {
+      const ids = new Set<number>();
+      // Sometimes a run from 0 or 1 (sometimes spanning buckets), plus scattered posts.
+      if (rand(3)) for (let i = rand(2); i <= rand(BUCKET_SIZE * 2); i++) ids.add(i);
+      for (let i = rand(300); i > 0; i--) ids.add(rand(BUCKET_SIZE * 4));
+      const rows = rowsFor([...ids]);
+      const { upTo, ids: listed } = rowsToFile(rows);
+      // Rebuild the way import does: the range, then the listed ids.
+      const rebuilt = new Set(listed);
+      for (let i = RANGE_START; i <= upTo; i++) rebuilt.add(i);
+      expect([...rebuilt].sort((x, y) => x - y)).toEqual(postsOf(rows));
+      expect(listed.every((id) => id > upTo || id < RANGE_START)).toBe(true);
+    }
+  });
+
   it('a range imported then exported is the same range', () => {
     const rows = bucketsOf(RANGE_START, 2254).map((b) => addRange(undefined, 'konachan', b, RANGE_START, 2254)!);
     expect(rowsToFile(rows)).toEqual({ upTo: 2254, ids: [] });
