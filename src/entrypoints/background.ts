@@ -181,7 +181,7 @@ export default defineBackground(() => {
       return true; // answered asynchronously
     }
     if (isBoardQuery(msg)) {
-      queryBoardReads(msg.site, msg.ids).then(sendResponse, () => sendResponse({ read: [], floor: 0 }));
+      queryBoardReads(msg.site, msg.ids).then(sendResponse, () => sendResponse({ read: [] }));
       return true;
     }
     if (isBoardMark(msg)) {

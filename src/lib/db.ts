@@ -1,3 +1,5 @@
+import { addRange, bucketsOf, RANGE_START, type BucketRow } from './boards';
+
 /** Image id the DB v4 step gave a record's old single thumbnail. */
 const legacyImageId = (recordId: string) => `legacy-${recordId}`;
 
@@ -5,7 +7,7 @@ const legacyImageId = (recordId: string) => `legacy-${recordId}`;
  * The extension's IndexedDB database. The extension origin is shared, so the popup,
  * the list page and the background worker all open the same database.
  *
- * Stores (DB version 7):
+ * Stores (DB version 8):
  *   records     keyPath "id"; rows are ReadingRecord plus derived index fields (see storage.ts toRow)
  *               indexes: matchKeys (v6, multiEntry over all URLs; replaced matchKey), updatedAt, createdAt, title (_title), status ([_rank, updatedAt]),
  *                        tags (multiEntry), folderId (v3; records without a folder are not in it),
@@ -15,13 +17,13 @@ const legacyImageId = (recordId: string) => `legacy-${recordId}`;
  *   thumbnails  removed in v4 (was: record id -> 300px WebP); its blobs became images "legacy-<recordId>"
  *   meta        out-of-line key, small values ("recordVersion" = record SCHEMA_VERSION, "home" = Home settings)
  *   boardReads  keyPath ["site", "bucket"]; read board posts, packed (BucketRow in boards.ts) (v7)
- *   boardFloors keyPath "site"; { site, floor }: every post at or below floor is read (v7)
+ *   boardFloors removed in v8 (was: { site, floor }, "read up to"); each floor became posts 1..floor marked in boardReads
  *
  * DB_VERSION changes the store/index layout. The record *shape* has its own
  * SCHEMA_VERSION (types.ts) and is migrated lazily, see storage.ts.
  */
 export const DB_NAME = 'read-tracker';
-export const DB_VERSION = 7;
+export const DB_VERSION = 8;
 
 export const RECORDS = 'records';
 /** Removed in DB v4; only referenced by upgrade(). */
@@ -30,7 +32,8 @@ export const IMAGES = 'images';
 export const META = 'meta';
 export const FOLDERS = 'folders';
 export const BOARD_READS = 'boardReads';
-export const BOARD_FLOORS = 'boardFloors';
+/** Removed in DB v8; only referenced by upgrade(). */
+const BOARD_FLOORS = 'boardFloors';
 
 export const IDX = {
   matchKey: 'matchKey',
@@ -97,7 +100,31 @@ function upgrade(db: IDBDatabase, tx: IDBTransaction, oldVersion: number) {
     db.createObjectStore(BOARD_READS, { keyPath: ['site', 'bucket'] });
     db.createObjectStore(BOARD_FLOORS, { keyPath: 'site' });
   }
+  if (oldVersion < 8) floorsToReads(db, tx);
   if (oldVersion >= 2 && oldVersion < 6) backfillDerivedFields(tx);
+}
+
+/**
+ * DB v8: board floors ("read up to N") are gone. Each becomes posts 1..N marked read in
+ * boardReads (merged with what's stored), then the floors store is deleted.
+ */
+function floorsToReads(db: IDBDatabase, tx: IDBTransaction) {
+  const reads = tx.objectStore(BOARD_READS);
+  const all = tx.objectStore(BOARD_FLOORS).getAll();
+  all.onsuccess = () => {
+    for (const { site, floor } of all.result as { site: string; floor: unknown }[]) {
+      if (typeof floor !== 'number' || !Number.isSafeInteger(floor) || floor < RANGE_START) continue;
+      for (const bucket of bucketsOf(RANGE_START, floor)) {
+        const get = reads.get([site, bucket]);
+        get.onsuccess = () => {
+          const row = get.result as BucketRow | undefined;
+          const next = addRange(row, site, bucket, RANGE_START, floor);
+          if (next && next !== row) reads.put(next);
+        };
+      }
+    }
+    db.deleteObjectStore(BOARD_FLOORS);
+  };
 }
 
 /**

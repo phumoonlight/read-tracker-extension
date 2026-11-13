@@ -253,7 +253,7 @@ export interface BackupCounts {
   records: number;
   folders: number;
   images: number;
-  /** Read board posts in boards.json (floors not counted). Absent in layout 1. */
+  /** Read board posts in boards.json. Absent in layout 1. */
   boardPosts?: number;
 }
 

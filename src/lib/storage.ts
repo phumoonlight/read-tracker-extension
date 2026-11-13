@@ -1,6 +1,6 @@
 import { browser } from 'wxt/browser';
 import { BOARDS_REVISION_KEY, REVISION_KEY } from './changes';
-import { BOARD_FLOORS, BOARD_READS, FOLDERS, IDX, IMAGES, META, RECORDS, req, withTx } from './db';
+import { BOARD_READS, FOLDERS, IDX, IMAGES, META, RECORDS, req, withTx } from './db';
 import { isPermutation, type NewImage, type StoredImage } from './images';
 import { domainConflictError } from './domains';
 import { cleanFolderName, folderNameError, newFolder, sortFolders } from './folders';
@@ -680,12 +680,11 @@ export function statusChange(r: ReadingRecord, status: ReadStatus): Partial<Read
  */
 export async function wipeAllData(): Promise<void> {
   await ensureReady();
-  await withTx([RECORDS, IMAGES, FOLDERS, META, BOARD_READS, BOARD_FLOORS], 'readwrite', async (tx) => {
+  await withTx([RECORDS, IMAGES, FOLDERS, META, BOARD_READS], 'readwrite', async (tx) => {
     tx.objectStore(RECORDS).clear();
     tx.objectStore(IMAGES).clear();
     tx.objectStore(FOLDERS).clear();
     tx.objectStore(BOARD_READS).clear();
-    tx.objectStore(BOARD_FLOORS).clear();
     const meta = tx.objectStore(META);
     meta.clear();
     meta.put(SCHEMA_VERSION, VERSION_KEY);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildManifest, parseManifest } from '@/lib/backup';
 import {
+  addRange,
   BITMAP_BYTES,
   BOARD_FILE_FORMAT,
   BOARD_MARK_MESSAGE,
@@ -10,7 +11,9 @@ import {
   boardByKey,
   boardPostCount,
   boardPostOf,
+  boardSitePostCount,
   BUCKET_SIZE,
+  bucketsOf,
   buildBoardFile,
   groupByBucket,
   isBoardMark,
@@ -22,6 +25,8 @@ import {
   parseBoardPrefs,
   pinkish,
   postIdOn,
+  RANGE_START,
+  rowsToFile,
   rowCount,
   rowHolds,
   rowOffsets,
@@ -130,17 +135,88 @@ describe('messages', () => {
   });
 });
 
+describe('ranges ("read up to" turned into marked posts)', () => {
+  it('lists the buckets a range touches', () => {
+    expect(bucketsOf(1, 2254)).toEqual([0]);
+    expect(bucketsOf(1, BUCKET_SIZE)).toEqual([0, 1]);
+    expect(bucketsOf(BUCKET_SIZE * 2, BUCKET_SIZE * 3 - 1)).toEqual([2]);
+  });
+
+  it('adds a partial range to a list, merged with what is there', () => {
+    const row = addRange(packRow('konachan', 0, new Set([5000]))!, 'konachan', 0, RANGE_START, 2254)!;
+    expect(row.kind).toBe('list');
+    expect(rowCount(row)).toBe(2255); // 1..2254 plus 5000
+    expect(rowHolds(row, 0)).toBe(false);
+    expect(rowHolds(row, 1)).toBe(true);
+    expect(rowHolds(row, 2254)).toBe(true);
+    expect(rowHolds(row, 2255)).toBe(false);
+    expect(rowHolds(row, 5000)).toBe(true);
+  });
+
+  it('writes a fully covered bucket as a full bitmap', () => {
+    const row = addRange(undefined, 'pixiv', 3, RANGE_START, BUCKET_SIZE * 10)!;
+    expect(row.kind).toBe('map');
+    expect(rowCount(row)).toBe(BUCKET_SIZE);
+  });
+
+  it('switches to a bitmap when a partial range makes the bucket dense', () => {
+    const row = addRange(undefined, 'gelbooru', 1, BUCKET_SIZE, BUCKET_SIZE + 9999)!;
+    expect(row.kind).toBe('map');
+    expect(rowCount(row)).toBe(10000);
+    expect(rowHolds(row, 9999)).toBe(true);
+    expect(rowHolds(row, 10000)).toBe(false);
+  });
+
+  it('leaves a bucket the range misses unchanged', () => {
+    const row = packRow('pixiv', 5, new Set([1]))!;
+    expect(addRange(row, 'pixiv', 5, 1, 100)).toBe(row);
+    expect(addRange(undefined, 'pixiv', 5, 1, 100)).toBeUndefined();
+  });
+});
+
+describe('rowsToFile (export: a gap-free run 1..N as one number)', () => {
+  const rowsFor = (ids: number[]) =>
+    [...groupByBucket(ids)].map(([b, held]) => packRow('pixiv', b, new Set(held.map((id) => id % BUCKET_SIZE)))!);
+
+  it('lists scattered ids when there is no run from 1', () => {
+    expect(rowsToFile(rowsFor([5, 9, BUCKET_SIZE * 3 + 1]))).toEqual({ upTo: 0, ids: [5, 9, BUCKET_SIZE * 3 + 1] });
+    expect(rowsToFile([])).toEqual({ upTo: 0, ids: [] });
+  });
+
+  it('writes 1..N as upTo and lists only what is above', () => {
+    expect(rowsToFile(rowsFor([1, 2, 3, 7, 8]))).toEqual({ upTo: 3, ids: [7, 8] });
+  });
+
+  it('runs across full buckets without listing them', () => {
+    let row = addRange(undefined, 'pixiv', 0, RANGE_START, BUCKET_SIZE * 2 + 99)!;
+    const rows = [row];
+    for (const b of [1, 2]) rows.push(addRange(undefined, 'pixiv', b, RANGE_START, BUCKET_SIZE * 2 + 99)!);
+    row = packRow('pixiv', 2, new Set([...rowOffsets(rows[2]!), 500]))!;
+    rows[2] = row;
+    expect(rowsToFile(rows)).toEqual({ upTo: BUCKET_SIZE * 2 + 99, ids: [BUCKET_SIZE * 2 + 500] });
+  });
+
+  it('keeps post 0, which is below the run', () => {
+    expect(rowsToFile(rowsFor([0, 1, 2]))).toEqual({ upTo: 2, ids: [0] });
+  });
+
+  it('a range imported then exported is the same range', () => {
+    const rows = bucketsOf(RANGE_START, 2254).map((b) => addRange(undefined, 'konachan', b, RANGE_START, 2254)!);
+    expect(rowsToFile(rows)).toEqual({ upTo: 2254, ids: [] });
+  });
+});
+
 describe('Booru explorer files', () => {
   const file = (o: object) => JSON.stringify({ format: BOARD_FILE_FORMAT, version: 1, exported: '2026-01-02T00:00:00.000Z', ...o });
 
-  it('reads an export: ids deduplicated and sorted, floors kept', () => {
+  it('reads an export: ids deduplicated and sorted, "read up to" (floors) as a range to mark', () => {
     const issues: string[] = [];
     const f = parseBoardFile(file({ sites: { pixiv: [5, 1, 5], gelbooru: [] }, floors: { konachan: 100 } }), issues);
     expect(f.sites).toEqual({ pixiv: [1, 5] });
-    expect(f.floors).toEqual({ konachan: 100 });
+    expect(f.upTo).toEqual({ konachan: 100 });
     expect(f.exported).toBe('2026-01-02T00:00:00.000Z');
     expect(issues).toEqual([]);
-    expect(boardPostCount(f)).toBe(2);
+    expect(boardPostCount(f)).toBe(102); // 2 listed + posts 1..100
   });
 
   it('reports unknown boards and invalid ids', () => {
@@ -150,7 +226,7 @@ describe('Booru explorer files', () => {
       issues,
     );
     expect(f.sites).toEqual({ konachan: [1, 3] });
-    expect(f.floors).toEqual({});
+    expect(f.upTo).toEqual({});
     expect(issues).toHaveLength(3);
   });
 
@@ -160,12 +236,19 @@ describe('Booru explorer files', () => {
     expect(() => parseBoardFile(file({ version: 2, sites: {} }))).toThrow(/newer/);
   });
 
-  it('round-trips what it writes', () => {
-    const reads = { sites: { pixiv: [1, 2] }, floors: { gelbooru: 9 } };
-    const written = buildBoardFile(reads, new Date(0));
-    expect(parseBoardFile(JSON.stringify(written))).toEqual(written);
-    expect(isEmptyBoardReads(reads)).toBe(false);
-    expect(isEmptyBoardReads({ sites: {}, floors: {} })).toBe(true);
+  it('round-trips what it writes; a run is written as floors', () => {
+    const written = buildBoardFile({ sites: { pixiv: [1, 2] } }, new Date(0));
+    expect(written).not.toHaveProperty('floors');
+    expect(parseBoardFile(JSON.stringify(written))).toEqual({ exported: written.exported, sites: written.sites, upTo: {} });
+    const withRun = buildBoardFile({ sites: { pixiv: [9000] }, upTo: { pixiv: 2254 } }, new Date(0));
+    expect(withRun.floors).toEqual({ pixiv: 2254 });
+    const back = parseBoardFile(JSON.stringify(withRun));
+    expect(back.upTo).toEqual({ pixiv: 2254 });
+    expect(boardSitePostCount(back, 'pixiv')).toBe(2255);
+    expect(boardPostCount(back)).toBe(2255);
+    expect(isEmptyBoardReads({ sites: { pixiv: [1] } })).toBe(false);
+    expect(isEmptyBoardReads({ sites: {}, upTo: { gelbooru: 9 } })).toBe(false);
+    expect(isEmptyBoardReads({ sites: {} })).toBe(true);
   });
 
   it('carries the board post count in the backup manifest', () => {

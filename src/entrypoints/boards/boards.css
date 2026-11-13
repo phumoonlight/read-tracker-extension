@@ -38,16 +38,6 @@
   border-bottom: 0;
 }
 
-.floor-input {
-  width: 9em;
-  padding: 4px 8px;
-  text-align: right;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-variant-numeric: tabular-nums;
-}
-
 .board-preview {
   margin: 0;
   padding-left: 20px;

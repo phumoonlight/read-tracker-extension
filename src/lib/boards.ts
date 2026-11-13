@@ -104,8 +104,6 @@ export function boardPostOf(href: string): { board: Board; id: number } | null {
 
 export const isPostId = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
 
-/** A "read up to" floor: everything at or below it counts as read. 0 = none. */
-export const floorOf = (v: unknown): number => (isPostId(v) && v > 0 ? v : 0);
 
 // ---------------------------------------------------------------------------
 // Packed storage. Post ids are grouped 65536 to a record (key [board, bucket]); a record
@@ -172,15 +170,17 @@ export function packRow(site: string, bucket: number, offsets: Set<number>): Buc
   return { site, bucket, kind: 'map', data };
 }
 
+/** Set bits per byte value (a full bitmap is 8192 lookups, not 65536 bit tests). */
+const BITS = Uint8Array.from({ length: 256 }, (_, v) => {
+  let n = 0;
+  for (let b = v; b; b >>= 1) n += b & 1;
+  return n;
+});
+
 export function rowCount(row: BucketRow): number {
   if (row.kind === 'list') return row.data.length;
   let total = 0;
-  for (let bits of row.data) {
-    while (bits) {
-      total += bits & 1;
-      bits >>= 1;
-    }
-  }
+  for (const byte of row.data) total += BITS[byte]!;
   return total;
 }
 
@@ -197,6 +197,72 @@ export function groupByBucket(ids: Iterable<number>): Map<number, number[]> {
   return out;
 }
 
+/** First post id a "read up to N" range marks (post numbers start at 1). */
+export const RANGE_START = 1;
+
+/**
+ * A row with every id from `from` to `to` (inclusive) added to it, for `bucket`. A range
+ * covering the whole bucket becomes a full bitmap directly (no set of 65536 numbers).
+ * Returns the row unchanged (same object) when the range doesn't touch this bucket.
+ */
+export function addRange(
+  row: BucketRow | undefined,
+  site: string,
+  bucket: number,
+  from: number,
+  to: number,
+): BucketRow | undefined {
+  const base = bucket * BUCKET_SIZE;
+  const lo = Math.max(from, base) - base;
+  const hi = Math.min(to, base + BUCKET_SIZE - 1) - base;
+  if (lo > hi) return row;
+  if (lo === 0 && hi === BUCKET_SIZE - 1) {
+    return { site, bucket, kind: 'map', data: new Uint8Array(BITMAP_BYTES).fill(0xff) };
+  }
+  const offsets = rowOffsets(row);
+  for (let o = lo; o <= hi; o++) offsets.add(o);
+  return packRow(site, bucket, offsets) ?? row;
+}
+
+/**
+ * One board's rows (sorted by bucket) as file content: `upTo` = every post from RANGE_START
+ * to it is read with no gap (0 = none), and `ids` = the other read posts (all above upTo).
+ * The run is written as one number, so a range imported from a big "read up to" doesn't
+ * become millions of ids in the file. Full buckets are skipped without listing their ids.
+ */
+export function rowsToFile(rows: readonly BucketRow[]): { upTo: number; ids: number[] } {
+  let upTo = RANGE_START - 1;
+  let open = true;
+  const ids: number[] = [];
+  // Post 0 is below the run (which starts at 1): listed on its own.
+  if (rows[0]?.bucket === 0 && rowHolds(rows[0], 0)) ids.push(0);
+  for (const row of rows) {
+    const base = row.bucket * BUCKET_SIZE;
+    if (open && base > upTo + 1) open = false;
+    if (open) {
+      if (row.kind === 'map' && row.data.every((b) => b === 0xff)) {
+        upTo = base + BUCKET_SIZE - 1;
+        continue;
+      }
+      let o = Math.max(upTo + 1 - base, 0);
+      while (o < BUCKET_SIZE && rowHolds(row, o)) o++;
+      upTo = base + o - 1;
+      if (o === BUCKET_SIZE) continue;
+      open = false;
+    }
+    const offsets = [...rowOffsets(row)].sort((a, b) => a - b);
+    for (const off of offsets) if (base + off > upTo && base + off >= RANGE_START) ids.push(base + off);
+  }
+  return { upTo: Math.max(upTo, 0), ids };
+}
+
+/** The buckets a range of ids touches. */
+export function bucketsOf(from: number, to: number): number[] {
+  const out: number[] = [];
+  for (let b = bucketOf(from); b <= bucketOf(to); b++) out.push(b);
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Messages between the board content script and the background.
 
@@ -210,10 +276,9 @@ export interface BoardQueryRequest {
   site: BoardKey;
   ids: number[];
 }
-/** The subset of the asked ids that are read, and the board's floor. */
+/** The subset of the asked ids that are read. */
 export interface BoardQueryAnswer {
   read: number[];
-  floor: number;
 }
 export interface BoardMarkRequest {
   type: typeof BOARD_MARK_MESSAGE;
@@ -284,44 +349,64 @@ export function parseBoardPrefs(v: unknown): BoardPrefs {
 // ---------------------------------------------------------------------------
 // Files: Booru explorer's export, also used as boards.json inside the ZIP backup.
 //   { format: "booru-explorer-reads", version: 1, exported: ISO date,
-//     sites: { <board>: [sorted post ids] }, floors: { <board>: floor } }
+//     sites: { <board>: [sorted post ids] }, floors?: { <board>: N } }
+// There is no floor in Read Tracker, only marked posts: `floors` is just file shorthand.
+// On import, `floors: { b: N }` marks posts 1..N read; on export, posts 1..N read with no gap
+// are written as `floors: { b: N }` (same meaning for Booru explorer) instead of N ids.
 
 export const BOARD_FILE_FORMAT = 'booru-explorer-reads';
 export const BOARD_FILE_VERSION = 1;
 
+/** Read history to export or import. */
 export interface BoardReads {
-  /** Read post ids per board (not including the ones under the floor). */
+  /** Read post ids per board. */
   sites: Partial<Record<BoardKey, number[]>>;
-  floors: Partial<Record<BoardKey, number>>;
+  /** Import only: also mark posts 1..N read (from Booru explorer's "read up to"). */
+  upTo?: Partial<Record<BoardKey, number>>;
 }
 
-export interface BoardFile extends BoardReads {
+export interface BoardFile {
   format: typeof BOARD_FILE_FORMAT;
   version: number;
   exported: string;
+  sites: Partial<Record<BoardKey, number[]>>;
+  /** Posts 1..N read with no gap, written as N (Booru explorer reads it as its "read up to"). */
+  floors?: Partial<Record<BoardKey, number>>;
+}
+
+/** A parsed file, ready to import. */
+export interface ParsedBoardFile extends BoardReads {
+  exported: string;
+  upTo: Partial<Record<BoardKey, number>>;
 }
 
 export function buildBoardFile(reads: BoardReads, exported = new Date()): BoardFile {
+  const upTo = reads.upTo ?? {};
   return {
     format: BOARD_FILE_FORMAT,
     version: BOARD_FILE_VERSION,
     exported: exported.toISOString(),
     sites: reads.sites,
-    floors: reads.floors,
+    ...(Object.keys(upTo).length ? { floors: upTo } : {}),
   };
 }
 
+/** Posts listed for one board, plus its run 1..N. */
+export const boardSitePostCount = (reads: BoardReads, key: BoardKey) =>
+  (reads.sites[key]?.length ?? 0) + Math.max((reads.upTo?.[key] ?? 0) - RANGE_START + 1, 0);
+
+/** Read posts in total (listed ids plus 1..N runs). */
 export const boardPostCount = (reads: BoardReads) =>
-  Object.values(reads.sites).reduce((n, ids) => n + (ids?.length ?? 0), 0);
+  BOARDS.reduce((n, b) => n + boardSitePostCount(reads, b.key), 0);
 
 export const isEmptyBoardReads = (reads: BoardReads) =>
-  boardPostCount(reads) === 0 && Object.keys(reads.floors).length === 0;
+  boardPostCount(reads) === 0 && Object.keys(reads.upTo ?? {}).length === 0;
 
 /**
  * Parse a Booru explorer export (or boards.json from a backup). Throws a user-facing error
  * if it isn't one; boards this build doesn't know and invalid ids go to `issues`.
  */
-export function parseBoardFile(text: string, issues: string[] = []): BoardFile {
+export function parseBoardFile(text: string, issues: string[] = []): ParsedBoardFile {
   let data: unknown;
   try {
     data = JSON.parse(text);
@@ -346,30 +431,21 @@ export function parseBoardFile(text: string, issues: string[] = []): BoardFile {
       continue;
     }
     const valid = [...new Set(ids.filter(isPostId))].sort((a, b) => a - b);
-    if (valid.length < ids.length) {
-      const bad = ids.length - ids.filter(isPostId).length;
-      if (bad) issues.push(`${boardByKey(key)!.label}: ${bad} invalid post number${bad === 1 ? '' : 's'} skipped.`);
-    }
+    const bad = ids.length - ids.filter(isPostId).length;
+    if (bad) issues.push(`${boardByKey(key)!.label}: ${bad} invalid post number${bad === 1 ? '' : 's'} skipped.`);
     if (valid.length) sites[key] = valid;
   }
-  const floors: BoardReads['floors'] = {};
+  const upTo: ParsedBoardFile['upTo'] = {};
   if (typeof o.floors === 'object' && o.floors !== null) {
     for (const [key, v] of Object.entries(o.floors as Record<string, unknown>)) {
       if (!isBoardKey(key)) {
         issues.push(`Board "${key}" isn't supported; its "read up to" was skipped.`);
         continue;
       }
-      const f = floorOf(v);
-      if (f) floors[key] = f;
+      if (isPostId(v) && v >= RANGE_START) upTo[key] = v;
     }
   }
-  return {
-    format: BOARD_FILE_FORMAT,
-    version: BOARD_FILE_VERSION,
-    exported: typeof o.exported === 'string' ? o.exported : '',
-    sites,
-    floors,
-  };
+  return { exported: typeof o.exported === 'string' ? o.exported : '', sites, upTo };
 }
 
 // ---------------------------------------------------------------------------

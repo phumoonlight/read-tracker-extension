@@ -38,7 +38,7 @@ async function askPage(tabId: number, req: BoardPageRequest): Promise<BoardPageI
 export function BoardPanel({ board, tabId, url }: { board: Board; tabId: number; url: string }) {
   const [prefs, setPrefs] = useState<BoardPrefs>();
   /** The open post's state (null when this isn't a post page). */
-  const [post, setPost] = useState<{ id: number; read: boolean; floor: number } | null>();
+  const [post, setPost] = useState<{ id: number; read: boolean } | null>();
   /** undefined = the board script didn't answer (marking off, or the page needs a reload). */
   const [page, setPage] = useState<BoardPageInfo>();
   const postId = postIdOn(board, url);
@@ -46,8 +46,8 @@ export function BoardPanel({ board, tabId, url }: { board: Board; tabId: number;
   useEffect(() => {
     const loadPost = async () => {
       if (postId === null) return setPost(null);
-      const { read, floor } = await queryBoardReads(board.key, [postId]);
-      setPost({ id: postId, read: read.length > 0, floor });
+      const { read } = await queryBoardReads(board.key, [postId]);
+      setPost({ id: postId, read: read.length > 0 });
     };
     // The script repaints on the same change signal; a short wait lets it catch up first.
     const loadPage = () => void askPage(tabId, { type: BOARD_PAGE_MESSAGE, action: 'info' }).then(setPage);
@@ -84,17 +84,12 @@ export function BoardPanel({ board, tabId, url }: { board: Board; tabId: number;
   }
 
   const paused = !!prefs.paused;
-  const floored = !!post && post.id <= post.floor;
 
   return (
     <div className="popup-body board-panel">
       <div className="board-panel-head">
-        <span className={`board-post-state${post ? (post.read || floored ? ' is-read' : ' is-unread') : ''}`}>
-          {post
-            ? floored
-              ? `${board.label} post ${post.id}: read (up to ${post.floor.toLocaleString()})`
-              : `${board.label} post ${post.id}: ${post.read ? 'read' : 'not read'}`
-            : board.label}
+        <span className={`board-post-state${post ? (post.read ? ' is-read' : ' is-unread') : ''}`}>
+          {post ? `${board.label} post ${post.id}: ${post.read ? 'read' : 'not read'}` : board.label}
         </span>
         <button
           type="button"
@@ -111,7 +106,7 @@ export function BoardPanel({ board, tabId, url }: { board: Board; tabId: number;
         <button
           type="button"
           className={`btn popup-main-action${post.read ? '' : ' btn-primary'}`}
-          disabled={paused || floored}
+          disabled={paused}
           onClick={async () => {
             await markBoardReads(board.key, [post.id], !post.read);
             setPost({ ...post, read: !post.read });

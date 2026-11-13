@@ -3,16 +3,18 @@ import { browser } from 'wxt/browser';
 import { ConfirmDialog, Dialog } from '@/components/Dialog';
 import { describeIssues } from '@/lib/backup';
 import { getBoardPrefs, onBoardPrefsChanged, updateBoardPrefs } from '@/lib/board-prefs';
+import { boardStats, clearBoard, importBoardReads, onBoardsChanged, type BoardStat } from '@/lib/board-store';
 import {
-  boardStats,
-  clearBoard,
-  countUnderFloor,
-  importBoardReads,
-  onBoardsChanged,
-  setBoardFloor,
-  type BoardStat,
-} from '@/lib/board-store';
-import { BOARDS, boardPostCount, parseBoardFile, type Board, type BoardFile, type BoardKey, type BoardPrefs } from '@/lib/boards';
+  BOARDS,
+  boardPostCount,
+  boardSitePostCount,
+  parseBoardFile,
+  RANGE_START,
+  type Board,
+  type BoardKey,
+  type BoardPrefs,
+  type ParsedBoardFile,
+} from '@/lib/boards';
 import { hasBoardAccess, requestBoardAccess } from '@/lib/tab';
 
 type Message = { text: string; error?: boolean };
@@ -43,49 +45,8 @@ function Issues({ issues }: { issues: string[] }) {
 }
 
 /**
- * "Read up to" box: a post number; applied on Enter or when leaving the box. Raising it
- * deletes stored posts, so `onCommit` may ask first and return false to put the old value back.
- */
-function FloorInput({ board, floor, onCommit }: { board: Board; floor: number; onCommit: (next: number) => void }) {
-  const shown = floor > 0 ? String(floor) : '';
-  const [text, setText] = useState(shown);
-  useEffect(() => setText(shown), [shown]);
-  const apply = () => {
-    const typed = text.trim();
-    const next = typed === '' ? 0 : Number(typed);
-    if (!Number.isSafeInteger(next) || next < 0) {
-      setText(shown);
-      return;
-    }
-    if (next === floor) return;
-    // Show the stored value until the change is confirmed and lands.
-    setText(shown);
-    onCommit(next);
-  };
-  return (
-    <input
-      type="text"
-      inputMode="numeric"
-      className="floor-input"
-      placeholder="none"
-      value={text}
-      aria-label={`${board.label}: read up to post`}
-      onChange={(e) => setText(e.target.value.replace(/[^\d]/g, ''))}
-      onBlur={apply}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') e.currentTarget.blur();
-        if (e.key === 'Escape') setText(shown);
-      }}
-    />
-  );
-}
-
-/** A raise of the floor waiting for confirmation. */
-type FloorChange = { board: Board; floor: number; previous: number; covered: number };
-
-/**
  * Boards page (boards.html, opened from the list page header and from the popup on a
- * board): turn board marking on or off, see and trim what is stored per board, and import
+ * board): turn board marking on or off, see and clear what is stored per board, and import
  * a Booru explorer export.
  */
 export function App() {
@@ -96,8 +57,7 @@ export function App() {
   const [tableMsg, setTableMsg] = useState<Message>();
   const [importMsg, setImportMsg] = useState<Message>();
   const [issues, setIssues] = useState<string[]>([]);
-  const [pending, setPending] = useState<{ file: BoardFile; issues: string[] }>();
-  const [floorChange, setFloorChange] = useState<FloorChange>();
+  const [pending, setPending] = useState<{ file: ParsedBoardFile; issues: string[] }>();
   const [clearing, setClearing] = useState<Board>();
   const [busy, setBusy] = useState(false);
 
@@ -131,12 +91,6 @@ export function App() {
     }
     await updateBoardPrefs({ enabled: true });
     setSwitchMsg({ text: 'Board marking is on. Its controls are in the toolbar popup on board pages.' });
-  }
-
-  async function commitFloor(board: Board, floor: number, previous: number) {
-    setTableMsg(undefined);
-    const covered = floor ? await countUnderFloor(board.key, floor) : 0;
-    setFloorChange({ board, floor, previous, covered });
   }
 
   return (
@@ -199,10 +153,6 @@ export function App() {
 
       <section className="backup-section">
         <h2>Read posts</h2>
-        <p className="muted">
-          <strong>Read up to</strong>: every post at or below this number counts as read without being stored, and the
-          stored posts it covers are deleted. Posts under it can't be marked unread.
-        </p>
         <div className="board-table-wrap">
           <table className="board-table">
             <thead>
@@ -210,26 +160,22 @@ export function App() {
                 <th>Board</th>
                 <th className="n">Posts</th>
                 <th className="n">Size</th>
-                <th className="n">Read up to</th>
                 <th />
               </tr>
             </thead>
             <tbody>
               {BOARDS.map((b) => {
-                const s = stats?.[b.key] ?? { posts: 0, bytes: 0, floor: 0 };
+                const s = stats?.[b.key] ?? { posts: 0, bytes: 0 };
                 return (
                   <tr key={b.key}>
                     <td>{b.label}</td>
                     <td className="n">{s.posts.toLocaleString()}</td>
                     <td className="n">{s.posts ? bytes(s.bytes) : '—'}</td>
                     <td className="n">
-                      <FloorInput board={b} floor={s.floor} onCommit={(f) => void commitFloor(b, f, s.floor)} />
-                    </td>
-                    <td className="n">
                       <button
                         type="button"
                         className="btn btn-small"
-                        disabled={!s.posts && !s.floor}
+                        disabled={!s.posts}
                         onClick={() => setClearing(b)}
                       >
                         Clear
@@ -248,7 +194,8 @@ export function App() {
         <h2>Import from Booru explorer</h2>
         <p className="muted">
           In Booru explorer's settings, export its <code>.json</code> file, then import it here. Read posts are added to
-          what's stored (nothing is unmarked), and the higher "read up to" wins. Board history is also part of the{' '}
+          what's stored (nothing is unmarked). A "read up to" number in the file marks every post from {RANGE_START}{' '}
+          up to it as read. Board history is also part of the{' '}
           <a href="/backup.html">ZIP backup</a>.
         </p>
         <div className="row">
@@ -288,12 +235,15 @@ export function App() {
             It has <strong>{plural(boardPostCount(pending.file), 'read post')}</strong>.
           </p>
           <ul className="board-preview">
-            {BOARDS.filter((b) => pending.file.sites[b.key] || pending.file.floors[b.key]).map((b) => (
-              <li key={b.key}>
-                {b.label}: {plural(pending.file.sites[b.key]?.length ?? 0, 'post')}
-                {pending.file.floors[b.key] ? `, read up to ${pending.file.floors[b.key]!.toLocaleString()}` : ''}
-              </li>
-            ))}
+            {BOARDS.filter((b) => pending.file.sites[b.key] || pending.file.upTo[b.key]).map((b) => {
+              const upTo = pending.file.upTo[b.key];
+              return (
+                <li key={b.key}>
+                  {b.label}: {plural(boardSitePostCount(pending.file, b.key), 'post')}
+                  {upTo ? ` (including every post from ${RANGE_START} to ${upTo.toLocaleString()})` : ''}
+                </li>
+              );
+            })}
           </ul>
           <div className="dialog-actions">
             <button type="button" className="btn" disabled={busy} onClick={() => setPending(undefined)} autoFocus>
@@ -327,56 +277,10 @@ export function App() {
         </Dialog>
       )}
 
-      {floorChange && (
-        <ConfirmDialog
-          title={
-            floorChange.floor
-              ? `${floorChange.board.label}: read up to ${floorChange.floor.toLocaleString()}?`
-              : `${floorChange.board.label}: clear "read up to"?`
-          }
-          message={
-            <>
-              {floorChange.floor > 0 && <>Every post at or below {floorChange.floor.toLocaleString()} counts as read. </>}
-              {floorChange.floor < floorChange.previous && (
-                <>
-                  Posts {floorChange.floor ? (floorChange.floor + 1).toLocaleString() : 'up'} to{' '}
-                  {floorChange.previous.toLocaleString()} count as <strong>unread</strong> again (they weren't
-                  stored).{' '}
-                </>
-              )}
-              {floorChange.covered > 0 && (
-                <>
-                  <strong>{plural(floorChange.covered, 'stored post number')}</strong> inside it will be deleted.{' '}
-                </>
-              )}
-              {floorChange.floor > floorChange.previous && (
-                <>This can't be undone: clearing or lowering it later doesn't bring stored posts back.</>
-              )}
-            </>
-          }
-          confirmLabel={floorChange.floor ? 'Set' : 'Clear'}
-          onClose={() => setFloorChange(undefined)}
-          onConfirm={async () => {
-            const { board, floor } = floorChange;
-            try {
-              const removed = await setBoardFloor(board.key, floor);
-              setTableMsg({
-                text: !floor
-                  ? `${board.label}: "read up to" cleared.`
-                  : `${board.label} reads up to ${floor.toLocaleString()}` +
-                    (removed ? `: ${plural(removed, 'stored post')} deleted.` : '.'),
-              });
-            } catch (e) {
-              setTableMsg({ text: `Failed: ${e instanceof Error ? e.message : e}`, error: true });
-            }
-          }}
-        />
-      )}
-
       {clearing && (
         <ConfirmDialog
           title={`Clear ${clearing.label}?`}
-          message={`Forgets every read post on ${clearing.label}, and its "read up to". This can't be undone.`}
+          message={`Forgets every read post on ${clearing.label}. This can't be undone.`}
           confirmLabel="Clear"
           onClose={() => setClearing(undefined)}
           onConfirm={async () => {

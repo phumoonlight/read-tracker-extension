@@ -41,7 +41,7 @@ src/
     backup/              Backup page (backup.html, linked from the list header): export / import (.zip), erase all data
                          (`wipeAllData`, one transaction; a dialog with a 3 s `HoldButton`)
     boards/              Boards page (boards.html, linked from the list header and the popup): board marking switch,
-                         per-board table (posts, size, "read up to", clear), import of a Booru explorer .json
+                         per-board table (posts, size, clear), import of a Booru explorer .json
   components/            shared React UI (RecordForm, ImagePicker, ImageViewer, Thumbnail (cover), UrlLink, HoldButton,
                          StatusPicker, Dialog)
   lib/                   framework-free logic (only db.ts / storage.ts / tab.ts / images.ts / board-store.ts /
@@ -56,7 +56,7 @@ src/
     changes.ts           change signal key + onRecordsChanged (no IndexedDB, so the content script can use it)
     link-marks.ts        link marking rules (linkMark, marksLinks), message type, origins (pure)
     boards.ts            board marking (pure): BOARDS, post ids, packed buckets, messages, prefs shape, .json format
-    board-store.ts       board read history in IndexedDB (query, mark, floor, stats, clear, import), own change signal
+    board-store.ts       board read history in IndexedDB (query, mark, stats, clear, import), own change signal
     board-prefs.ts       board marking prefs in chrome.storage.local (enabled / paused)
     images.ts            StoredImage, getImage/getImagePreview, prepareImage (validate + preview), sniffImageType
     tab.ts               active tab, captureVisibleTab, og:image lookup/download
@@ -135,8 +135,8 @@ Storage: IndexedDB database `read-tracker` (layout in `src/lib/db.ts`, no third-
   those few stay 300px because the originals were never kept.
 - `meta`: `recordVersion` (record `SCHEMA_VERSION`; pre-release builds used `schemaVersion`, numbered up to 5, which
   is dropped on startup) and `home` (`HomeSettings`).
-- `boardReads` (keyPath `[site, bucket]`, DB v7) and `boardFloors` (keyPath `site`): board read history, see
-  "Board marking".
+- `boardReads` (keyPath `[site, bucket]`, DB v7): board read history, see "Board marking". (`boardFloors`, v7, was
+  removed in v8: each floor became posts 1..floor marked in `boardReads`.)
 - `chrome.storage.local` holds `recordsRevision`, bumped after every write. IndexedDB has no change events;
   `storage.onChanged` reaches every context and wakes the service worker, so this key is the change signal
   (`onRecordsChanged`). Also `boardsRevision` (board history change signal, `onBoardsChanged`) and `boardPrefs`.
@@ -177,9 +177,9 @@ Gelbooru, Konachan (.com/.net = one board) and pixiv (`BOARDS` in `lib/boards.ts
 thumbnails marked read are faded. Board posts are **not records**: only post numbers are stored, per board, and they
 never appear in the list.
 - Storage (`board-store.ts`): ids grouped 65536 to a row (`[site, bucket]`), each row a sorted `Uint16Array` of
-  offsets or an 8 KB bitmap past a quarter full (`packRow`). A per-board **floor** ("read up to"): every id at or below
-  it is read without being stored; setting one prunes the ids it covers in the same transaction; ids under it can't be
-  unmarked. Writes bump `boardsRevision` (not `recordsRevision`, so link marking doesn't rescan).
+  offsets (2 bytes a post) or an 8 KB bitmap (1 bit per post) once more than 4096 of its posts are read, whichever is
+  smaller (`packRow`, re-decided on every write). There is **no floor / "read up to"** (removed by request): only
+  marked posts. Writes bump `boardsRevision` (not `recordsRevision`, so link marking doesn't rescan).
 - Prefs (`boardPrefs` in chrome.storage.local, `board-prefs.ts`): `enabled` (Boards page switch), `paused` (popup's
   "Read marking" off: nothing faded or recorded). Absent = default.
 - `board-marks.content.ts` is registered by the background (`document_start`) only while `enabled` and the optional
@@ -196,8 +196,11 @@ never appear in the list.
   answer = the script isn't in the tab (the popup says to reload).
 - Toolbar badge: a board post page with no matching record shows ✓ / • from the board history while `enabled`.
 - Import: the Boards page reads Booru explorer's export (`parseBoardFile`: `{ format: "booru-explorer-reads",
-  version: 1, exported, sites: { board: [ids] }, floors }`); merge only (ids unioned, higher floor wins,
-  `importBoardReads`, one transaction). Unknown boards are reported and skipped.
+  version: 1, exported, sites: { board: [ids] }, floors? }`); merge only (ids unioned, `importBoardReads`, one
+  transaction). A file's `floors` ("read up to N") is imported as posts 1..N marked read (`addRange`: whole buckets
+  become full bitmaps directly). On export (`boards.json`), a board's gap-free run 1..N is written as `floors: { b: N }`
+  and only the ids above it are listed (`rowsToFile`), so a big imported range doesn't become millions of ids; this is
+  only file shorthand (same meaning in Booru explorer), never stored. Unknown boards are reported and skipped.
 
 ### Changing the schema
 

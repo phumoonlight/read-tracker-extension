@@ -85,8 +85,6 @@ function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
   const examined = new WeakMap<Element, string>();
   /** Marking mode: clicking a thumbnail marks it instead of opening it. */
   let marking = false;
-  /** Everything at or below it is read (set on the Boards page). */
-  let floor = 0;
   /**
    * When each id was last marked here (a counter), so an answer to a question asked
    * before that mark doesn't undo it on screen.
@@ -136,7 +134,6 @@ function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
       const msg: BoardQueryRequest = { type: BOARD_QUERY_MESSAGE, site: board.key, ids: chunk };
       const answer = await send<BoardQueryAnswer>(msg);
       if (!answer || !Array.isArray(answer.read)) return;
-      floor = Number.isSafeInteger(answer.floor) ? answer.floor : 0;
       const read = new Set(answer.read);
       for (const id of chunk) {
         if ((markedAt.get(id) ?? -1) > askedAt) continue;
@@ -197,8 +194,6 @@ function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
 
   /** Paint first, then tell the store: a click shouldn't wait on a round trip. */
   function mark(ids: number[], read: boolean) {
-    // Under the floor nothing can be unmarked (there is no record to remove).
-    if (!read) ids = ids.filter((id) => id > floor);
     if (!ids.length) return;
     clock++;
     for (const id of ids) {
