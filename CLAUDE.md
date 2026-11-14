@@ -40,7 +40,7 @@ src/
     options/             full list page (options_ui, open_in_tab): folder bar, record list, search, filters, Manage dialog (edit + delete)
     backup/              Backup page (backup.html, linked from the list header): export / import (.zip), erase all data
                          (`wipeAllData`, one transaction; a dialog with a 3 s `HoldButton`)
-    boards/              Boards page, titled "Booru" in the UI (boards.html, linked as "Booru" from the list header and the popup): paused state / Resume,
+    boards/              Boards page, titled "Booru" in the UI (boards.html, linked as "Booru" from the list header and the popup): paused banner / Resume (only when paused), collapsed help,
                          per-board table (posts, size, clear), import of a Booru explorer .json
   components/            shared React UI (RecordForm, ImagePicker, ImageViewer, Thumbnail (cover), UrlLink, HoldButton,
                          StatusPicker, Dialog)

@@ -2,10 +2,35 @@
   margin: 0;
 }
 
-/* "Paused" next to the Resume button */
-.board-state {
+/* Shown only while marking is paused: the one thing on the page that needs doing. */
+.board-paused {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--status-unread);
+  border-radius: var(--radius);
+  background: var(--surface);
   font-weight: 600;
+}
+
+/* Help, collapsed: the page itself is just the table and the import. */
+.board-help summary {
+  cursor: pointer;
   color: var(--text-muted);
+}
+.board-help summary:hover {
+  color: var(--text);
+}
+.board-help ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 /* Per-board table: scrolls sideways on its own at phone width, never the page. */
@@ -26,6 +51,9 @@
 .board-table th {
   color: var(--text-muted);
   font-weight: 600;
+}
+.board-table td:last-child {
+  width: 1%;
 }
 .board-table .n {
   text-align: right;

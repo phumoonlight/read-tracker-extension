@@ -80,29 +80,17 @@ export function App() {
           ← Reading list
         </a>
         <h1>Booru</h1>
-        <p className="muted">
-          On {BOARDS.map((b) => b.label).join(', ')}, posts you mark read are faded out of the next listing. Only post
-          numbers are stored. They aren't records and don't appear in the reading list.
-        </p>
+        <p className="muted">Read posts on {BOARDS.map((b) => b.label).join(', ')}. Read thumbnails are faded.</p>
       </header>
 
-      <section className="backup-section">
-        <h2>Board marking</h2>
-        <p className="muted">
-          On a board page, the toolbar popup shows the board controls on top: mark the open post, hold{' '}
-          <strong>Mark this page read</strong> to mark every post in the listing (pixiv bookmarks are left alone), or{' '}
-          <strong>Start marking</strong> to mark thumbnails by clicking them. The toolbar badge shows ✓ on a read
-          post's page. It's always on; the popup's <strong>Read marking</strong> button pauses it.
-        </p>
-        {prefs?.paused && (
-          <div className="row">
-            <span className="board-state">Paused: nothing is faded or recorded.</span>
-            <button type="button" className="btn" onClick={() => void updateBoardPrefs({ paused: false })}>
-              Resume
-            </button>
-          </div>
-        )}
-      </section>
+      {prefs?.paused && (
+        <div className="board-paused" role="status">
+          <span>Marking is paused: nothing is faded or recorded.</span>
+          <button type="button" className="btn btn-primary" onClick={() => void updateBoardPrefs({ paused: false })}>
+            Resume
+          </button>
+        </div>
+      )}
 
       <section className="backup-section">
         <h2>Read posts</h2>
@@ -122,13 +110,14 @@ export function App() {
                 return (
                   <tr key={b.key}>
                     <td>{b.label}</td>
-                    <td className="n">{s.posts.toLocaleString()}</td>
-                    <td className="n">{s.posts ? bytes(s.bytes) : '—'}</td>
+                    <td className="n">{s.posts ? s.posts.toLocaleString() : '—'}</td>
+                    <td className="n muted">{s.posts ? bytes(s.bytes) : ''}</td>
                     <td className="n">
+                      {/* Hidden, not removed, so every row keeps the same height. */}
                       <button
                         type="button"
                         className="btn btn-small"
-                        disabled={!s.posts}
+                        style={s.posts ? undefined : { visibility: 'hidden' }}
                         onClick={() => setClearing(b)}
                       >
                         Clear
@@ -144,17 +133,10 @@ export function App() {
       </section>
 
       <section className="backup-section">
-        <h2>Import read posts</h2>
-        <p className="muted">
-          Import a Booru explorer <code>.json</code> export, or the <code>.bin</code> files in a backup's{' '}
-          <code>booru</code> folder (one per board, named after it); pick several at once. Read posts are added to
-          what's stored (nothing is unmarked). A "read up to" number in a Booru explorer file marks every post from {RANGE_START}{' '}
-          up to it as read. Board history is also part of the{' '}
-          <a href="/backup.html">ZIP backup</a>.
-        </p>
+        <h2>Import</h2>
         <div className="row">
           <label className={`btn${busy ? ' is-disabled' : ''}`} aria-disabled={busy}>
-            Import files
+            Import files…
             <input
               type="file"
               accept=".json,.bin,application/json"
@@ -190,10 +172,33 @@ export function App() {
               }}
             />
           </label>
+          <span className="muted">
+            Booru explorer <code>.json</code> or backup <code>.bin</code>. Adds to what's stored.
+          </span>
         </div>
         {importMsg && <span className={importMsg.error ? 'error' : 'muted'}>{importMsg.text}</span>}
         <Issues issues={issues} />
       </section>
+
+      <details className="board-help">
+        <summary>How to mark posts</summary>
+        <ul>
+          <li>Open the toolbar popup on a board page: the board controls are on top.</li>
+          <li>
+            <strong>Mark this post read</strong> on a post's page, or hold <strong>Mark this page read</strong> for the
+            whole listing (pixiv bookmarks are skipped).
+          </li>
+          <li>
+            <strong>Start marking</strong>, then click thumbnails to mark or unmark them. Esc stops.
+          </li>
+          <li>
+            <strong>Read marking: on / off</strong> pauses everything. The badge shows ✓ on a read post.
+          </li>
+          <li>
+            Board history is also in the <a href="/backup.html">ZIP backup</a>.
+          </li>
+        </ul>
+      </details>
 
       {pending && (
         <Dialog title="Import this file?" onClose={() => !busy && setPending(undefined)}>
