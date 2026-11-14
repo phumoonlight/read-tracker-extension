@@ -95,7 +95,10 @@ go through `updateFolderSettings` / `updateHomeSettings`, which merge and store 
 
 Place look (by request): `color?` on `Folder` and `HomeSettings` is a palette key (`FOLDER_COLORS`: red, orange, yellow,
 green, teal, blue, purple, pink; tokens `--fc-<key>` and `--fc-<key>-on` (for the inverted pressed chip) in base.css,
-applied with `.place-c-<key>`) for the name's colour. `emoji?` on `Folder` only: one emoji before the name
+applied with `.place-c-<key>`) or a custom `#rrggbb` from the colour picker (`cleanFolderColor`, `isCustomColor`; the one
+place a colour doesn't come from a token, by request: `.place-c-custom` with `--place-c` inline, one shade for both
+themes, and the pressed chip shows the name in the chip's own text colour). `placeColor()` in PlaceLabel.tsx gives
+the class / style for the name's colour. `emoji?` on `Folder` only: one emoji before the name
 (`cleanEmoji`: the first grapheme if it is an emoji, ZWJ / flags / keycaps included). Home can't have one: it always shows
 `HOME_EMOJI` (🏠). Set in the Manage dialog (`PlaceLook`; apply at once through `updateFolderSettings` /
 `updateHomeSettings`, `null` clears); shown by `<PlaceLabel>` in the folder chips and the popup's folder picker, and as

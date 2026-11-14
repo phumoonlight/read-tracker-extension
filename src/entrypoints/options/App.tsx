@@ -8,7 +8,7 @@ import { TagInput } from '@/components/TagInput';
 import { ImagePicker } from '@/components/ImagePicker';
 import { ImageViewer } from '@/components/ImageViewer';
 import { FolderLabel, HomeLabel } from '@/components/PlaceLabel';
-import { cleanEmoji, decodeFolderFilter, encodeFolderFilter } from '@/lib/folders';
+import { cleanEmoji, decodeFolderFilter, encodeFolderFilter, isCustomColor } from '@/lib/folders';
 import { addDomainText } from '@/lib/domains';
 import { createRecord, formatAgo, formatDateTime, hasSeries, urlEntries } from '@/lib/records';
 import {
@@ -1108,6 +1108,27 @@ function PlaceLook({
 }) {
   const [emojiText, setEmojiText] = useState(folder?.emoji ?? '');
   const color = folder ? folder.color : home?.color;
+  const custom = isCustomColor(color) ? color : undefined;
+  // The picker reports every step while dragging: show it at once, save once it settles.
+  const [picked, setPicked] = useState<string>();
+  // onSettings is a new function on every render of the page (which re-renders after each
+  // save): read it through a ref so only a new pick schedules a save.
+  const save = useRef(onSettings);
+  save.current = onSettings;
+  /** A pick not saved yet (saved on close too, so a quick close doesn't drop it). */
+  const pending = useRef<string | undefined>(undefined);
+  const flush = () => {
+    if (pending.current) save.current({ color: pending.current as `#${string}` });
+    pending.current = undefined;
+  };
+  useEffect(() => {
+    if (!picked) return;
+    pending.current = picked;
+    const t = setTimeout(flush, 250);
+    return () => clearTimeout(t);
+  }, [picked]);
+  useEffect(() => () => flush(), []);
+  const shownCustom = picked ?? custom;
   const emojiInvalid = !!emojiText.trim() && !cleanEmoji(emojiText);
   return (
     <div className="place-look">
@@ -1161,7 +1182,11 @@ function PlaceLook({
             className="color-swatch"
             aria-pressed={!color}
             title="Default colour"
-            onClick={() => onSettings({ color: null })}
+            onClick={() => {
+              pending.current = undefined;
+              setPicked(undefined);
+              onSettings({ color: null });
+            }}
           >
             ∅
           </button>
@@ -1173,10 +1198,31 @@ function PlaceLook({
               aria-pressed={color === c}
               title={c[0]!.toUpperCase() + c.slice(1)}
               aria-label={c}
-              onClick={() => onSettings({ color: c })}
+              onClick={() => {
+                pending.current = undefined;
+                setPicked(undefined);
+                onSettings({ color: c });
+              }}
             />
           ))}
+          <label
+            className={`color-swatch color-swatch-custom${shownCustom ? ' is-set' : ''}`}
+            style={shownCustom ? { ['--place-c' as string]: shownCustom } : undefined}
+            title={shownCustom ? `Custom colour ${shownCustom}` : 'Pick any colour'}
+          >
+            <input
+              type="color"
+              aria-label="Pick a custom colour"
+              value={shownCustom ?? '#3fa7d6'}
+              onChange={(e) => setPicked(e.target.value)}
+            />
+          </label>
         </div>
+        {shownCustom && (
+          <small className="muted">
+            Custom colour {shownCustom}: the same shade in light and dark mode, so check it reads in both.
+          </small>
+        )}
       </div>
     </div>
   );

@@ -84,7 +84,11 @@ describe('folder emoji and colour', () => {
 
   it('knows the palette colours only', () => {
     expect(cleanFolderColor('teal')).toBe('teal');
-    expect(cleanFolderColor('#ff0000')).toBeUndefined();
+    expect(cleanFolderColor('#FF8800')).toBe('#ff8800'); // picked colour, lowercased
+    expect(cleanFolderColor('#f80')).toBe('#ff8800');
+    expect(cleanFolderColor('#ff00')).toBeUndefined();
+    expect(cleanFolderColor('red; background: x')).toBeUndefined();
+    expect(cleanFolderColor('rgb(1,2,3)')).toBeUndefined();
     expect(cleanFolderColor(undefined)).toBeUndefined();
   });
 });

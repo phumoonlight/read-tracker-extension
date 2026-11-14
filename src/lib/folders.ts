@@ -1,4 +1,4 @@
-import { FOLDER_COLORS, FOLDER_NAME_MAX, type Folder, type FolderColor } from './types';
+import { FOLDER_COLORS, FOLDER_NAME_MAX, type Folder, type FolderColor, type PaletteColor } from './types';
 import { newId } from './ids';
 
 /** Collapse whitespace and trim. Names are compared case-insensitively. */
@@ -33,9 +33,21 @@ export function cleanEmoji(text: unknown): string | undefined {
   return /\p{Extended_Pictographic}|\p{Regional_Indicator}|\u20e3/u.test(first) ? first : undefined;
 }
 
-/** A colour key from a file or an input; anything unknown is undefined (no colour). */
-export const cleanFolderColor = (v: unknown): FolderColor | undefined =>
-  FOLDER_COLORS.includes(v as FolderColor) ? (v as FolderColor) : undefined;
+/**
+ * A colour from a file or an input: a palette key, or "#rrggbb" (lowercased; "#rgb" is
+ * expanded). Anything else is undefined (no colour).
+ */
+export function cleanFolderColor(v: unknown): FolderColor | undefined {
+  if (FOLDER_COLORS.includes(v as PaletteColor)) return v as PaletteColor;
+  if (typeof v !== 'string') return undefined;
+  const hex = v.trim().toLowerCase();
+  if (/^#[0-9a-f]{6}$/.test(hex)) return hex as FolderColor;
+  if (/^#[0-9a-f]{3}$/.test(hex)) return `#${[...hex.slice(1)].map((c) => c + c).join('')}`;
+  return undefined;
+}
+
+/** Whether a colour is a custom "#rrggbb" (not a palette key). */
+export const isCustomColor = (c: FolderColor | undefined): c is `#${string}` => !!c && c.startsWith('#');
 
 export function newFolder(name: string): Folder {
   const now = Date.now();

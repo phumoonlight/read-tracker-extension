@@ -60,7 +60,7 @@ export interface Folder {
   domains?: string[];
   /** Dim links to this folder's records on websites (see lib/link-marks.ts). Absent = off. */
   markLinks?: boolean;
-  /** Colour of the folder's name (a palette key, see FOLDER_COLORS). Absent = the normal text colour. */
+  /** Colour of the folder's name (a palette key or "#rrggbb", see FolderColor). Absent = the normal text colour. */
   color?: FolderColor;
   /** One emoji shown before the name (see cleanEmoji in folders.ts). Absent = none. */
   emoji?: string;
@@ -68,9 +68,13 @@ export interface Folder {
   updatedAt: number;
 }
 
-/** Name colours for places (Home and folders): palette keys, drawn from base.css tokens. */
-export type FolderColor = 'red' | 'orange' | 'yellow' | 'green' | 'teal' | 'blue' | 'purple' | 'pink';
-export const FOLDER_COLORS: readonly FolderColor[] = ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink'];
+/**
+ * Name colours for places (Home and folders): a palette key (base.css tokens, a light and a
+ * dark shade each) or a custom "#rrggbb" from the colour picker (used as is in both themes).
+ */
+export type PaletteColor = 'red' | 'orange' | 'yellow' | 'green' | 'teal' | 'blue' | 'purple' | 'pink';
+export type FolderColor = PaletteColor | `#${string}`;
+export const FOLDER_COLORS: readonly PaletteColor[] = ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink'];
 /** Home's emoji: always shown, can't be changed. */
 export const HOME_EMOJI = '🏠';
 
