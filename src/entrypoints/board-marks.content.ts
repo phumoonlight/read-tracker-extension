@@ -341,11 +341,13 @@ function startMarking(board: Board, initial: MarkingPrefs): { stop(): void } {
 
   function pageInfo(): BoardPageInfo {
     const ids = pageIds();
+    // Walks the board's markup, so only when the popup asks.
+    const kept = bookmarkedIds();
     return {
       posts: ids.length,
       read: ids.filter((id) => readIds.has(id)).length,
-      // Walks the board's markup, so only when the popup asks.
-      kept: bookmarkedIds().size,
+      kept: kept.size,
+      left: ids.filter((id) => !readIds.has(id) && !kept.has(id)).length,
       marking,
     };
   }
@@ -360,6 +362,8 @@ function startMarking(board: Board, initial: MarkingPrefs): { stop(): void } {
         true,
       );
     }
+    // The page is done (nothing left to mark): the same button unmarks every read post on it.
+    if (msg.action === 'unmark-page') mark(pageIds().filter((id) => readIds.has(id)), false);
     if (msg.action === 'marking') setMarking(msg.on);
     sendResponse(pageInfo());
   };

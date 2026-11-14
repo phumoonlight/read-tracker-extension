@@ -130,6 +130,7 @@ describe('messages', () => {
   it('accepts popup page requests', () => {
     expect(isBoardPageRequest({ type: BOARD_PAGE_MESSAGE, action: 'info' })).toBe(true);
     expect(isBoardPageRequest({ type: BOARD_PAGE_MESSAGE, action: 'mark-page' })).toBe(true);
+    expect(isBoardPageRequest({ type: BOARD_PAGE_MESSAGE, action: 'unmark-page' })).toBe(true);
     expect(isBoardPageRequest({ type: BOARD_PAGE_MESSAGE, action: 'marking', on: true })).toBe(true);
     expect(isBoardPageRequest({ type: BOARD_PAGE_MESSAGE, action: 'marking' })).toBe(false);
     expect(isBoardPageRequest({ type: BOARD_PAGE_MESSAGE, action: 'delete' })).toBe(false);

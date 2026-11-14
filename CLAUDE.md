@@ -199,8 +199,10 @@ never appear in the list.
   everything on `onBoardsChanged`.
 - Controls are in the **popup** (`popup/BoardPanel.tsx`, on top when the tab's host is a board; there is no on-page
   dock). The open post is read and marked in IndexedDB directly; page actions go to the tab's script with
-  `tabs.sendMessage` (`BOARD_PAGE_MESSAGE`: `info`, `mark-page`, `marking`; each answered with `BoardPageInfo`): hold
-  "Mark this page read" (600 ms; skips pixiv bookmarks, read off the heart's pink each time, never stored), marking
+  `tabs.sendMessage` (`BOARD_PAGE_MESSAGE`: `info`, `mark-page`, `unmark-page`, `marking`; each answered with
+  `BoardPageInfo`): hold "Mark page read" (600 ms; skips pixiv bookmarks, read off the heart's pink each time, never
+  stored); once nothing is left to mark (`BoardPageInfo.left` = 0, e.g. 6 / 6) the same button is "Unmark page" (unmarks
+  every read post on the page, bookmarks included); marking
   mode (clicks mark instead of navigating; the popup closes, a banner on the page shows it, Esc / Stop leaves). No
   answer = the script isn't in the tab (the popup says to reload).
 - Toolbar badge: a board post page with no matching record shows ✓ / • from the board history.

@@ -1,37 +1,21 @@
-import { useEffect, useState } from "react";
-import { browser } from "wxt/browser";
-import { HoldButton } from "@/components/HoldButton";
-import {
-  markBoardReads,
-  onBoardsChanged,
-  queryBoardReads,
-} from "@/lib/board-store";
-import {
-  BOARD_PAGE_MESSAGE,
-  postIdOn,
-  type Board,
-  type BoardPageInfo,
-  type BoardPageRequest,
-} from "@/lib/boards";
+import { useEffect, useState } from 'react';
+import { browser } from 'wxt/browser';
+import { HoldButton } from '@/components/HoldButton';
+import { markBoardReads, onBoardsChanged, queryBoardReads } from '@/lib/board-store';
+import { BOARD_PAGE_MESSAGE, postIdOn, type Board, type BoardPageInfo, type BoardPageRequest } from '@/lib/boards';
 
-/** "Mark this page read" is held, not clicked: it is the one action repeating can't undo. */
+/** "Mark page read" / "Unmark page" are held, not clicked: one slip changes a whole page. */
 const HOLD_PAGE_MS = 600;
 
 const openBoards = () => {
-  void browser.tabs.create({ url: browser.runtime.getURL("/boards.html") });
+  void browser.tabs.create({ url: browser.runtime.getURL('/boards.html') });
   window.close();
 };
 
 /** Ask the board script in the tab; undefined when it isn't running there (yet). */
-async function askPage(
-  tabId: number,
-  req: BoardPageRequest,
-): Promise<BoardPageInfo | undefined> {
+async function askPage(tabId: number, req: BoardPageRequest): Promise<BoardPageInfo | undefined> {
   try {
-    return (
-      ((await browser.tabs.sendMessage(tabId, req)) as
-        BoardPageInfo | undefined) ?? undefined
-    );
+    return ((await browser.tabs.sendMessage(tabId, req)) as BoardPageInfo | undefined) ?? undefined;
   } catch {
     return undefined;
   }
@@ -43,15 +27,7 @@ async function askPage(
  * and marking mode (dimming on / off is the popup header's switch). Post state comes from IndexedDB directly; the page's own
  * thumbnails (counts, bookmarks, marking mode) from the board script in the tab.
  */
-export function BoardPanel({
-  board,
-  tabId,
-  url,
-}: {
-  board: Board;
-  tabId: number;
-  url: string;
-}) {
+export function BoardPanel({ board, tabId, url }: { board: Board; tabId: number; url: string }) {
   /** The open post's state (null when this isn't a post page). */
   const [post, setPost] = useState<{ id: number; read: boolean } | null>();
   /** undefined = the board script didn't answer (the page needs a reload). */
@@ -65,10 +41,7 @@ export function BoardPanel({
       setPost({ id: postId, read: read.length > 0 });
     };
     // The script repaints on the same change signal; a short wait lets it catch up first.
-    const loadPage = () =>
-      void askPage(tabId, { type: BOARD_PAGE_MESSAGE, action: "info" }).then(
-        setPage,
-      );
+    const loadPage = () => void askPage(tabId, { type: BOARD_PAGE_MESSAGE, action: 'info' }).then(setPage);
     void loadPost();
     loadPage();
     const offBoards = onBoardsChanged(() => {
@@ -80,6 +53,8 @@ export function BoardPanel({
     };
   }, [board.key, postId, tabId]);
 
+  /** Every post "Mark page read" would mark is read (an older page script sends no `left`). */
+  const pageDone = !!page && page.read > 0 && page.left === 0;
   const share = page?.posts ? Math.round((page.read / page.posts) * 100) : 0;
 
   return (
@@ -95,59 +70,58 @@ export function BoardPanel({
             <span className="booru-post-id">
               Post <strong>{post.id}</strong>
             </span>
-            <span
-              className={`booru-pill ${post.read ? "is-read" : "is-unread"}`}
-            >
-              {post.read ? "Read" : "Not read"}
+            <span className={`booru-pill ${post.read ? 'is-read' : 'is-unread'}`}>
+              {post.read ? 'Read' : 'Not read'}
             </span>
           </div>
         )}
         {post && (
           <button
             type="button"
-            className={`btn popup-main-action${post.read ? "" : " btn-primary"}`}
+            className={`btn popup-main-action${post.read ? '' : ' btn-primary'}`}
             onClick={async () => {
               await markBoardReads(board.key, [post.id], !post.read);
               setPost({ ...post, read: !post.read });
             }}
           >
-            {post.read ? "Mark post unread" : "Mark post read"}
+            {post.read ? 'Mark post unread' : 'Mark post read'}
           </button>
         )}
 
         <div className="board-actions">
+          {/* Nothing left to mark (6 / 6, bookmarks aside): the same button unmarks the page. */}
           <HoldButton
+            key={pageDone ? 'unmark' : 'mark'}
             className="btn"
             holdMs={HOLD_PAGE_MS}
             disabled={!page?.posts}
             title={
-              page?.kept
-                ? `Press and hold: mark every post on this page read (${page.kept} bookmarked left alone)`
-                : "Press and hold: mark every post on this page read"
+              pageDone
+                ? 'Press and hold: unmark every read post on this page'
+                : page?.kept
+                  ? `Press and hold: mark every post on this page read (${page.kept} bookmarked left alone)`
+                  : 'Press and hold: mark every post on this page read'
             }
             hintLabel="Hold…"
-            doneLabel="Marked ✓"
+            doneLabel={pageDone ? 'Unmarked ✓' : 'Marked ✓'}
             onConfirm={async () =>
               setPage(
-                await askPage(tabId, {
-                  type: BOARD_PAGE_MESSAGE,
-                  action: "mark-page",
-                }),
+                await askPage(tabId, { type: BOARD_PAGE_MESSAGE, action: pageDone ? 'unmark-page' : 'mark-page' }),
               )
             }
           >
-            Mark page read
+            {pageDone ? 'Unmark page' : 'Mark page read'}
           </HoldButton>
           <button
             type="button"
-            className={`btn${page?.marking ? " btn-primary" : ""}`}
+            className={`btn${page?.marking ? ' btn-primary' : ''}`}
             disabled={!page}
             title="Clicking thumbnails marks or unmarks them instead of opening them (Esc stops)"
             onClick={async () => {
               const on = !page?.marking;
               const next = await askPage(tabId, {
                 type: BOARD_PAGE_MESSAGE,
-                action: "marking",
+                action: 'marking',
                 on,
               });
               setPage(next);
@@ -155,7 +129,7 @@ export function BoardPanel({
               if (on && next?.marking) window.close();
             }}
           >
-            {page?.marking ? "Stop marking" : "Click to mark"}
+            {page?.marking ? 'Stop marking' : 'Click to mark'}
           </button>
         </div>
 
@@ -177,17 +151,13 @@ export function BoardPanel({
             </div>
             <span className="booru-count">
               {page.read} / {page.posts} read
-              {board.bookmarks && page.kept ? ` · ${page.kept} bookmarked` : ""}
+              {board.bookmarks && page.kept ? ` · ${page.kept} bookmarked` : ''}
             </span>
           </div>
         )}
       </>
 
-      <button
-        type="button"
-        className="link-button booru-open"
-        onClick={openBoards}
-      >
+      <button type="button" className="link-button booru-open" onClick={openBoards}>
         Read history ›
       </button>
     </section>

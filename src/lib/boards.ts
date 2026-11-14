@@ -276,13 +276,14 @@ export const isBoardMark = (m: unknown): m is BoardMarkRequest =>
 
 /**
  * Popup -> content script of the active tab (tabs.sendMessage): what is on the page, mark
- * the whole page, or start / stop marking mode. Every request is answered with BoardPageInfo.
+ * or unmark the whole page, or start / stop marking mode. Every request is answered with BoardPageInfo.
  */
 export const BOARD_PAGE_MESSAGE = 'read-tracker:board-page';
 
 export type BoardPageRequest =
   | { type: typeof BOARD_PAGE_MESSAGE; action: 'info' }
   | { type: typeof BOARD_PAGE_MESSAGE; action: 'mark-page' }
+  | { type: typeof BOARD_PAGE_MESSAGE; action: 'unmark-page' }
   | { type: typeof BOARD_PAGE_MESSAGE; action: 'marking'; on: boolean };
 
 export interface BoardPageInfo {
@@ -292,6 +293,8 @@ export interface BoardPageInfo {
   read: number;
   /** How many are bookmarked on the board (pixiv), which "Mark this page read" skips. */
   kept: number;
+  /** Posts "Mark page read" would still mark (unread and not bookmarked); 0 = the page is done. */
+  left: number;
   /** Marking mode is on (clicking thumbnails marks them). */
   marking: boolean;
 }
@@ -300,7 +303,12 @@ export function isBoardPageRequest(m: unknown): m is BoardPageRequest {
   if (typeof m !== 'object' || m === null) return false;
   const o = m as Record<string, unknown>;
   if (o.type !== BOARD_PAGE_MESSAGE) return false;
-  return o.action === 'info' || o.action === 'mark-page' || (o.action === 'marking' && typeof o.on === 'boolean');
+  return (
+    o.action === 'info' ||
+    o.action === 'mark-page' ||
+    o.action === 'unmark-page' ||
+    (o.action === 'marking' && typeof o.on === 'boolean')
+  );
 }
 
 // ---------------------------------------------------------------------------
