@@ -39,6 +39,11 @@ body {
   font-size: 14px;
   cursor: pointer;
 }
+/* "Dim on" in the switch's green, "Dim off" muted */
+.dim-switch:has(input:checked) {
+  color: var(--status-read);
+  font-weight: 600;
+}
 .dim-switch input {
   position: absolute;
   opacity: 0;
