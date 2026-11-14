@@ -62,8 +62,3 @@
 .board-table tr:last-child td {
   border-bottom: 0;
 }
-
-.board-preview {
-  margin: 0;
-  padding-left: 20px;
-}

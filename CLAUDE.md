@@ -44,7 +44,8 @@ src/
     backup/              Backup page (backup.html, linked from the list header): export / import (.zip), erase all data
                          (`wipeAllData`, one transaction; a dialog with a 3 s `HoldButton`)
     boards/              Boards page, titled "Booru" in the UI (boards.html, linked as "Booru" from the list header and the popup): "Dimming is off" banner / Turn on (only when off), collapsed help,
-                         per-board table (posts, size, clear), import of a Booru explorer .json
+                         per-board table (posts, size, clear). No import there (removed by request: Booru
+                         explorer's data was already imported); board history moves with the ZIP backup
   components/            shared React UI (RecordForm, ImagePicker, ImageViewer, Thumbnail (cover), UrlLink, HoldButton,
                          StatusPicker, Dialog, PlaceLabel (emoji + coloured name of Home / a folder))
   lib/                   framework-free logic (only db.ts / storage.ts / tab.ts / images.ts / board-store.ts /
@@ -218,7 +219,8 @@ never appear in the list.
   mode (clicks mark instead of navigating; the popup closes, a banner on the page shows it, Esc / Stop leaves). No
   answer = the script isn't in the tab (the popup says to reload).
 - Toolbar badge: a board post page with no matching record shows ✓ / • from the board history.
-- Import: the Boards page reads Booru explorer's export (`parseBoardFile`: `{ format: "booru-explorer-reads",
+- Import: only through the ZIP backup (the Booru page's own import of Booru explorer files was removed by request).
+  Layout 2 backups' `boards.json` is Booru explorer's JSON (`parseBoardFile`: `{ format: "booru-explorer-reads",
   version: 1, exported, sites: { board: [ids] }, floors? }`); merge only (ids unioned, `importBoardReads`, one
   transaction). A file's `floors` ("read up to N") is imported as posts 1..N marked read (`addRange`: whole buckets
   become full bitmaps directly). Export (`booru/<board>.bin` in the backup) has every read id (`rowsToIds`); nothing writes
@@ -255,9 +257,9 @@ still import; layout 3's `booru/<board>.json` was never used for real data and i
   a version byte, the count, the first id, then the gaps to the previous id, each a varint (7 bits a byte, low first,
   top bit = more), so mostly 1 byte a post. Not Booru explorer compatible (not needed: its marking is being dropped).
   On import, `booru/*.bin`, plus `boards.json` from layout 2 (Booru explorer's JSON,
-  `parseBoardFile`), are found by `boardBackupEntries`, merged (`mergeBoardReads`) and imported like the Booru page
-  import; `counts.booruPosts` in the manifest for the preview (read as `boardPosts` from backups before 0.1.17). The Booru page import takes several files at once
-  (`.bin` from a backup's `booru/` folder, or a Booru explorer `.json`).
+  `parseBoardFile`), are found by `boardBackupEntries`, merged (`mergeBoardReads`) and imported
+  (`importBoardReads`); `counts.booruPosts` in the manifest for the preview (read as `boardPosts` from backups before
+  0.1.17).
 - `images/<id>.<ext>` (`imagePath`, `imageStem`): original files. There is no image list: on import each id in a
   record's `images` is looked up by file-name stem among the ZIP's entries (`imageIndex` + `imagesFromZip`; any
   extension, first record listing an id gets it).
