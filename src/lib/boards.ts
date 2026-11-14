@@ -322,7 +322,7 @@ export function parseBoardPrefs(v: unknown): BoardPrefs {
 }
 
 // ---------------------------------------------------------------------------
-// Files: Booru explorer's export, also used as boards.json inside the ZIP backup.
+// Files: Booru explorer's export, also the booru/<board>.json files of the ZIP backup.
 //   { format: "booru-explorer-reads", version: 1, exported: ISO date,
 //     sites: { <board>: [sorted post ids] }, floors?: { <board>: N } }
 // There is no floor in Read Tracker, only marked posts. On import, Booru explorer's
@@ -397,7 +397,7 @@ export const isEmptyBoardReads = (reads: BoardReads) =>
   boardPostCount(reads) === 0 && Object.keys(reads.upTo ?? {}).length === 0;
 
 /**
- * Parse a Booru explorer export (or boards.json from a backup). Throws a user-facing error
+ * Parse a Booru explorer export (or a booru/<board>.json from a backup). Throws a user-facing error
  * if it isn't one; boards this build doesn't know and invalid ids go to `issues`.
  */
 export function parseBoardFile(text: string, issues: string[] = []): ParsedBoardFile {

@@ -95,7 +95,7 @@ export interface ImportResult {
   added: number;
   updated: number;
   skipped: number;
-  /** Board posts newly marked read (from boards.json). */
+  /** Board posts newly marked read (from the booru/ files). */
   boardPosts: number;
   /** What was dropped or changed, for the user. Empty when everything came in as is. */
   issues: string[];
