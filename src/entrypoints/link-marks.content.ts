@@ -5,6 +5,9 @@ import {
   LINK_MARK_ATTR,
   LINK_MARKS_BATCH,
   LINK_MARKS_MESSAGE,
+  MARK_SHOWN_CSS,
+  MARK_TRANSITION_CSS,
+  markCss,
   type LinkMark,
   type LinkMarksRequest,
 } from '@/lib/link-marks';
@@ -33,28 +36,19 @@ export default defineContentScript({
     {
       const style = document.createElement('style');
       style.id = STYLE_ID;
-      // Dimmed (opacity: unread 0.5, read 0.2, so read is the most dimmed) and blurred (unread 1px,
-      // read 2px), and the link's text glows in the badge colors (blue unread, green read).
-      // base.css tokens don't exist on web pages, so the colors are here.
-      // A link that wraps a picture dims the picture, not the link: opacity / filter on the link
+      // Dimmed and blurred (MARK_LOOK: read the most). A link that wraps a picture dims the picture, not the link: opacity / filter on the link
       // make it a stacking context, and on sites like pixiv that put the thumbnail under the
       // card's placeholder layer (gone instead of dimmed).
       const dimmed = (a: string) => `${a}:not(:has(img)),${a} img`;
-      const rule = (mark: LinkMark, opacity: number, blur: number, glow: string) => {
-        const a = `a[${LINK_MARK_ATTR}="${mark}"]`;
-        return (
-          `${dimmed(a)}{opacity:${opacity}!important;filter:blur(${blur}px)!important}` +
-          `${a},${a} *{text-shadow:0 0 3px ${glow},0 0 8px ${glow}!important}`
-        );
-      };
-      // Hovering (or keyboard focus) shows the link sharp and fully visible again; the glow stays.
+      const rule = (mark: LinkMark) => `${dimmed(`a[${LINK_MARK_ATTR}="${mark}"]`)}{${markCss(mark)}}`;
+      // Hovering (or keyboard focus) shows the link sharp and fully visible again.
       const marked = `a[${LINK_MARK_ATTR}]`;
       const shown = [':hover', ':focus-visible'].flatMap((s) => [`${marked}${s}`, `${marked}${s} img`]).join(',');
       style.textContent =
-        rule('unread', 0.5, 1, '#0969da') +
-        rule('read', 0.2, 2, '#1a7f37') +
-        `${dimmed(marked)}{transition:opacity .15s,filter .15s!important}` +
-        `${shown}{opacity:1!important;filter:none!important}`;
+        rule('unread') +
+        rule('read') +
+        `${dimmed(marked)}{${MARK_TRANSITION_CSS}}` +
+        `${shown}{${MARK_SHOWN_CSS}}`;
       (document.head ?? document.documentElement).append(style);
     }
 

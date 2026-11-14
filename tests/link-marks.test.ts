@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isLinkMarksRequest, LINK_MARKS_MESSAGE, linkMark, marksLinks } from '@/lib/link-marks';
+import { isLinkMarksRequest, LINK_MARKS_MESSAGE, linkMark, markCss, marksLinks } from '@/lib/link-marks';
 import type { Folder } from '@/lib/types';
 import { rec } from './fixtures';
 
@@ -42,5 +42,13 @@ describe('isLinkMarksRequest', () => {
     expect(isLinkMarksRequest({ type: LINK_MARKS_MESSAGE, urls: [1] })).toBe(false);
     expect(isLinkMarksRequest({ type: 'other', urls: [] })).toBe(false);
     expect(isLinkMarksRequest(null)).toBe(false);
+  });
+});
+
+describe('markCss', () => {
+  it('dims and blurs, read the most, with no text colour', () => {
+    expect(markCss('unread')).toBe('opacity:0.5!important;filter:blur(1px)!important');
+    expect(markCss('read')).toBe('opacity:0.2!important;filter:blur(2px)!important');
+    expect(markCss('read')).not.toMatch(/shadow|color/);
   });
 });

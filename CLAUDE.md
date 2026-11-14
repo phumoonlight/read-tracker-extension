@@ -98,8 +98,9 @@ else Home. Edited as chips (`TagInput` with `chipPrefix=""`, `addText=addDomainT
 
 Link marking (`markLinks?: true` on `Folder` and `HomeSettings`; absent = off, stored only when on; carried in
 backups): links on websites to records of a place with it on get `data-read-tracker="unread|read"` and are dimmed
-(opacity: unread .5, read .2), blurred (`filter: blur`, 1px / 2px; both undone on hover / focus; on a link that wraps an `<img>` they go on the image, since opacity / filter on the link hid pixiv thumbnails) with a text glow in the badge colors (`text-shadow`, blue unread / green read; colors are
-literals in the content script, since base.css tokens don't exist on web pages). Revisit places mark every record `read` (`linkMark`). The content script
+(opacity: unread .5, read .2) and blurred (`filter: blur`, 1px / 2px; both undone on hover / focus; on a link that wraps an `<img>` they go on the image, since opacity / filter on the link hid pixiv thumbnails). No text colour or glow
+(removed by request). The look is `MARK_LOOK` / `markCss` in `lib/link-marks.ts`, shared with board marking: a board
+post marked read looks exactly like a read record. Revisit places mark every record `read` (`linkMark`). The content script
 (`entrypoints/link-marks.content.ts`) is registered by the background with `scripting.registerContentScripts` only
 while `marksLinks(folders, home)` and the optional host permission (`LINK_MARK_ORIGINS`, requested from the Manage
 dialog's click) are both true, and injected into open tabs when it gets registered (it runs once per page). It sends
@@ -174,7 +175,7 @@ Rules:
 
 Merged from the "Booru explorer" extension (only its read marking; not its hover preview or save button). On
 Gelbooru, Konachan (.com/.net = one board) and pixiv (`BOARDS` in `lib/boards.ts`: host, `postId(url)`), post
-thumbnails marked read are faded. Board posts are **not records**: only post numbers are stored, per board, and they
+thumbnails marked read look like a read record's link mark (`markCss('read')`: dimmed and blurred, sharp on hover). Board posts are **not records**: only post numbers are stored, per board, and they
 never appear in the list.
 - Storage (`board-store.ts`): ids grouped 65536 to a row (`[site, bucket]`), each row a sorted `Uint16Array` of
   offsets (2 bytes a post) or an 8 KB bitmap (1 bit per post) once more than 4096 of its posts are read, whichever is

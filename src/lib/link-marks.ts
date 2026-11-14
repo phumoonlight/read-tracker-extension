@@ -2,10 +2,24 @@ import type { Folder, HomeSettings, ReadingRecord } from './types';
 
 /**
  * Link marking: on websites, links to records in a place (Home or a folder) with
- * `markLinks` on are dimmed and glow (read more dimmed than unread). In a Revisit place every record
+ * `markLinks` on are dimmed and blurred (read more than unread). In a Revisit place every record
  * counts as read.
  */
 export type LinkMark = 'unread' | 'read';
+
+/**
+ * How a mark looks on a web page: dimmed and blurred, read the most. Shared by link marking
+ * and board marking (a board post marked read looks like a read record). Hover / focus
+ * shows it sharp again (MARK_SHOWN_CSS).
+ */
+export const MARK_LOOK: Record<LinkMark, { opacity: number; blur: number }> = {
+  unread: { opacity: 0.5, blur: 1 },
+  read: { opacity: 0.2, blur: 2 },
+};
+export const markCss = (mark: LinkMark) =>
+  `opacity:${MARK_LOOK[mark].opacity}!important;filter:blur(${MARK_LOOK[mark].blur}px)!important`;
+export const MARK_SHOWN_CSS = 'opacity:1!important;filter:none!important';
+export const MARK_TRANSITION_CSS = 'transition:opacity .15s,filter .15s!important';
 
 /** Attribute the content script sets on marked links (its value is the LinkMark). */
 export const LINK_MARK_ATTR = 'data-read-tracker';
