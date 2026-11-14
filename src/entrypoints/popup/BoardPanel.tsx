@@ -55,8 +55,8 @@ export function BoardPanel({ board, tabId, url }: { board: Board; tabId: number;
   return (
     <section className="booru" aria-label={`Booru marking on ${board.label}`}>
       <div className="booru-head">
-        <span className="booru-tag">Booru</span>
         <span className="booru-site">{board.label}</span>
+        <span className="booru-tag">Booru</span>
       </div>
 
       <>
