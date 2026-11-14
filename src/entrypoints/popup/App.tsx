@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { browser, type Browser } from 'wxt/browser';
 import { HoldButton } from '@/components/HoldButton';
 import { boardForHost } from '@/lib/boards';
@@ -343,8 +343,10 @@ function CurrentRecord({
 
 /** Folder choice as chips (Home first); no dropdown, so nothing has to fit inside the popup. */
 /**
- * Folder for a new record: a dropdown, so the popup stays the same size however many folders
- * there are (the folder is usually preselected from preferred domains anyway).
+ * Folder for a new record: a searchable dropdown, so the popup stays the same size however
+ * many folders there are (the folder is usually preselected from preferred domains anyway).
+ * Closed it looks like a select; open, a search box filters the list (arrows, Enter, Esc).
+ * The list opens in the page flow (not floating): a popup window can't draw outside itself.
  */
 function FolderSelect({
   folders,
@@ -356,19 +358,109 @@ function FolderSelect({
   value: string;
   onChange: (folderId: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [active, setActive] = useState(0);
+  const listId = useId();
+  const button = useRef<HTMLButtonElement>(null);
+  /** Closed by a pick or Esc (not by clicking elsewhere): focus goes back to the button. */
+  const refocus = useRef(false);
+  const options = [{ id: '', name: 'Home' }, ...folders.map((f) => ({ id: f.id, name: f.name }))];
   // A folder that no longer exists counts as Home.
-  const current = folders.some((f) => f.id === value) ? value : '';
+  const current = options.find((o) => o.id === value) ?? options[0]!;
+  const q = query.trim().toLowerCase();
+  const shown = q ? options.filter((o) => o.name.toLowerCase().includes(q)) : options;
+
+  // Keep the highlighted folder in view while moving with the arrow keys.
+  useEffect(() => {
+    if (open) document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: 'nearest' });
+  }, [open, active, listId]);
+  useEffect(() => {
+    if (!open && refocus.current) {
+      refocus.current = false;
+      button.current?.focus();
+    }
+  }, [open]);
+
+  const show = () => {
+    setQuery('');
+    setActive(Math.max(0, options.findIndex((o) => o.id === current.id)));
+    setOpen(true);
+  };
+  const close = () => {
+    refocus.current = true;
+    setOpen(false);
+  };
+  const choose = (id: string) => {
+    onChange(id);
+    close();
+  };
+
   return (
-    <label className="popup-folder">
-      <span>Folder</span>
-      <select value={current} onChange={(e) => onChange(e.target.value)}>
-        <option value="">Home</option>
-        {folders.map((f) => (
-          <option key={f.id} value={f.id}>
-            {f.name}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div className="popup-folder">
+      <span className="popup-folder-label">Folder</span>
+      {!open ? (
+        <button ref={button} type="button" className="popup-folder-button" aria-haspopup="listbox" onClick={show}>
+          {current.name}
+        </button>
+      ) : (
+        <div
+          className="popup-folder-open"
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false);
+          }}
+        >
+          <input
+            type="search"
+            role="combobox"
+            aria-expanded={true}
+            aria-controls={listId}
+            aria-activedescendant={shown[active] ? `${listId}-${active}` : undefined}
+            aria-label="Search folders"
+            placeholder="Search folders"
+            autoFocus
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActive(0);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const step = e.key === 'ArrowDown' ? 1 : -1;
+                setActive((i) => (shown.length ? (i + step + shown.length) % shown.length : 0));
+              } else if (e.key === 'Enter') {
+                // Pick the highlighted folder; never submit the form from here.
+                e.preventDefault();
+                const pick = shown[active];
+                if (pick) choose(pick.id);
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                close();
+              }
+            }}
+          />
+          <ul className="popup-folder-list" role="listbox" id={listId} aria-label="Folders">
+            {shown.map((o, i) => (
+              <li
+                key={o.id || 'home'}
+                id={`${listId}-${i}`}
+                role="option"
+                aria-selected={o.id === current.id}
+                className={i === active ? 'is-active' : undefined}
+                // Before the input's blur, so the click lands.
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseEnter={() => setActive(i)}
+                onClick={() => choose(o.id)}
+              >
+                {o.name}
+              </li>
+            ))}
+            {shown.length === 0 && <li className="popup-folder-empty">No folder matches.</li>}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
