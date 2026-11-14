@@ -245,8 +245,36 @@
   gap: 6px;
   align-items: center;
 }
-.folder-chips .folder-actions-start {
-  margin-left: auto;
+/* "+ New folder": a dashed chip after the folders */
+.folder-chip.folder-chip-new {
+  border-style: dashed;
+  background: transparent;
+  color: var(--text-muted);
+}
+.folder-chip.folder-chip-new:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* Unread / Read tabs on the left, Manage (the open place's settings) on the right */
+.place-row {
+  display: flex;
+  align-items: flex-end;
+  min-height: 42px;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.place-row .status-tabs {
+  border-bottom: 0;
+}
+.place-manage {
+  flex: none;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+}
+.place-manage:hover:not(:disabled) {
+  color: var(--text);
 }
 
 

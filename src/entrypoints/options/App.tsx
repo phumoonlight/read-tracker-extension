@@ -293,11 +293,17 @@ export function App() {
           resetting(setFolder)(f);
         }}
         onNew={() => setModal({ kind: 'folder-new' })}
-        onManage={() => setModal({ kind: 'place' })}
       />
 
-      {/* Status places split into Unread / Read tabs; Revisit places don't use statuses. */}
-      {!revisit && <StatusTabs value={status} counts={statusCounts} onChange={resetting(setStatus)} />}
+      {/* Status places split into Unread / Read tabs (Revisit places don't use statuses); the
+          open place's settings sit at the right end of the same row. */}
+      <div className="place-row">
+        {!revisit ? <StatusTabs value={status} counts={statusCounts} onChange={resetting(setStatus)} /> : <span />}
+        <button type="button" className="btn btn-small btn-ghost place-manage" onClick={() => setModal({ kind: 'place' })}>
+          <span aria-hidden="true">⚙</span>
+          {openFolder ? 'Manage folder' : 'Manage Home'}
+        </button>
+      </div>
 
       <div className="toolbar">
         <input
@@ -817,17 +823,13 @@ function FolderBar({
   value,
   onChange,
   onNew,
-  onManage,
 }: {
   folders: Folder[];
   counts: PlaceCounts | undefined;
   value: FolderFilter;
   onChange: (v: FolderFilter) => void;
   onNew: () => void;
-  /** Open the settings dialog of the selected place (folder or Home). */
-  onManage: () => void;
 }) {
-  const selected = folders.find((f) => f.id === value);
   const NONE: PlaceCount = { total: 0, unread: 0 };
   // Status places show "unread / read"; Revisit places (no statuses) show the record count.
   const chip = (v: FolderFilter, label: string, count: PlaceCount | undefined, revisit: boolean) => (
@@ -852,12 +854,9 @@ function FolderBar({
         {folders.map((f) =>
           chip(f.id, f.name, counts && (counts.folders.get(f.id) ?? NONE), f.readMode === 'revisit'),
         )}
-        {/* + New folder and Manage sit together at the right end of the row. */}
-        <button type="button" className="btn btn-small btn-ghost folder-actions-start" onClick={onNew}>
+        {/* Right after the last folder, as a dashed chip: where a new one will appear. */}
+        <button type="button" className="folder-chip folder-chip-new" onClick={onNew}>
           + New folder
-        </button>
-        <button type="button" className="btn btn-small" onClick={onManage}>
-          {selected ? 'Manage folder' : 'Manage Home'}
         </button>
       </div>
     </nav>
