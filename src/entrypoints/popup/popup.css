@@ -93,6 +93,34 @@ body {
   font-size: 18px;
 }
 
+/* "Add this page as record" folded (board sites): a row that opens the form */
+.popup-expand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.popup-expand:hover {
+  color: var(--text-muted);
+}
+.popup-expand-chevron {
+  color: var(--text-muted);
+  font-size: 14px;
+  transition: transform 0.15s;
+}
+.popup-expand-chevron.is-open {
+  transform: rotate(90deg);
+}
+
 .current-title {
   font-weight: 700;
   overflow-wrap: anywhere;

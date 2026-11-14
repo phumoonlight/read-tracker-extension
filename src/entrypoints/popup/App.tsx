@@ -83,7 +83,13 @@ export function App() {
             onChange={(record) => setState({ ...state, record })}
           />
         ) : (
-          <AddPage tab={state.tab} folders={state.folders} onAdded={(record) => setState({ ...state, record })} />
+          <AddPage
+            tab={state.tab}
+            folders={state.folders}
+            // On a board the Booru card is the main thing: adding a record is folded away.
+            collapsed={!!boardForHost(new URL(state.tab.url).hostname)}
+            onAdded={(record) => setState({ ...state, record })}
+          />
         ))}
     </main>
   );
@@ -120,7 +126,19 @@ function BoardSection({ tab }: { tab: ActiveTab }) {
 }
 
 /** Add the current page: title and folder only. It starts unread. */
-function AddPage({ tab, folders, onAdded }: { tab: ActiveTab; folders: Folder[]; onAdded: (r: ReadingRecord) => void }) {
+function AddPage({
+  tab,
+  folders,
+  collapsed = false,
+  onAdded,
+}: {
+  tab: ActiveTab;
+  folders: Folder[];
+  /** Start folded (on board sites); the title row expands it. */
+  collapsed?: boolean;
+  onAdded: (r: ReadingRecord) => void;
+}) {
+  const [open, setOpen] = useState(!collapsed);
   const [title, setTitle] = useState(tab.title ?? '');
   // Preselect the folder whose preferred domains cover this page; otherwise Home.
   const [folderId, setFolderId] = useState(() => folderForUrl(folders, tab.url)?.id ?? '');
@@ -149,11 +167,34 @@ function AddPage({ tab, folders, onAdded }: { tab: ActiveTab; folders: Folder[];
     }
   }
 
+  const heading = 'Add this page as record';
+  if (!open) {
+    return (
+      <div className="popup-body">
+        <button type="button" className="popup-expand" aria-expanded={false} onClick={() => setOpen(true)}>
+          <span className="popup-expand-chevron" aria-hidden="true">
+            ▸
+          </span>
+          {heading}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={add}>
       <div className="popup-body">
-        <h2 className="popup-section-title">Add this page</h2>
-        <input type="text" value={title} aria-label="Title" placeholder="Title" onChange={(e) => setTitle(e.target.value)} />
+        {collapsed ? (
+          <button type="button" className="popup-expand" aria-expanded={true} onClick={() => setOpen(false)}>
+            <span className="popup-expand-chevron is-open" aria-hidden="true">
+              ▸
+            </span>
+            {heading}
+          </button>
+        ) : (
+          <h2 className="popup-section-title">{heading}</h2>
+        )}
+        <input type="text" autoFocus={collapsed} value={title} aria-label="Title" placeholder="Title" onChange={(e) => setTitle(e.target.value)} />
         {folders.length > 0 && <FolderChips folders={folders} value={folderId} onChange={setFolderId} />}
         <span className="muted popup-url" title={tab.url}>
           {displayUrl(tab.url)}
