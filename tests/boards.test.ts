@@ -276,10 +276,14 @@ describe('Booru explorer files', () => {
   });
 
   it('carries the board post count in the backup manifest', () => {
-    const m = buildManifest({ records: 1, images: 0, boardPosts: 7 }, [], undefined, 1);
-    expect(parseManifest(JSON.stringify(m)).counts).toEqual({ records: 1, folders: 0, images: 0, boardPosts: 7 });
+    const m = buildManifest({ records: 1, images: 0, booruPosts: 7 }, [], undefined, 1);
+    expect(parseManifest(JSON.stringify(m)).counts).toEqual({ records: 1, folders: 0, images: 0, booruPosts: 7 });
     const old = { ...buildManifest({ records: 1, images: 0 }, [], undefined, 1), layout: 1 };
-    expect(parseManifest(JSON.stringify(old)).counts.boardPosts).toBeUndefined();
+    expect(parseManifest(JSON.stringify(old)).counts.booruPosts).toBeUndefined();
+    // Backups from 0.1.16 and earlier call it boardPosts.
+    const { booruPosts, ...rest } = m.counts;
+    const before = { ...m, counts: { ...rest, boardPosts: booruPosts } };
+    expect(parseManifest(JSON.stringify(before)).counts.booruPosts).toBe(7);
   });
 });
 

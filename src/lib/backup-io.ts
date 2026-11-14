@@ -59,9 +59,9 @@ export async function exportToFile(): Promise<number> {
       files.push({ name: imagePath(id, img.blob.type), data: img.blob });
     }
   }
-  const boardPosts = boardPostCount(boards);
+  const booruPosts = boardPostCount(boards);
   const manifest = buildManifest(
-    { records: records.length, images: files.length, ...(boardPosts ? { boardPosts } : {}) },
+    { records: records.length, images: files.length, ...(booruPosts ? { booruPosts } : {}) },
     folders,
     home,
   );
@@ -96,7 +96,7 @@ export interface ImportResult {
   updated: number;
   skipped: number;
   /** Board posts newly marked read (from the booru/ files). */
-  boardPosts: number;
+  booruPosts: number;
   /** What was dropped or changed, for the user. Empty when everything came in as is. */
   issues: string[];
 }
@@ -205,6 +205,6 @@ async function mergeBackup(
     : plan.write;
 
   await applyImport(plan.writeFolders, write, images, plan.deleteImages, plan.writeHome);
-  const boardPosts = boards && !isEmptyBoardReads(boards) ? await importBoardReads(boards) : 0;
-  return { added: plan.added, updated: plan.updated, skipped: plan.skipped, boardPosts, issues };
+  const booruPosts = boards && !isEmptyBoardReads(boards) ? await importBoardReads(boards) : 0;
+  return { added: plan.added, updated: plan.updated, skipped: plan.skipped, booruPosts, issues };
 }

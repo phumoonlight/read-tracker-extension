@@ -139,7 +139,7 @@ export function App() {
               {plural(pending.counts.records, 'record')}, {plural(pending.counts.folders, 'folder')} and{' '}
               {plural(pending.counts.images, 'image')}
             </strong>
-            {pending.counts.boardPosts ? <>, plus {plural(pending.counts.boardPosts, 'read board post')}</> : null}.
+            {pending.counts.booruPosts ? <>, plus {plural(pending.counts.booruPosts, 'read board post')}</> : null}.
           </p>
           <p className="muted" style={{ margin: 0 }}>
             Records and folders that exist both here and in the backup keep the most recently edited copy. Board read
@@ -162,7 +162,7 @@ export function App() {
                   setImportMsg({
                     text:
                       `Imported: ${r.added} added, ${r.updated} updated, ${r.skipped} unchanged.` +
-                      (r.boardPosts ? ` ${plural(r.boardPosts, 'board post')} marked read.` : ''),
+                      (r.booruPosts ? ` ${plural(r.booruPosts, 'board post')} marked read.` : ''),
                   });
                 } catch (err) {
                   setImportMsg({ text: `Import failed: ${err instanceof Error ? err.message : err}`, error: true });

@@ -276,8 +276,8 @@ export interface BackupCounts {
   records: number;
   folders: number;
   images: number;
-  /** Read board posts in the booru/ files. Absent in layout 1. */
-  boardPosts?: number;
+  /** Read board posts in the booru/ files. Absent in layout 1; named `boardPosts` before 0.1.17. */
+  booruPosts?: number;
 }
 
 /** manifest.json: read first, so an import can be checked and previewed without reading the records. */
@@ -338,7 +338,7 @@ export function parseManifest(text: string, issues: string[] = []): BackupManife
       records: count(c.records),
       folders: folders.length,
       images: count(c.images),
-      ...(count(c.boardPosts) ? { boardPosts: count(c.boardPosts) } : {}),
+      ...(count(c.booruPosts ?? c.boardPosts) ? { booruPosts: count(c.booruPosts ?? c.boardPosts) } : {}),
     },
     folders,
     ...(home ? { home } : {}),

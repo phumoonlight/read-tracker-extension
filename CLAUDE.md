@@ -236,7 +236,7 @@ and 3 (`booru/<board>.json`) still import):
   top bit = more), so mostly 1 byte a post. Not Booru explorer compatible (not needed: its marking is being dropped).
   On import, `booru/*.bin`, plus `booru/*.json` / `boards.json` from older layouts (Booru explorer's JSON,
   `parseBoardFile`), are found by `boardBackupEntries`, merged (`mergeBoardReads`) and imported like the Booru page
-  import; `counts.boardPosts` in the manifest for the preview. The Booru page import takes several files at once
+  import; `counts.booruPosts` in the manifest for the preview (read as `boardPosts` from backups before 0.1.17). The Booru page import takes several files at once
   (`.bin` from a backup's `booru/` folder, or a Booru explorer `.json`).
 - `images/<id>.<ext>` (`imagePath`, `imageStem`): original files. There is no image list: on import each id in a
   record's `images` is looked up by file-name stem among the ZIP's entries (`imageIndex` + `imagesFromZip`; any
