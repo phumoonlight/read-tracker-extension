@@ -12,7 +12,7 @@ import {
   rowCount,
   rowHolds,
   rowOffsets,
-  rowsToFile,
+  rowsToIds,
   type BoardKey,
   type BoardQueryAnswer,
   type BoardReads,
@@ -121,18 +121,13 @@ export async function boardStats(): Promise<Record<BoardKey, BoardStat>> {
   });
 }
 
-/**
- * Everything, for export (boards.json in the backup ZIP): per board the read run 1..N as
- * `upTo` (one number) and the other read ids listed (see rowsToFile).
- */
+/** Everything, for export (boards.json in the backup ZIP): every read id per board, listed. */
 export async function getBoardReads(): Promise<BoardReads> {
   return withTx(BOARD_READS, 'readonly', async (tx) => {
-    const reads: BoardReads = { sites: {}, upTo: {} };
+    const reads: BoardReads = { sites: {} };
     for (const b of BOARDS) {
-      // getAll on the key range returns rows sorted by bucket.
       const rows = (await req(tx.objectStore(BOARD_READS).getAll(siteRange(b.key)))) as BucketRow[];
-      const { upTo, ids } = rowsToFile(rows);
-      if (upTo) reads.upTo![b.key] = upTo;
+      const ids = rowsToIds(rows);
       if (ids.length) reads.sites[b.key] = ids;
     }
     return reads;

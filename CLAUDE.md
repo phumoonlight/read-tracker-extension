@@ -201,9 +201,8 @@ never appear in the list.
 - Import: the Boards page reads Booru explorer's export (`parseBoardFile`: `{ format: "booru-explorer-reads",
   version: 1, exported, sites: { board: [ids] }, floors? }`); merge only (ids unioned, `importBoardReads`, one
   transaction). A file's `floors` ("read up to N") is imported as posts 1..N marked read (`addRange`: whole buckets
-  become full bitmaps directly). On export (`boards.json`), a board's gap-free run 1..N is written as `floors: { b: N }`
-  and only the ids above it are listed (`rowsToFile`), so a big imported range doesn't become millions of ids; this is
-  only file shorthand (same meaning in Booru explorer), never stored. Unknown boards are reported and skipped.
+  become full bitmaps directly). Export (`boards.json`) lists every read id (`rowsToIds`) and never
+  writes `floors` (by request). Unknown boards are reported and skipped.
 
 ### Changing the schema
 

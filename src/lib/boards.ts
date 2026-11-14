@@ -224,38 +224,14 @@ export function addRange(
   return packRow(site, bucket, offsets) ?? row;
 }
 
-/**
- * One board's rows (sorted by bucket) as file content: `upTo` = every post from RANGE_START
- * to it is read with no gap (0 = none), and `ids` = the other read posts (all above upTo).
- * The run is written as one number, so a range imported from a big "read up to" doesn't
- * become millions of ids in the file. Full buckets are skipped without listing their ids.
- */
-export function rowsToFile(unsorted: readonly BucketRow[]): { upTo: number; ids: number[] } {
-  // The run walks buckets in order (IndexedDB returns them sorted; don't rely on it here).
-  const rows = [...unsorted].sort((a, b) => a.bucket - b.bucket);
-  let upTo = RANGE_START - 1;
-  let open = true;
+/** Every read post id in one board's rows, ascending (for export: listed one by one, no floor). */
+export function rowsToIds(rows: readonly BucketRow[]): number[] {
   const ids: number[] = [];
-  // Post 0 is below the run (which starts at 1): listed on its own.
-  if (rows[0]?.bucket === 0 && rowHolds(rows[0], 0)) ids.push(0);
-  for (const row of rows) {
+  for (const row of [...rows].sort((x, y) => x.bucket - y.bucket)) {
     const base = row.bucket * BUCKET_SIZE;
-    if (open && base > upTo + 1) open = false;
-    if (open) {
-      if (row.kind === 'map' && row.data.every((b) => b === 0xff)) {
-        upTo = base + BUCKET_SIZE - 1;
-        continue;
-      }
-      let o = Math.max(upTo + 1 - base, 0);
-      while (o < BUCKET_SIZE && rowHolds(row, o)) o++;
-      upTo = base + o - 1;
-      if (o === BUCKET_SIZE) continue;
-      open = false;
-    }
-    const offsets = [...rowOffsets(row)].sort((a, b) => a - b);
-    for (const off of offsets) if (base + off > upTo && base + off >= RANGE_START) ids.push(base + off);
+    for (const off of [...rowOffsets(row)].sort((x, y) => x - y)) ids.push(base + off);
   }
-  return { upTo: Math.max(upTo, 0), ids };
+  return ids;
 }
 
 /** The buckets a range of ids touches. */
@@ -349,9 +325,8 @@ export function parseBoardPrefs(v: unknown): BoardPrefs {
 // Files: Booru explorer's export, also used as boards.json inside the ZIP backup.
 //   { format: "booru-explorer-reads", version: 1, exported: ISO date,
 //     sites: { <board>: [sorted post ids] }, floors?: { <board>: N } }
-// There is no floor in Read Tracker, only marked posts: `floors` is just file shorthand.
-// On import, `floors: { b: N }` marks posts 1..N read; on export, posts 1..N read with no gap
-// are written as `floors: { b: N }` (same meaning for Booru explorer) instead of N ids.
+// There is no floor in Read Tracker, only marked posts. On import, Booru explorer's
+// `floors: { b: N }` ("read up to N") marks posts 1..N read; export never writes `floors`.
 
 export const BOARD_FILE_FORMAT = 'booru-explorer-reads';
 export const BOARD_FILE_VERSION = 1;
@@ -369,7 +344,7 @@ export interface BoardFile {
   version: number;
   exported: string;
   sites: Partial<Record<BoardKey, number[]>>;
-  /** Posts 1..N read with no gap, written as N (Booru explorer reads it as its "read up to"). */
+  /** Booru explorer's "read up to N" (read on import only; never written). */
   floors?: Partial<Record<BoardKey, number>>;
 }
 
@@ -379,14 +354,13 @@ export interface ParsedBoardFile extends BoardReads {
   upTo: Partial<Record<BoardKey, number>>;
 }
 
-export function buildBoardFile(reads: BoardReads, exported = new Date()): BoardFile {
-  const upTo = reads.upTo ?? {};
+/** The file to export: every read id listed (no `floors`). */
+export function buildBoardFile(reads: Pick<BoardReads, 'sites'>, exported = new Date()): BoardFile {
   return {
     format: BOARD_FILE_FORMAT,
     version: BOARD_FILE_VERSION,
     exported: exported.toISOString(),
     sites: reads.sites,
-    ...(Object.keys(upTo).length ? { floors: upTo } : {}),
   };
 }
 

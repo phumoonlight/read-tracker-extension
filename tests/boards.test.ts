@@ -26,7 +26,7 @@ import {
   pinkish,
   postIdOn,
   RANGE_START,
-  rowsToFile,
+  rowsToIds,
   rowCount,
   rowHolds,
   rowOffsets,
@@ -174,58 +174,32 @@ describe('ranges ("read up to" turned into marked posts)', () => {
   });
 });
 
-describe('rowsToFile (export: a gap-free run 1..N as one number)', () => {
+describe('rowsToIds (export lists every read post, no floor)', () => {
   const rowsFor = (ids: number[]) =>
     [...groupByBucket(ids)].map(([b, held]) => packRow('pixiv', b, new Set(held.map((id) => id % BUCKET_SIZE)))!);
 
-  it('lists scattered ids when there is no run from 1', () => {
-    expect(rowsToFile(rowsFor([5, 9, BUCKET_SIZE * 3 + 1]))).toEqual({ upTo: 0, ids: [5, 9, BUCKET_SIZE * 3 + 1] });
-    expect(rowsToFile([])).toEqual({ upTo: 0, ids: [] });
+  it('lists every id ascending, whatever the row order', () => {
+    expect(rowsToIds(rowsFor([BUCKET_SIZE * 3 + 1, 9, 0, 5]).reverse())).toEqual([0, 5, 9, BUCKET_SIZE * 3 + 1]);
+    expect(rowsToIds([])).toEqual([]);
   });
 
-  it('writes 1..N as upTo and lists only what is above', () => {
-    expect(rowsToFile(rowsFor([1, 2, 3, 7, 8]))).toEqual({ upTo: 3, ids: [7, 8] });
+  it('lists a range imported from "read up to" one by one', () => {
+    const rows = bucketsOf(RANGE_START, 2268).map((b) => addRange(undefined, 'konachan', b, RANGE_START, 2268)!);
+    expect(rowsToIds(rows)).toEqual(Array.from({ length: 2268 }, (_, i) => i + 1));
   });
 
-  it('runs across full buckets without listing them', () => {
-    let row = addRange(undefined, 'pixiv', 0, RANGE_START, BUCKET_SIZE * 2 + 99)!;
-    const rows = [row];
-    for (const b of [1, 2]) rows.push(addRange(undefined, 'pixiv', b, RANGE_START, BUCKET_SIZE * 2 + 99)!);
-    row = packRow('pixiv', 2, new Set([...rowOffsets(rows[2]!), 500]))!;
-    rows[2] = row;
-    expect(rowsToFile(rows)).toEqual({ upTo: BUCKET_SIZE * 2 + 99, ids: [BUCKET_SIZE * 2 + 500] });
-  });
-
-  it('keeps post 0, which is below the run', () => {
-    expect(rowsToFile(rowsFor([0, 1, 2]))).toEqual({ upTo: 2, ids: [0] });
-  });
-
-  it('round-trips random read sets exactly (file -> rows gives the same posts)', () => {
+  it('round-trips random read sets exactly (bitmaps and lists)', () => {
     let seed = 7;
     const rand = (n: number) => {
       seed = (seed * 1103515245 + 12345) % 2 ** 31;
       return seed % n;
     };
-    const postsOf = (rows: ReturnType<typeof rowsFor>) =>
-      rows.flatMap((r) => [...rowOffsets(r)].map((o) => r.bucket * BUCKET_SIZE + o)).sort((x, y) => x - y);
     for (let round = 0; round < 40; round++) {
       const ids = new Set<number>();
-      // Sometimes a run from 0 or 1 (sometimes spanning buckets), plus scattered posts.
       if (rand(3)) for (let i = rand(2); i <= rand(BUCKET_SIZE * 2); i++) ids.add(i);
       for (let i = rand(300); i > 0; i--) ids.add(rand(BUCKET_SIZE * 4));
-      const rows = rowsFor([...ids]);
-      const { upTo, ids: listed } = rowsToFile(rows);
-      // Rebuild the way import does: the range, then the listed ids.
-      const rebuilt = new Set(listed);
-      for (let i = RANGE_START; i <= upTo; i++) rebuilt.add(i);
-      expect([...rebuilt].sort((x, y) => x - y)).toEqual(postsOf(rows));
-      expect(listed.every((id) => id > upTo || id < RANGE_START)).toBe(true);
+      expect(rowsToIds(rowsFor([...ids]))).toEqual([...ids].sort((x, y) => x - y));
     }
-  });
-
-  it('a range imported then exported is the same range', () => {
-    const rows = bucketsOf(RANGE_START, 2254).map((b) => addRange(undefined, 'konachan', b, RANGE_START, 2254)!);
-    expect(rowsToFile(rows)).toEqual({ upTo: 2254, ids: [] });
   });
 });
 
@@ -259,16 +233,13 @@ describe('Booru explorer files', () => {
     expect(() => parseBoardFile(file({ version: 2, sites: {} }))).toThrow(/newer/);
   });
 
-  it('round-trips what it writes; a run is written as floors', () => {
+  it('round-trips what it writes, never writing floors', () => {
     const written = buildBoardFile({ sites: { pixiv: [1, 2] } }, new Date(0));
     expect(written).not.toHaveProperty('floors');
     expect(parseBoardFile(JSON.stringify(written))).toEqual({ exported: written.exported, sites: written.sites, upTo: {} });
-    const withRun = buildBoardFile({ sites: { pixiv: [9000] }, upTo: { pixiv: 2254 } }, new Date(0));
-    expect(withRun.floors).toEqual({ pixiv: 2254 });
-    const back = parseBoardFile(JSON.stringify(withRun));
-    expect(back.upTo).toEqual({ pixiv: 2254 });
-    expect(boardSitePostCount(back, 'pixiv')).toBe(2255);
-    expect(boardPostCount(back)).toBe(2255);
+    const imported = parseBoardFile(file({ sites: { pixiv: [9000] }, floors: { pixiv: 2254 } }));
+    expect(boardSitePostCount(imported, 'pixiv')).toBe(2255);
+    expect(boardPostCount(imported)).toBe(2255);
     expect(isEmptyBoardReads({ sites: { pixiv: [1] } })).toBe(false);
     expect(isEmptyBoardReads({ sites: {}, upTo: { gelbooru: 9 } })).toBe(false);
     expect(isEmptyBoardReads({ sites: {} })).toBe(true);
