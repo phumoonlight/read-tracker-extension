@@ -63,7 +63,7 @@ export function BoardPanel({ board, tabId, url }: { board: Board; tabId: number;
         {post && (
           <div className="booru-post">
             <span className="booru-post-id">
-              Post <strong>{post.id}</strong>
+              <strong>#{post.id}</strong>
             </span>
             <span className={`booru-pill ${post.read ? 'is-read' : 'is-unread'}`}>
               {post.read ? 'Read' : 'Not read'}
