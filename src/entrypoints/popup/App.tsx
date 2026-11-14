@@ -167,7 +167,7 @@ function AddPage({
     }
   }
 
-  const heading = 'Add this page as record';
+  const heading = 'Record this page';
   if (!open) {
     return (
       <div className="popup-body">

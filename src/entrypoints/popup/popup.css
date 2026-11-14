@@ -93,7 +93,7 @@ body {
   font-size: 18px;
 }
 
-/* "Add this page as record" folded (board sites): a row that opens the form */
+/* "Record this page" folded (board sites): a row that opens the form */
 .popup-expand {
   display: flex;
   align-items: center;
