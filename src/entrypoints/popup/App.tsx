@@ -196,9 +196,6 @@ function AddPage({
         )}
         <input type="text" autoFocus={collapsed} value={title} aria-label="Title" placeholder="Title" onChange={(e) => setTitle(e.target.value)} />
         {folders.length > 0 && <FolderChips folders={folders} value={folderId} onChange={setFolderId} />}
-        <span className="muted popup-url" title={tab.url}>
-          {displayUrl(tab.url)}
-        </span>
         {error && <span className="error">{error}</span>}
       </div>
       <div className="popup-footer">
