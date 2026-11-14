@@ -75,7 +75,7 @@ export function App() {
         <a className="back-link" href="/options.html">
           ← Reading list
         </a>
-        <h1>Boards</h1>
+        <h1>Booru</h1>
         <p className="muted">
           On {BOARDS.map((b) => b.label).join(', ')}, posts you mark read are faded out of the next listing. Only post
           numbers are stored. They aren't records and don't appear in the reading list.

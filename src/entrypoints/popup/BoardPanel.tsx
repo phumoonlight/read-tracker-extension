@@ -148,7 +148,7 @@ export function BoardPanel({ board, tabId, url }: { board: Board; tabId: number;
                   (board.bookmarks ? (page.kept ? `, ${page.kept} bookmarked (left alone).` : ', none bookmarked.') : '.')}
         </span>
         <button type="button" className="link-button" onClick={openBoards}>
-          Boards
+          Booru
         </button>
       </div>
     </div>
