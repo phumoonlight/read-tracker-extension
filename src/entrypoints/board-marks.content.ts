@@ -1,6 +1,7 @@
 import { browser } from 'wxt/browser';
 import { defineContentScript } from 'wxt/utils/define-content-script';
-import { getBoardPrefs, onBoardPrefsChanged } from '@/lib/board-prefs';
+import { getMarkingPrefs, onMarkingPrefsChanged } from '@/lib/marking-prefs';
+import type { MarkingPrefs } from '@/lib/link-marks';
 import {
   BOARD_BATCH,
   BOARD_ORIGINS,
@@ -13,7 +14,6 @@ import {
   type Board,
   type BoardMarkRequest,
   type BoardPageInfo,
-  type BoardPrefs,
   type BoardQueryAnswer,
   type BoardQueryRequest,
 } from '@/lib/boards';
@@ -56,14 +56,14 @@ export default defineContentScript({
     const board = boardForHost(location.hostname);
     if (!board) return;
 
-    // Start once the prefs are known (so a paused board doesn't fade first); later
-    // changes (pause / resume) are handled inside.
-    const start = (prefs: BoardPrefs) => {
+    // Start once the prefs are known (so with dimming off nothing fades first); later
+    // changes are handled inside.
+    const start = (prefs: MarkingPrefs) => {
       if (session || replaced) return;
       session = startMarking(board, prefs);
     };
     try {
-      void getBoardPrefs().then(start, () => start({}));
+      void getMarkingPrefs().then(start, () => start({}));
     } catch {
       // Extension context gone (reloaded under this page).
     }
@@ -77,7 +77,7 @@ const MARKING_ATTR = 'data-read-tracker-marking';
 const idle = (fn: () => void) =>
   window.requestIdleCallback ? window.requestIdleCallback(fn, { timeout: 500 }) : setTimeout(fn, 200);
 
-function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
+function startMarking(board: Board, initial: MarkingPrefs): { stop(): void } {
   let prefs = initial;
   let stopped = false;
   /** Ids asked about (or marked here), and the ones known to be read. */
@@ -100,7 +100,6 @@ function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
   const on = { capture: true, signal: listeners.signal };
 
   const postIdOf = (href: string) => postIdOn(board, href, location.href);
-  const active = () => !prefs.paused;
 
   function stop() {
     if (stopped) return;
@@ -113,6 +112,7 @@ function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
       // Extension context already gone.
     }
     style.remove();
+    fade.remove();
     banner.host.remove();
     document.documentElement.removeAttribute(MARKING_ATTR);
     for (const a of document.querySelectorAll(`[${POST_ATTR}]`)) {
@@ -194,7 +194,7 @@ function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
   function paintRead() {
     if (stopped) return;
     for (const a of document.querySelectorAll(`[${POST_ATTR}]`)) {
-      if (active() && readIds.has(Number(a.getAttribute(POST_ATTR)))) a.setAttribute(READ_ATTR, '');
+      if (readIds.has(Number(a.getAttribute(POST_ATTR)))) a.setAttribute(READ_ATTR, '');
       else a.removeAttribute(READ_ATTR);
     }
   }
@@ -280,10 +280,18 @@ function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
   // the link: opacity on the link makes it a stacking context, and on pixiv that put the
   // thumbnail under the card's placeholder layer (gone, not faded) and faded the title too.
 
-  const style = document.createElement('style');
-  style.textContent = `
+  // The read look is its own <style>: the popup's dimming switch turns only it off (media
+  // "not all"); marking, recording and the marking-mode outline keep working.
+  const fade = document.createElement('style');
+  fade.textContent = `
     [${READ_ATTR}] img { ${markCss('read')}; ${MARK_TRANSITION_CSS} }
     [${READ_ATTR}]:hover img, [${READ_ATTR}]:focus-visible img { ${MARK_SHOWN_CSS} }
+  `;
+  const applyPrefs = () => (fade.media = prefs.paused ? 'not all' : '');
+  applyPrefs();
+  document.documentElement.append(fade);
+  const style = document.createElement('style');
+  style.textContent = `
     html[${MARKING_ATTR}] [${POST_ATTR}] { cursor: copy; outline: 1px dashed rgba(30, 136, 255, .5); outline-offset: 2px }
     html[${MARKING_ATTR}] [${POST_ATTR}]:hover { outline: 2px solid #1e88ff }
     html[${MARKING_ATTR}] [${READ_ATTR}] { outline-color: #12b76a }
@@ -323,7 +331,7 @@ function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
   }
 
   function setMarking(next: boolean) {
-    marking = next && active();
+    marking = next;
     document.documentElement.toggleAttribute(MARKING_ATTR, marking);
     banner.bar.hidden = !marking;
   }
@@ -344,7 +352,7 @@ function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
 
   const onMessage: Parameters<typeof browser.runtime.onMessage.addListener>[0] = (msg, sender, sendResponse) => {
     if (stopped || sender.id !== browser.runtime.id || !isBoardPageRequest(msg)) return;
-    if (msg.action === 'mark-page' && active()) {
+    if (msg.action === 'mark-page') {
       // Bookmarked posts were kept on purpose: a sweep over the page leaves them alone.
       const kept = bookmarkedIds();
       mark(
@@ -421,12 +429,11 @@ function startMarking(board: Board, initial: BoardPrefs): { stop(): void } {
     if (seen.size) void ask([...seen]);
   });
 
-  // Paused / resumed in the popup.
-  const unsubscribePrefs = onBoardPrefsChanged((next) => {
+  // Dimming switched off / on in the popup: only the read look changes.
+  const unsubscribePrefs = onMarkingPrefsChanged((next) => {
     if (stopped) return;
     prefs = next;
-    if (!active()) setMarking(false);
-    paintRead();
+    applyPrefs();
   });
   listeners.signal.addEventListener('abort', () => {
     try {

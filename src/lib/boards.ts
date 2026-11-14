@@ -304,24 +304,6 @@ export function isBoardPageRequest(m: unknown): m is BoardPageRequest {
 }
 
 // ---------------------------------------------------------------------------
-// Preferences (chrome.storage.local, so the content script reads them without IndexedDB
-// and hears changes). Board marking is always on; the popup can pause it.
-
-export const BOARD_PREFS_KEY = 'boardPrefs';
-
-export interface BoardPrefs {
-  /** "Read marking" switched off in the popup: nothing fades, nothing is recorded. */
-  paused?: true;
-}
-
-export function parseBoardPrefs(v: unknown): BoardPrefs {
-  const o = typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : {};
-  return {
-    ...(o.paused === true ? { paused: true } : {}),
-  };
-}
-
-// ---------------------------------------------------------------------------
 // JSON files, import only: Booru explorer's export, and the board files of older backups
 // (boards.json in layout 2). Nothing writes this format now.
 //   { format: "booru-explorer-reads", version: 1, exported: ISO date,

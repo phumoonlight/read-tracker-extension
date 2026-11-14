@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ConfirmDialog, Dialog } from '@/components/Dialog';
 import { describeIssues } from '@/lib/backup';
-import { getBoardPrefs, onBoardPrefsChanged, updateBoardPrefs } from '@/lib/board-prefs';
+import { getMarkingPrefs, onMarkingPrefsChanged, updateMarkingPrefs } from '@/lib/marking-prefs';
+import type { MarkingPrefs } from '@/lib/link-marks';
 import { boardStats, clearBoard, importBoardReads, onBoardsChanged, type BoardStat } from '@/lib/board-store';
 import {
   BOARD_IDS_EXT,
@@ -15,7 +16,6 @@ import {
   RANGE_START,
   type Board,
   type BoardKey,
-  type BoardPrefs,
   type ParsedBoardFile,
 } from '@/lib/boards';
 
@@ -52,7 +52,7 @@ function Issues({ issues }: { issues: string[] }) {
  * a Booru explorer export.
  */
 export function App() {
-  const [prefs, setPrefs] = useState<BoardPrefs>();
+  const [prefs, setPrefs] = useState<MarkingPrefs>();
   const [stats, setStats] = useState<Record<BoardKey, BoardStat>>();
   const [tableMsg, setTableMsg] = useState<Message>();
   const [importMsg, setImportMsg] = useState<Message>();
@@ -63,9 +63,9 @@ export function App() {
 
   useEffect(() => {
     const loadStats = () => boardStats().then(setStats, () => setStats(undefined));
-    void getBoardPrefs().then(setPrefs);
+    void getMarkingPrefs().then(setPrefs);
     void loadStats();
-    const offPrefs = onBoardPrefsChanged(setPrefs);
+    const offPrefs = onMarkingPrefsChanged(setPrefs);
     const offBoards = onBoardsChanged(() => void loadStats());
     return () => {
       offPrefs();
@@ -85,9 +85,9 @@ export function App() {
 
       {prefs?.paused && (
         <div className="board-paused" role="status">
-          <span>Marking is paused: nothing is faded or recorded.</span>
-          <button type="button" className="btn btn-primary" onClick={() => void updateBoardPrefs({ paused: false })}>
-            Resume
+          <span>Dimming is off: read posts aren't faded on boards (marking still works).</span>
+          <button type="button" className="btn btn-primary" onClick={() => void updateMarkingPrefs({ paused: false })}>
+            Turn on
           </button>
         </div>
       )}
@@ -192,8 +192,9 @@ export function App() {
             <strong>Start marking</strong>, then click thumbnails to mark or unmark them. Esc stops.
           </li>
           <li>
-            <strong>Read marking: on / off</strong> pauses everything. The badge shows ✓ on a read post.
+            The popup's <strong>Dim</strong> switch turns the fading off on every website; marking still works.
           </li>
+          <li>The toolbar badge shows ✓ on a read post.</li>
           <li>
             Board history is also in the <a href="/backup.html">ZIP backup</a>.
           </li>

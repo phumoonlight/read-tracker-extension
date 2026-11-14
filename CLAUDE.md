@@ -37,17 +37,17 @@ src/
     board-marks.content.ts content script (in the manifest, matches BOARD_ORIGINS): board marking (fade, marking mode)
     popup/               toolbar popup (short): add page (title + folder chips), or read state only; links to Manage.
                          On a board page, board marking controls on top (BoardPanel.tsx): a violet card (`--booru*`
-                         tokens) with an On / Paused switch, the open post's Read / Not read pill, Mark page read
+                         tokens): the open post's Read / Not read pill, Mark page read
                          (hold) | Click to mark, and a page progress bar
     options/             full list page (options_ui, open_in_tab): folder bar, record list, search, filters, Manage dialog (edit + delete)
     backup/              Backup page (backup.html, linked from the list header): export / import (.zip), erase all data
                          (`wipeAllData`, one transaction; a dialog with a 3 s `HoldButton`)
-    boards/              Boards page, titled "Booru" in the UI (boards.html, linked as "Booru" from the list header and the popup): paused banner / Resume (only when paused), collapsed help,
+    boards/              Boards page, titled "Booru" in the UI (boards.html, linked as "Booru" from the list header and the popup): "Dimming is off" banner / Turn on (only when off), collapsed help,
                          per-board table (posts, size, clear), import of a Booru explorer .json
   components/            shared React UI (RecordForm, ImagePicker, ImageViewer, Thumbnail (cover), UrlLink, HoldButton,
                          StatusPicker, Dialog)
   lib/                   framework-free logic (only db.ts / storage.ts / tab.ts / images.ts / board-store.ts /
-                         board-prefs.ts / changes.ts touch browser APIs)
+                         marking-prefs.ts / changes.ts touch browser APIs)
     types.ts             ReadingRecord, Folder, SCHEMA_VERSION, BackupFile
     folders.ts           folder name rules (folderNameError), newFolder, sortFolders
     url.ts               normalizeUrl, isTrackingParam, suggestPrefix
@@ -59,7 +59,7 @@ src/
     link-marks.ts        link marking rules (linkMark, marksLinks), message type, origins (pure)
     boards.ts            board marking (pure): BOARDS, post ids, packed buckets, messages, prefs shape, .json format
     board-store.ts       board read history in IndexedDB (query, mark, stats, clear, import), own change signal
-    board-prefs.ts       board marking prefs in chrome.storage.local (paused)
+    marking-prefs.ts     global Dim switch in chrome.storage.local (`markingPrefs`: paused = no dimming)
     images.ts            StoredImage, getImage/getImagePreview, prepareImage (validate + preview), sniffImageType
     tab.ts               active tab, captureVisibleTab, og:image lookup/download
     records.ts           createRecord, computeMatchKey, tag helpers
@@ -142,7 +142,7 @@ Storage: IndexedDB database `read-tracker` (layout in `src/lib/db.ts`, no third-
   removed in v8: each floor became posts 1..floor marked in `boardReads`.)
 - `chrome.storage.local` holds `recordsRevision`, bumped after every write. IndexedDB has no change events;
   `storage.onChanged` reaches every context and wakes the service worker, so this key is the change signal
-  (`onRecordsChanged`). Also `boardsRevision` (board history change signal, `onBoardsChanged`) and `boardPrefs`.
+  (`onRecordsChanged`). Also `boardsRevision` (board history change signal, `onBoardsChanged`) and `markingPrefs`.
 
 How data is read:
 - Badge and popup: `findRecordForUrl()` looks up `lookupTags(url)` (the exact tag `e|<url>`, then `p|<key>` for each
@@ -183,9 +183,12 @@ never appear in the list.
   offsets (2 bytes a post) or an 8 KB bitmap (1 bit per post) once more than 4096 of its posts are read, whichever is
   smaller (`packRow`, re-decided on every write). There is **no floor / "read up to"** (removed by request): only
   marked posts. Writes bump `boardsRevision` (not `recordsRevision`, so link marking doesn't rescan).
-- Board marking is **always on** (user request; there is no on/off switch). Prefs (`boardPrefs` in
-  chrome.storage.local, `board-prefs.ts`): only `paused` (popup's "Read marking" off: nothing faded or recorded, no
-  board badge). Absent = not paused. (`enabled` and `side` from older builds are ignored.)
+- Board marking is **always on** (user request). The popup header's global **Dim** switch (`markingPrefs` in
+  chrome.storage.local, `marking-prefs.ts`; `MarkingPrefs` / `parseMarkingPrefs` in `lib/link-marks.ts`) only turns
+  the dimming off on websites, for both board posts and record link marks: marking, recording, marking mode and the
+  badge keep working (by request). The content scripts set their dim `<style>`'s `media` to `not all` while off.
+  `paused: true` = off; absent = on. Builds up to 0.1.22 stored a board-only `boardPrefs.paused`; it is read when
+  `markingPrefs` is absent and removed on the next change.
 - `board-marks.content.ts` is a manifest content script (`matches: BOARD_ORIGINS`, `document_start`), so Chrome runs
   it on every board page; its `matches` are install-time host access for those sites. On install / reload the
   background injects it into board tabs already open, and removes the runtime registration (id `board-marks`) that
@@ -200,7 +203,7 @@ never appear in the list.
   "Mark this page read" (600 ms; skips pixiv bookmarks, read off the heart's pink each time, never stored), marking
   mode (clicks mark instead of navigating; the popup closes, a banner on the page shows it, Esc / Stop leaves). No
   answer = the script isn't in the tab (the popup says to reload).
-- Toolbar badge: a board post page with no matching record shows ✓ / • from the board history unless paused.
+- Toolbar badge: a board post page with no matching record shows ✓ / • from the board history.
 - Import: the Boards page reads Booru explorer's export (`parseBoardFile`: `{ format: "booru-explorer-reads",
   version: 1, exported, sites: { board: [ids] }, floors? }`); merge only (ids unioned, `importBoardReads`, one
   transaction). A file's `floors` ("read up to N") is imported as posts 1..N marked read (`addRange`: whole buckets

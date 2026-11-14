@@ -1,6 +1,7 @@
 import { browser } from 'wxt/browser';
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import { onRecordsChanged } from '@/lib/changes';
+import { getMarkingPrefs, onMarkingPrefsChanged } from '@/lib/marking-prefs';
 import {
   LINK_MARK_ATTR,
   LINK_MARKS_BATCH,
@@ -33,8 +34,8 @@ export default defineContentScript({
     const STYLE_ID = 'read-tracker-link-marks';
     // Replace a style an older build left in this tab (its rules may differ).
     document.getElementById(STYLE_ID)?.remove();
+    const style = document.createElement('style');
     {
-      const style = document.createElement('style');
       style.id = STYLE_ID;
       // Dimmed and blurred (MARK_LOOK: read the most). A link that wraps a picture dims the picture, not the link: opacity / filter on the link
       // make it a stacking context, and on sites like pixiv that put the thumbnail under the
@@ -51,6 +52,15 @@ export default defineContentScript({
         `${shown}{${MARK_SHOWN_CSS}}`;
       (document.head ?? document.documentElement).append(style);
     }
+
+    // The popup's global marking switch: while paused the style is off (media "not all"), so
+    // nothing is dimmed; the attributes stay, so resuming shows the marks at once.
+    const applyPrefs = (paused: boolean) => (style.media = paused ? 'not all' : '');
+    getMarkingPrefs().then(
+      (p) => applyPrefs(!!p.paused),
+      () => {},
+    );
+    const unsubscribePrefs = onMarkingPrefsChanged((p) => applyPrefs(!!p.paused));
 
     /** Mark per link URL, as last answered by the background (null = not marked). */
     const marks = new Map<string, LinkMark | null>();
@@ -143,6 +153,7 @@ export default defineContentScript({
       observer.disconnect();
       try {
         unsubscribe();
+        unsubscribePrefs();
       } catch {
         // Extension context already gone.
       }

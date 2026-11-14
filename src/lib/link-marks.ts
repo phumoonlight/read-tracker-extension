@@ -21,6 +21,25 @@ export const markCss = (mark: LinkMark) =>
 export const MARK_SHOWN_CSS = 'opacity:1!important;filter:none!important';
 export const MARK_TRANSITION_CSS = 'transition:opacity .15s,filter .15s!important';
 
+/**
+ * The global marking switch (popup header): paused = no link marks on websites and no board
+ * marks. Stored in chrome.storage.local (marking-prefs.ts) so content scripts can read it.
+ */
+export const MARKING_PREFS_KEY = 'markingPrefs';
+/** Builds up to 0.1.22: a board-only pause. Read when MARKING_PREFS_KEY is absent, then removed. */
+export const OLD_BOARD_PREFS_KEY = 'boardPrefs';
+
+export interface MarkingPrefs {
+  /** Marking switched off in the popup. Absent = on. */
+  paused?: true;
+}
+
+/** Only `paused: true` is kept (older keys such as `enabled` / `side` are dropped). */
+export function parseMarkingPrefs(v: unknown): MarkingPrefs {
+  const o = typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : {};
+  return o.paused === true ? { paused: true } : {};
+}
+
 /** Attribute the content script sets on marked links (its value is the LinkMark). */
 export const LINK_MARK_ATTR = 'data-read-tracker';
 

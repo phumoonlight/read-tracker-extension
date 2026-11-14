@@ -1,6 +1,5 @@
 import { browser } from 'wxt/browser';
 import { defineBackground } from 'wxt/utils/define-background';
-import { getBoardPrefs, onBoardPrefsChanged } from '@/lib/board-prefs';
 import { markBoardReads, onBoardsChanged, queryBoardReads } from '@/lib/board-store';
 import { BOARD_ORIGINS, boardPostOf, isBoardMark, isBoardQuery } from '@/lib/boards';
 import { isLinkMarksRequest, LINK_MARK_ORIGINS, marksLinks } from '@/lib/link-marks';
@@ -73,8 +72,7 @@ export default defineBackground(() => {
 
   async function boardPostState(url: string) {
     const post = boardPostOf(url);
-    // Paused in the popup: nothing is shown for boards.
-    if (!post || (await getBoardPrefs()).paused) return undefined;
+    if (!post) return undefined;
     const { read } = await queryBoardReads(post.board.key, [post.id]).catch(() => ({ read: [] as number[] }));
     const status: ReadingRecord['status'] = read.length ? 'read' : 'unread';
     return { label: post.board.label, id: post.id, status };
@@ -185,7 +183,6 @@ export default defineBackground(() => {
   });
 
   onBoardsChanged(() => void refreshAllTabs());
-  onBoardPrefsChanged(() => void refreshAllTabs());
 
   browser.runtime.onInstalled.addListener(() => {
     void refreshAllTabs();

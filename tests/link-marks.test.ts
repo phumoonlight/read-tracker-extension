@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isLinkMarksRequest, LINK_MARKS_MESSAGE, linkMark, markCss, marksLinks } from '@/lib/link-marks';
+import { isLinkMarksRequest, LINK_MARKS_MESSAGE, linkMark, markCss, marksLinks, parseMarkingPrefs } from '@/lib/link-marks';
 import type { Folder } from '@/lib/types';
 import { rec } from './fixtures';
 
@@ -50,5 +50,14 @@ describe('markCss', () => {
     expect(markCss('unread')).toBe('opacity:0.5!important;filter:blur(1px)!important');
     expect(markCss('read')).toBe('opacity:0.25!important;filter:blur(2px)!important');
     expect(markCss('read')).not.toMatch(/shadow|color/);
+  });
+});
+
+describe('parseMarkingPrefs', () => {
+  it('keeps only paused: true', () => {
+    expect(parseMarkingPrefs(undefined)).toEqual({});
+    expect(parseMarkingPrefs({ paused: false })).toEqual({});
+    // Old board-only prefs (read once from boardPrefs): enabled / side are dropped.
+    expect(parseMarkingPrefs({ enabled: true, paused: true, side: 'right' })).toEqual({ paused: true });
   });
 });

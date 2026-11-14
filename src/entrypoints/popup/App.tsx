@@ -6,6 +6,8 @@ import { folderForUrl } from '@/lib/domains';
 import { matchedEntry } from '@/lib/match';
 import { createRecord, formatAgo, formatDateTime, hasSeries } from '@/lib/records';
 import { findRecordForUrl, listFolders, markReadNow, putRecord, setFavorite, statusChange, updateRecord } from '@/lib/storage';
+import type { MarkingPrefs } from '@/lib/link-marks';
+import { getMarkingPrefs, onMarkingPrefsChanged, updateMarkingPrefs } from '@/lib/marking-prefs';
 import { getActiveTab } from '@/lib/tab';
 import type { Folder, ReadingRecord } from '@/lib/types';
 import { displayUrl, normalizeUrl } from '@/lib/url';
@@ -48,6 +50,7 @@ export function App() {
     <main className="popup">
       <header className="popup-header">
         <h1>Read Tracker</h1>
+        <DimSwitch />
         <button
           type="button"
           className="popup-icon-btn"
@@ -83,6 +86,30 @@ export function App() {
           <AddPage tab={state.tab} folders={state.folders} onAdded={(record) => setState({ ...state, record })} />
         ))}
     </main>
+  );
+}
+
+/**
+ * The global dimming switch (header): off = marked links and read board posts aren't dimmed
+ * on websites. Marking itself (records, board posts, the badge) keeps working either way.
+ */
+function DimSwitch() {
+  const [prefs, setPrefs] = useState<MarkingPrefs>();
+  useEffect(() => {
+    void getMarkingPrefs().then(setPrefs);
+    return onMarkingPrefsChanged(setPrefs);
+  }, []);
+  if (!prefs) return <span className="dim-switch" />;
+  const on = !prefs.paused;
+  return (
+    <label
+      className="dim-switch"
+      title={on ? 'Marked links and read posts are dimmed on websites' : 'Nothing is dimmed on websites (marking still works)'}
+    >
+      <input type="checkbox" role="switch" checked={on} onChange={() => void updateMarkingPrefs({ paused: on })} />
+      <span className="dim-switch-track" aria-hidden="true" />
+      Dim {on ? 'on' : 'off'}
+    </label>
   );
 }
 

@@ -25,7 +25,6 @@ import {
   packRow,
   mergeBoardReads,
   parseBoardFile,
-  parseBoardPrefs,
   pinkish,
   postIdOn,
   RANGE_START,
@@ -337,14 +336,6 @@ describe('binary id files (gaps as varints)', () => {
 });
 
 describe('prefs and bookmark colour', () => {
-  it('stores only what differs from the defaults', () => {
-    expect(parseBoardPrefs(undefined)).toEqual({});
-    // `enabled` was the old on/off switch (board marking is always on now); old stored values are dropped.
-    expect(parseBoardPrefs({ enabled: true, paused: false })).toEqual({});
-    // `side` was the dock's position (the dock is gone); old stored values are dropped.
-    expect(parseBoardPrefs({ paused: true, side: 'right', junk: 1 })).toEqual({ paused: true });
-  });
-
   it("recognises pixiv's heart pink, not white, grey or black", () => {
     expect(pinkish('#ff4060')).toBe(true);
     expect(pinkish('rgb(255, 64, 96)')).toBe(true);
