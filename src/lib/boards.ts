@@ -364,6 +364,27 @@ export function buildBoardFile(reads: Pick<BoardReads, 'sites'>, exported = new 
   };
 }
 
+/** One file per board (export: a folder of files, each a Booru explorer export of one board). */
+export function splitBoardReads(reads: Pick<BoardReads, 'sites'>): [BoardKey, BoardReads][] {
+  return BOARDS.filter((b) => reads.sites[b.key]?.length).map((b) => [b.key, { sites: { [b.key]: reads.sites[b.key]! } }]);
+}
+
+/** Several parsed files as one import: ids unioned and sorted, the highest "read up to" kept. */
+export function mergeBoardReads(files: readonly BoardReads[]): BoardReads & { upTo: Partial<Record<BoardKey, number>> } {
+  const sites: BoardReads['sites'] = {};
+  const upTo: Partial<Record<BoardKey, number>> = {};
+  for (const b of BOARDS) {
+    const ids = new Set<number>();
+    for (const f of files) {
+      for (const id of f.sites[b.key] ?? []) ids.add(id);
+      const n = f.upTo?.[b.key];
+      if (n !== undefined && n > (upTo[b.key] ?? 0)) upTo[b.key] = n;
+    }
+    if (ids.size) sites[b.key] = [...ids].sort((x, y) => x - y);
+  }
+  return { sites, upTo };
+}
+
 /** Posts listed for one board, plus its run 1..N. */
 export const boardSitePostCount = (reads: BoardReads, key: BoardKey) =>
   (reads.sites[key]?.length ?? 0) + Math.max((reads.upTo?.[key] ?? 0) - RANGE_START + 1, 0);

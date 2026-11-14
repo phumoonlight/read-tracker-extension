@@ -7,6 +7,7 @@ import {
   BOARDS,
   boardPostCount,
   boardSitePostCount,
+  mergeBoardReads,
   parseBoardFile,
   RANGE_START,
   type Board,
@@ -142,31 +143,41 @@ export function App() {
       <section className="backup-section">
         <h2>Import from Booru explorer</h2>
         <p className="muted">
-          In Booru explorer's settings, export its <code>.json</code> file, then import it here. Read posts are added to
+          In Booru explorer's settings, export its <code>.json</code> file, then import it here. The files in a
+          backup's <code>booru</code> folder (one per board) import here too; pick several at once. Read posts are added to
           what's stored (nothing is unmarked). A "read up to" number in the file marks every post from {RANGE_START}{' '}
           up to it as read. Board history is also part of the{' '}
           <a href="/backup.html">ZIP backup</a>.
         </p>
         <div className="row">
           <label className={`btn${busy ? ' is-disabled' : ''}`} aria-disabled={busy}>
-            Import .json
+            Import .json files
             <input
               type="file"
               accept=".json,application/json"
+              multiple
               hidden
               disabled={busy}
               onChange={async (e) => {
-                const file = e.target.files?.[0];
+                const files = [...(e.target.files ?? [])];
                 e.target.value = '';
-                if (!file) return;
+                if (!files.length) return;
                 setImportMsg(undefined);
                 setIssues([]);
-                try {
-                  const found: string[] = [];
-                  setPending({ file: parseBoardFile(await file.text(), found), issues: found });
-                } catch (err) {
-                  setImportMsg({ text: `Can't import: ${err instanceof Error ? err.message : err}`, error: true });
+                const found: string[] = [];
+                const parsed: ParsedBoardFile[] = [];
+                for (const file of files) {
+                  try {
+                    parsed.push(parseBoardFile(await file.text(), found));
+                  } catch (err) {
+                    const why = err instanceof Error ? err.message : String(err);
+                    setImportMsg({ text: `Can't import ${files.length > 1 ? `${file.name}: ` : ''}${why}`, error: true });
+                    return;
+                  }
                 }
+                // A backup's booru/ folder has one file per board: several can be picked at once.
+                const exported = parsed.length === 1 ? parsed[0]!.exported : '';
+                setPending({ file: { ...mergeBoardReads(parsed), exported }, issues: found });
               }}
             />
           </label>

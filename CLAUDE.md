@@ -201,7 +201,7 @@ never appear in the list.
 - Import: the Boards page reads Booru explorer's export (`parseBoardFile`: `{ format: "booru-explorer-reads",
   version: 1, exported, sites: { board: [ids] }, floors? }`); merge only (ids unioned, `importBoardReads`, one
   transaction). A file's `floors` ("read up to N") is imported as posts 1..N marked read (`addRange`: whole buckets
-  become full bitmaps directly). Export (`boards.json`) lists every read id (`rowsToIds`) and never
+  become full bitmaps directly). Export (`booru/<board>.json` in the backup) lists every read id (`rowsToIds`) and never
   writes `floors` (by request). Unknown boards are reported and skipped.
 
 ### Changing the schema
@@ -218,8 +218,9 @@ versions migrate on import; backups from newer versions (schema or `BACKUP_LAYOU
 
 ### Backup and images
 
-Backups are **ZIP files** (`lib/zip.ts`, own writer/reader, no dependency). Layout 2 (`BACKUP_LAYOUT`, separate
-from `SCHEMA_VERSION`; bump it when the files in the ZIP change; layout 1 had no `boards.json` and still imports):
+Backups are **ZIP files** (`lib/zip.ts`, own writer/reader, no dependency). Layout 3 (`BACKUP_LAYOUT`, separate
+from `SCHEMA_VERSION`; bump it when the files in the ZIP change; layouts 1 (no board history) and 2 (one `boards.json`)
+still import):
 - `manifest.json` (`BackupManifest`): format, `layout`, record schema `version`, `exportedAt`, `counts`, `folders`,
   `home`. Read first (`openBackup`), so the Backup page previews counts and rejects newer backups before reading
   records.
@@ -229,9 +230,11 @@ from `SCHEMA_VERSION`; bump it when the files in the ZIP change; layout 1 had no
   ca, ua, ra, ou; `URL_KEYS` inside `ou`), and left out when absent, empty (tags, images), default (`mm` "exact") or
   derivable (`mk` equal to `computeMatchKey(url, mm)`; restored on import). Adding a record field without a key in
   `RECORD_KEYS` is a type error. Migrations run on the decoded (long-key) record.
-- `boards.json` (`BACKUP_BOARDS`, left out when empty): board read history in the Booru explorer export format
-  (`buildBoardFile` / `parseBoardFile`), merged on import like the Boards page import; `counts.boardPosts` in the
-  manifest for the preview.
+- `booru/<board>.json` (`boardBackupPath`; by request): board read history, one file per board with anything read
+  (`splitBoardReads`), each a Booru explorer export of that one board (`buildBoardFile` / `parseBoardFile`). On import,
+  every `booru/*.json` plus layout 2's `boards.json` (`boardBackupEntries`) is parsed, merged (`mergeBoardReads`) and
+  imported like the Booru page import; `counts.boardPosts` in the manifest for the preview. The Booru page import takes
+  several files at once (the files of a backup's `booru/` folder).
 - `images/<id>.<ext>` (`imagePath`, `imageStem`): original files. There is no image list: on import each id in a
   record's `images` is looked up by file-name stem among the ZIP's entries (`imageIndex` + `imagesFromZip`; any
   extension, first record listing an id gets it).

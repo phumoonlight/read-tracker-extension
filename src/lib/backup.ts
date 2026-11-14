@@ -240,14 +240,31 @@ function parseRecordValue(raw: unknown, where: string, version: number): Reading
 }
 
 // ---------------------------------------------------------------------------
-// ZIP backup: manifest.json + records.jsonl + images/<id>.<ext> (+ boards.json, layout 2)
+// ZIP backup: manifest.json + records.jsonl + images/<id>.<ext> + booru/<board>.json (layout 3)
 
-/** Version of the ZIP's file layout (separate from the record SCHEMA_VERSION). 2 added boards.json. */
-export const BACKUP_LAYOUT = 2;
+/**
+ * Version of the ZIP's file layout (separate from the record SCHEMA_VERSION). 2 added
+ * boards.json; 3 split it into booru/<board>.json (layout 2 files still import).
+ */
+export const BACKUP_LAYOUT = 3;
 export const BACKUP_MANIFEST = 'manifest.json';
 export const BACKUP_RECORDS = 'records.jsonl';
-/** Board read history, in Booru explorer's export format (boards.ts BoardFile). Left out when empty. */
-export const BACKUP_BOARDS = 'boards.json';
+/** Layout 2's single board history file; read on import only. */
+export const BACKUP_BOARDS_V2 = 'boards.json';
+/**
+ * Board read history: one file per board, each in Booru explorer's export format (boards.ts
+ * BoardFile) with that one board. Boards with nothing read have no file.
+ */
+export const BACKUP_BOARDS_DIR = 'booru/';
+export const boardBackupPath = (board: string) => `${BACKUP_BOARDS_DIR}${board}.json`;
+
+/** The ZIP entries holding board history: layout 2's boards.json and any booru/*.json. */
+export const boardBackupEntries = (names: Iterable<string>) =>
+  [...names].filter(
+    (n) =>
+      n === BACKUP_BOARDS_V2 ||
+      (n.startsWith(BACKUP_BOARDS_DIR) && n.endsWith('.json') && !n.slice(BACKUP_BOARDS_DIR.length).includes('/')),
+  );
 
 export interface BackupCounts {
   records: number;

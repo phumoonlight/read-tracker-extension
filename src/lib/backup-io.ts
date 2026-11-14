@@ -1,5 +1,6 @@
 import {
-  BACKUP_BOARDS,
+  boardBackupEntries,
+  boardBackupPath,
   BACKUP_MANIFEST,
   BACKUP_RECORDS,
   buildManifest,
@@ -15,7 +16,15 @@ import {
   type BackupCounts,
 } from './backup';
 import { getBoardReads, importBoardReads } from './board-store';
-import { boardPostCount, buildBoardFile, isEmptyBoardReads, parseBoardFile, type BoardReads } from './boards';
+import {
+  boardPostCount,
+  buildBoardFile,
+  isEmptyBoardReads,
+  mergeBoardReads,
+  parseBoardFile,
+  splitBoardReads,
+  type BoardReads,
+} from './boards';
 import { getImage, prepareImage, type StoredImage } from './images';
 import { readLines } from './lines';
 import { applyImport, getAllRecords, getHomeSettings, listFolders } from './storage';
@@ -23,11 +32,11 @@ import type { BackupFile, ReadingRecord } from './types';
 import { createZip, looksLikeZip, readZip, readZipEntry, type ZipEntry, type ZipInput } from './zip';
 
 /**
- * Export everything to a .zip (layout 2):
+ * Export everything to a .zip (layout 3):
  *   manifest.json   format, versions, export time, counts, folders, Home settings
  *   records.jsonl   one record per line
  *   images/<id>.ext original image files (found by id on import: no separate list)
- *   boards.json     board read history (Booru explorer's format); left out when empty
+ *   booru/<board>.json   read posts of one board (Booru explorer's format); boards with none have no file
  * Returns the number of records.
  */
 export async function exportToFile(): Promise<number> {
@@ -56,9 +65,11 @@ export async function exportToFile(): Promise<number> {
   );
   const json = (v: unknown) => new Blob([JSON.stringify(v, null, 2)], { type: 'application/json' });
   // Compact: one sorted id list per board can be tens of thousands of numbers.
-  const boardsFile = isEmptyBoardReads(boards)
-    ? []
-    : [{ name: BACKUP_BOARDS, data: new Blob([JSON.stringify(buildBoardFile(boards))], { type: 'application/json' }) }];
+  const exported = new Date();
+  const boardsFile = splitBoardReads(boards).map(([key, one]) => ({
+    name: boardBackupPath(key),
+    data: new Blob([JSON.stringify(buildBoardFile(one, exported))], { type: 'application/json' }),
+  }));
   // One Blob part per line: no single giant string.
   const recordsFile = new Blob(records.map(recordLine), { type: 'application/x-ndjson' });
   const zip = await createZip([
@@ -127,11 +138,16 @@ export async function openBackup(file: File): Promise<OpenedBackup> {
           `${BACKUP_MANIFEST} lists ${manifest.counts.records} records but ${BACKUP_RECORDS} has ${records.length}.`,
         );
       }
-      // Board history is small and parsed up front: a bad boards.json stops the import too.
-      const boardsEntry = entries.get(BACKUP_BOARDS);
-      const boards = boardsEntry
-        ? parseBoardFile(await (await readZipEntry(file, boardsEntry)).text(), issues)
-        : undefined;
+      // Board history is small and parsed up front: a bad board file stops the import too.
+      const boardFiles: BoardReads[] = [];
+      for (const name of boardBackupEntries(entries.keys())) {
+        try {
+          boardFiles.push(parseBoardFile(await (await readZipEntry(file, entries.get(name)!)).text(), issues));
+        } catch (e) {
+          throw new Error(`${name}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      const boards = boardFiles.length ? mergeBoardReads(boardFiles) : undefined;
       const backup: BackupFile = {
         format: manifest.format,
         version: manifest.version,

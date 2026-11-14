@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildManifest, parseManifest } from '@/lib/backup';
+import { boardBackupEntries, boardBackupPath, buildManifest, parseManifest } from '@/lib/backup';
 import {
   addRange,
   BITMAP_BYTES,
@@ -21,7 +21,9 @@ import {
   isBoardQuery,
   isEmptyBoardReads,
   packRow,
+  mergeBoardReads,
   parseBoardFile,
+  splitBoardReads,
   parseBoardPrefs,
   pinkish,
   postIdOn,
@@ -243,6 +245,29 @@ describe('Booru explorer files', () => {
     expect(isEmptyBoardReads({ sites: { pixiv: [1] } })).toBe(false);
     expect(isEmptyBoardReads({ sites: {}, upTo: { gelbooru: 9 } })).toBe(false);
     expect(isEmptyBoardReads({ sites: {} })).toBe(true);
+  });
+
+  it('splits into one file per board and merges files back', () => {
+    const reads = { sites: { pixiv: [3, 1], konachan: [7] } };
+    const split = splitBoardReads(reads);
+    expect(split.map(([k]) => k).sort()).toEqual(['konachan', 'pixiv']);
+    expect(split).toHaveLength(2);
+    for (const [key, one] of split) expect(Object.keys(one.sites)).toEqual([key]);
+    expect(splitBoardReads({ sites: { gelbooru: [] } })).toEqual([]);
+    const merged = mergeBoardReads([
+      ...split.map(([, one]) => one),
+      { sites: { pixiv: [2, 3] }, upTo: { konachan: 5 } },
+      { sites: {}, upTo: { konachan: 9 } },
+    ]);
+    expect(merged.sites).toEqual({ pixiv: [1, 2, 3], konachan: [7] });
+    expect(merged.upTo).toEqual({ konachan: 9 });
+  });
+
+  it('finds board files in a backup: booru/<board>.json and layout 2 boards.json', () => {
+    expect(boardBackupPath('pixiv')).toBe('booru/pixiv.json');
+    expect(
+      boardBackupEntries(['manifest.json', 'boards.json', 'booru/pixiv.json', 'booru/x/y.json', 'booru/a.txt', 'images/booru.json']),
+    ).toEqual(['boards.json', 'booru/pixiv.json']);
   });
 
   it('carries the board post count in the backup manifest', () => {
