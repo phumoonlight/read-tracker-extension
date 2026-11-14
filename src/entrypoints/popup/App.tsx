@@ -194,7 +194,23 @@ function AddPage({
         ) : (
           <h2 className="popup-section-title">{heading}</h2>
         )}
-        <input type="text" autoFocus={collapsed} value={title} aria-label="Title" placeholder="Title" onChange={(e) => setTitle(e.target.value)} />
+        {/* A textarea so a long title shows whole (it grows with the text); still one line of text:
+            Enter adds the page, pasted line breaks become spaces. */}
+        <textarea
+          className="popup-title-input"
+          rows={1}
+          autoFocus={collapsed}
+          value={title}
+          aria-label="Title"
+          placeholder="Title"
+          onChange={(e) => setTitle(e.target.value.replace(/\s*[\r\n]+\s*/g, ' '))}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              e.currentTarget.form?.requestSubmit();
+            }
+          }}
+        />
         {folders.length > 0 && <FolderChips folders={folders} value={folderId} onChange={setFolderId} />}
         {error && <span className="error">{error}</span>}
       </div>

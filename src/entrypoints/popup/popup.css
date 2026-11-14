@@ -93,6 +93,15 @@ body {
   font-size: 18px;
 }
 
+/* Record title: grows to show the whole title (up to about 6 lines, then scrolls) */
+.popup-title-input {
+  field-sizing: content;
+  min-height: 0;
+  max-height: 9.5em;
+  resize: none;
+  overflow-wrap: anywhere;
+}
+
 /* "Record this page" folded (board sites): a row that opens the form */
 .popup-expand {
   display: flex;
