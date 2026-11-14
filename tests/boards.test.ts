@@ -256,7 +256,7 @@ describe('Booru explorer files', () => {
     expect(merged.upTo).toEqual({ konachan: 9 });
   });
 
-  it('finds board files in a backup: booru/<board>.bin, older booru/*.json and boards.json', () => {
+  it('finds board files in a backup: booru/<board>.bin and layout 2 boards.json, not booru/*.json', () => {
     expect(boardBackupPath('pixiv')).toBe('booru/pixiv.bin');
     expect(
       boardBackupEntries([
@@ -271,7 +271,6 @@ describe('Booru explorer files', () => {
     ).toEqual([
       { name: 'boards.json', binary: false },
       { name: 'booru/pixiv.bin', binary: true },
-      { name: 'booru/konachan.json', binary: false },
     ]);
   });
 

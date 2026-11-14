@@ -219,8 +219,8 @@ versions migrate on import; backups from newer versions (schema or `BACKUP_LAYOU
 ### Backup and images
 
 Backups are **ZIP files** (`lib/zip.ts`, own writer/reader, no dependency). Layout 4 (`BACKUP_LAYOUT`, separate
-from `SCHEMA_VERSION`; bump it when the files in the ZIP change; layouts 1 (no board history), 2 (one `boards.json`)
-and 3 (`booru/<board>.json`) still import):
+from `SCHEMA_VERSION`; bump it when the files in the ZIP change; layouts 1 (no board history) and 2 (one `boards.json`)
+still import; layout 3's `booru/<board>.json` was never used for real data and is ignored):
 - `manifest.json` (`BackupManifest`): format, `layout`, record schema `version`, `exportedAt`, `counts`, `folders`,
   `home`. Read first (`openBackup`), so the Backup page previews counts and rejects newer backups before reading
   records.
@@ -234,7 +234,7 @@ and 3 (`booru/<board>.json`) still import):
   read, named after the board (`boardOfIdsFile`). Format (`encodeBoardIds` / `decodeBoardIds` in boards.ts): `RTBI`,
   a version byte, the count, the first id, then the gaps to the previous id, each a varint (7 bits a byte, low first,
   top bit = more), so mostly 1 byte a post. Not Booru explorer compatible (not needed: its marking is being dropped).
-  On import, `booru/*.bin`, plus `booru/*.json` / `boards.json` from older layouts (Booru explorer's JSON,
+  On import, `booru/*.bin`, plus `boards.json` from layout 2 (Booru explorer's JSON,
   `parseBoardFile`), are found by `boardBackupEntries`, merged (`mergeBoardReads`) and imported like the Booru page
   import; `counts.booruPosts` in the manifest for the preview (read as `boardPosts` from backups before 0.1.17). The Booru page import takes several files at once
   (`.bin` from a backup's `booru/` folder, or a Booru explorer `.json`).

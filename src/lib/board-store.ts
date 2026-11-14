@@ -121,7 +121,7 @@ export async function boardStats(): Promise<Record<BoardKey, BoardStat>> {
   });
 }
 
-/** Everything, for export (booru/<board>.json in the backup ZIP): every read id per board, listed. */
+/** Everything, for export (booru/<board>.bin in the backup ZIP): every read id per board, listed. */
 export async function getBoardReads(): Promise<BoardReads> {
   return withTx(BOARD_READS, 'readonly', async (tx) => {
     const reads: BoardReads = { sites: {} };

@@ -244,8 +244,8 @@ function parseRecordValue(raw: unknown, where: string, version: number): Reading
 
 /**
  * Version of the ZIP's file layout (separate from the record SCHEMA_VERSION). 2 added
- * boards.json; 3 split it into booru/<board>.json; 4 made those booru/<board>.bin (binary,
- * boards.ts encodeBoardIds). Older layouts still import.
+ * boards.json; 3 split it into booru/<board>.json (never used for real data; those files are
+ * ignored on import); 4 made them booru/<board>.bin (binary, boards.ts encodeBoardIds).
  */
 export const BACKUP_LAYOUT = 4;
 export const BACKUP_MANIFEST = 'manifest.json';
@@ -256,17 +256,13 @@ export const BACKUP_BOARDS_V2 = 'boards.json';
 export const BACKUP_BOARDS_DIR = 'booru/';
 export const boardBackupPath = (board: string) => `${BACKUP_BOARDS_DIR}${board}.bin`;
 
-/**
- * The ZIP entries holding board history: booru/<board>.bin (binary), and from older layouts
- * booru/<board>.json and boards.json (Booru explorer's JSON format).
- */
+/** The ZIP entries holding board history: booru/<board>.bin, and layout 2's boards.json (JSON). */
 export function boardBackupEntries(names: Iterable<string>): { name: string; binary: boolean }[] {
   const out: { name: string; binary: boolean }[] = [];
   for (const n of names) {
     if (n === BACKUP_BOARDS_V2) out.push({ name: n, binary: false });
     else if (n.startsWith(BACKUP_BOARDS_DIR) && !n.slice(BACKUP_BOARDS_DIR.length).includes('/')) {
       if (n.endsWith('.bin')) out.push({ name: n, binary: true });
-      else if (n.endsWith('.json')) out.push({ name: n, binary: false });
     }
   }
   return out;

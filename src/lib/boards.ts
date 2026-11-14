@@ -323,7 +323,7 @@ export function parseBoardPrefs(v: unknown): BoardPrefs {
 
 // ---------------------------------------------------------------------------
 // JSON files, import only: Booru explorer's export, and the board files of older backups
-// (boards.json in layout 2, booru/<board>.json in layout 3). Nothing writes this format now.
+// (boards.json in layout 2). Nothing writes this format now.
 //   { format: "booru-explorer-reads", version: 1, exported: ISO date,
 //     sites: { <board>: [sorted post ids] }, floors?: { <board>: N } }
 // There is no floor in Read Tracker, only marked posts: `floors: { b: N }` ("read up to N")
@@ -448,7 +448,7 @@ export function boardOfIdsFile(name: string): BoardKey | undefined {
 }
 
 /**
- * Parse a Booru explorer export (or a booru/<board>.json from a backup). Throws a user-facing error
+ * Parse a Booru explorer export (or boards.json from a layout 2 backup). Throws a user-facing error
  * if it isn't one; boards this build doesn't know and invalid ids go to `issues`.
  */
 export function parseBoardFile(text: string, issues: string[] = []): ParsedBoardFile {
