@@ -171,11 +171,19 @@ body {
 }
 
 
-/* Folder chips (wrap onto more lines if there are many folders) */
-.popup-folder-chips {
+/* Folder for a new record: "Folder" then a dropdown filling the rest of the row */
+.popup-folder {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  align-items: center;
+  gap: 10px;
+}
+.popup-folder > span {
+  flex: none;
+  color: var(--text-muted);
+}
+.popup-folder select {
+  flex: 1;
+  min-width: 0;
 }
 
 /* Icon button in the header (Open full list) */

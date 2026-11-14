@@ -211,7 +211,7 @@ function AddPage({
             }
           }}
         />
-        {folders.length > 0 && <FolderChips folders={folders} value={folderId} onChange={setFolderId} />}
+        {folders.length > 0 && <FolderSelect folders={folders} value={folderId} onChange={setFolderId} />}
         {error && <span className="error">{error}</span>}
         {/* In the same block as the title: no divider between a field and its button. */}
         <button type="submit" className="btn btn-primary popup-main-action" disabled={saving}>
@@ -342,7 +342,11 @@ function CurrentRecord({
 }
 
 /** Folder choice as chips (Home first); no dropdown, so nothing has to fit inside the popup. */
-function FolderChips({
+/**
+ * Folder for a new record: a dropdown, so the popup stays the same size however many folders
+ * there are (the folder is usually preselected from preferred domains anyway).
+ */
+function FolderSelect({
   folders,
   value,
   onChange,
@@ -354,18 +358,17 @@ function FolderChips({
 }) {
   // A folder that no longer exists counts as Home.
   const current = folders.some((f) => f.id === value) ? value : '';
-  const chip = (id: string, name: string) => (
-    <button key={id || 'home'} type="button" className="folder-chip" aria-pressed={current === id} onClick={() => onChange(id)}>
-      {name}
-    </button>
-  );
   return (
-    <div className="field">
+    <label className="popup-folder">
       <span>Folder</span>
-      <div className="popup-folder-chips" role="group" aria-label="Folder">
-        {chip('', 'Home')}
-        {folders.map((f) => chip(f.id, f.name))}
-      </div>
-    </div>
+      <select value={current} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Home</option>
+        {folders.map((f) => (
+          <option key={f.id} value={f.id}>
+            {f.name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

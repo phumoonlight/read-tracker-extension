@@ -35,7 +35,7 @@ src/
                          content script, answers its lookups)
     link-marks.content.ts  content script (registration: 'runtime', never in the manifest): dims marked links
     board-marks.content.ts content script (in the manifest, matches BOARD_ORIGINS): board marking (fade, marking mode)
-    popup/               toolbar popup (short): add page (title + folder chips), or read state only; links to Manage.
+    popup/               toolbar popup (short): add page (title + folder dropdown, `FolderSelect`), or read state only; links to Manage.
                          On a board page, board marking controls on top (BoardPanel.tsx): a violet card (`--booru*`
                          tokens): the open post's Read / Not read pill, Mark page read
                          (hold) | Click to mark, and a page progress bar (no link to the Booru page; it is in the list header). Below it, "Record this page"
