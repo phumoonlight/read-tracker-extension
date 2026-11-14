@@ -213,8 +213,7 @@ function AddPage({
         />
         {folders.length > 0 && <FolderChips folders={folders} value={folderId} onChange={setFolderId} />}
         {error && <span className="error">{error}</span>}
-      </div>
-      <div className="popup-footer">
+        {/* In the same block as the title: no divider between a field and its button. */}
         <button type="submit" className="btn btn-primary popup-main-action" disabled={saving}>
           Add to list
         </button>
