@@ -11,6 +11,8 @@
   --accent: #1f2328;
   --accent-text: #ffffff;
   --danger: #cf222e;
+  /* Filled red (danger buttons, hover fills) and the text on it */
+  --danger-fill: #cf222e;
   --danger-text: #ffffff;
   --focus: #1f232880;
 
@@ -69,7 +71,9 @@
     --accent: #ffffff;
     --accent-text: #0d1117;
     --danger: #f85149;
-    --danger-text: #0d1117;
+    /* Deeper than --danger (which is for red text on dark): white text reads on it */
+    --danger-fill: #da3633;
+    --danger-text: #ffffff;
     --focus: #ffffff99;
 
     --status-unread: #4493f8;
@@ -258,12 +262,12 @@ textarea {
   opacity: 0.88;
 }
 .btn-danger {
-  background: var(--danger);
-  border-color: var(--danger);
+  background: var(--danger-fill);
+  border-color: var(--danger-fill);
   color: var(--danger-text);
 }
 .btn-danger:hover:not(:disabled) {
-  background: var(--danger);
+  background: var(--danger-fill);
   filter: brightness(1.08);
 }
 .btn-small {
@@ -599,7 +603,7 @@ dialog.viewer {
   background: transparent;
 }
 .url-table .icon-btn-danger:hover {
-  background: var(--danger);
+  background: var(--danger-fill);
   color: var(--danger-text);
 }
 .url-table-add {
@@ -644,7 +648,7 @@ dialog.viewer {
   color: var(--danger);
 }
 .icon-btn-danger:hover {
-  background: var(--danger);
+  background: var(--danger-fill);
   color: var(--danger-text);
 }
 /* Quiet destructive action (text only, red) */
@@ -682,7 +686,7 @@ dialog.viewer {
   cursor: pointer;
 }
 .image-remove:hover {
-  background: var(--danger);
+  background: var(--danger-fill);
   color: var(--danger-text);
 }
 .image-add {
