@@ -875,6 +875,9 @@ function FolderBar({
  * read mode (both apply at once) and delete. Home: image size only (it is always Status
  * and can't be renamed or deleted).
  */
+/** How long after the last keystroke a folder name saves itself. */
+const NAME_SAVE_MS = 600;
+
 function PlaceDialog({
   folder,
   home,
@@ -898,7 +901,6 @@ function PlaceDialog({
   const [name, setName] = useState(folder?.name ?? '');
   const [nameMsg, setNameMsg] = useState<{ text: string; error?: boolean }>();
   const [domainMsg, setDomainMsg] = useState<string>();
-  const [saving, setSaving] = useState(false);
   const [markMsg, setMarkMsg] = useState<string>();
   /** Whether the site access link marking needs is granted (it can be on without it, e.g. after an import). */
   const [linkAccess, setLinkAccess] = useState<boolean>();
@@ -907,41 +909,48 @@ function PlaceDialog({
   }, []);
   const nameChanged = !!folder && name.trim() !== folder.name;
 
+  // The name saves itself shortly after typing stops (and on leaving the box). An invalid
+  // name (empty, taken) shows why and isn't saved; the folder keeps its old name.
+  const saveName = useRef<() => void>(() => {});
+  saveName.current = () => {
+    if (!nameChanged) return;
+    if (!name.trim()) return setNameMsg({ text: 'Folder name is required.', error: true });
+    onRename(name).then(
+      () => setNameMsg({ text: 'Saved.' }),
+      (err: unknown) => setNameMsg({ text: err instanceof Error ? err.message : String(err), error: true }),
+    );
+  };
+  useEffect(() => {
+    if (!nameChanged) return;
+    const t = setTimeout(() => saveName.current(), NAME_SAVE_MS);
+    return () => clearTimeout(t);
+  }, [name, nameChanged]);
+  // Closing the dialog (Done, Esc) before the delay is up still saves what was typed.
+  useEffect(() => () => saveName.current(), []);
+
   return (
     <Dialog title={folder ? 'Manage folder' : 'Manage Home'} onClose={onClose}>
       {folder ? (
         <form
           className="field"
-          onSubmit={async (e) => {
+          onSubmit={(e) => {
+            // Enter saves at once.
             e.preventDefault();
-            setSaving(true);
-            setNameMsg(undefined);
-            try {
-              await onRename(name);
-              setNameMsg({ text: 'Saved.' });
-            } catch (err) {
-              setNameMsg({ text: err instanceof Error ? err.message : String(err), error: true });
-            } finally {
-              setSaving(false);
-            }
+            saveName.current();
           }}
         >
           <span>Name</span>
-          <div className="row" style={{ flexWrap: 'nowrap' }}>
-            <input
-              type="text"
-              value={name}
-              maxLength={FOLDER_NAME_MAX}
-              aria-label="Folder name"
-              onChange={(e) => {
-                setName(e.target.value);
-                setNameMsg(undefined);
-              }}
-            />
-            <button type="submit" className="btn btn-small" disabled={saving || !nameChanged || !name.trim()}>
-              Save
-            </button>
-          </div>
+          <input
+            type="text"
+            value={name}
+            maxLength={FOLDER_NAME_MAX}
+            aria-label="Folder name"
+            onChange={(e) => {
+              setName(e.target.value);
+              setNameMsg(undefined);
+            }}
+            onBlur={() => saveName.current()}
+          />
           {nameMsg && <span className={nameMsg.error ? 'error' : 'muted'}>{nameMsg.text}</span>}
         </form>
       ) : (
@@ -1070,7 +1079,7 @@ function PlaceDialog({
 
       <div className="dialog-actions" style={{ justifyContent: 'space-between' }}>
         {folder ? (
-          <button type="button" className="btn btn-small btn-danger" onClick={onDelete}>
+          <button type="button" className="btn btn-small btn-danger-text" onClick={onDelete}>
             Delete folder
           </button>
         ) : (
