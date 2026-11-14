@@ -54,7 +54,7 @@ export const BOARDS: readonly Board[] = [
   },
   {
     key: 'pixiv',
-    label: 'pixiv',
+    label: 'Pixiv',
     host: /(^|\.)pixiv\.net$/i,
     origins: ['*://*.pixiv.net/*'],
     postId(url) {
