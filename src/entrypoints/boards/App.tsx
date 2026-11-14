@@ -4,8 +4,11 @@ import { describeIssues } from '@/lib/backup';
 import { getBoardPrefs, onBoardPrefsChanged, updateBoardPrefs } from '@/lib/board-prefs';
 import { boardStats, clearBoard, importBoardReads, onBoardsChanged, type BoardStat } from '@/lib/board-store';
 import {
+  BOARD_IDS_EXT,
+  boardOfIdsFile,
   BOARDS,
   boardPostCount,
+  decodeBoardIds,
   boardSitePostCount,
   mergeBoardReads,
   parseBoardFile,
@@ -141,20 +144,20 @@ export function App() {
       </section>
 
       <section className="backup-section">
-        <h2>Import from Booru explorer</h2>
+        <h2>Import read posts</h2>
         <p className="muted">
-          In Booru explorer's settings, export its <code>.json</code> file, then import it here. The files in a
-          backup's <code>booru</code> folder (one per board) import here too; pick several at once. Read posts are added to
-          what's stored (nothing is unmarked). A "read up to" number in the file marks every post from {RANGE_START}{' '}
+          Import a Booru explorer <code>.json</code> export, or the <code>.bin</code> files in a backup's{' '}
+          <code>booru</code> folder (one per board, named after it); pick several at once. Read posts are added to
+          what's stored (nothing is unmarked). A "read up to" number in a Booru explorer file marks every post from {RANGE_START}{' '}
           up to it as read. Board history is also part of the{' '}
           <a href="/backup.html">ZIP backup</a>.
         </p>
         <div className="row">
           <label className={`btn${busy ? ' is-disabled' : ''}`} aria-disabled={busy}>
-            Import .json files
+            Import files
             <input
               type="file"
-              accept=".json,application/json"
+              accept=".json,.bin,application/json"
               multiple
               hidden
               disabled={busy}
@@ -168,14 +171,20 @@ export function App() {
                 const parsed: ParsedBoardFile[] = [];
                 for (const file of files) {
                   try {
-                    parsed.push(parseBoardFile(await file.text(), found));
+                    if (!file.name.toLowerCase().endsWith(BOARD_IDS_EXT)) parsed.push(parseBoardFile(await file.text(), found));
+                    else {
+                      const board = boardOfIdsFile(file.name);
+                      if (!board) throw new Error(`name it after its board (${BOARDS.map((b) => b.key + BOARD_IDS_EXT).join(', ')}).`);
+                      const ids = decodeBoardIds(new Uint8Array(await file.arrayBuffer()));
+                      parsed.push({ exported: '', sites: ids.length ? { [board]: ids } : {}, upTo: {} });
+                    }
                   } catch (err) {
                     const why = err instanceof Error ? err.message : String(err);
                     setImportMsg({ text: `Can't import ${files.length > 1 ? `${file.name}: ` : ''}${why}`, error: true });
                     return;
                   }
                 }
-                // A backup's booru/ folder has one file per board: several can be picked at once.
+                // A backup's booru/ folder has one .bin file per board: several can be picked at once.
                 const exported = parsed.length === 1 ? parsed[0]!.exported : '';
                 setPending({ file: { ...mergeBoardReads(parsed), exported }, issues: found });
               }}

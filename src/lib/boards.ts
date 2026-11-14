@@ -322,16 +322,17 @@ export function parseBoardPrefs(v: unknown): BoardPrefs {
 }
 
 // ---------------------------------------------------------------------------
-// Files: Booru explorer's export, also the booru/<board>.json files of the ZIP backup.
+// JSON files, import only: Booru explorer's export, and the board files of older backups
+// (boards.json in layout 2, booru/<board>.json in layout 3). Nothing writes this format now.
 //   { format: "booru-explorer-reads", version: 1, exported: ISO date,
 //     sites: { <board>: [sorted post ids] }, floors?: { <board>: N } }
-// There is no floor in Read Tracker, only marked posts. On import, Booru explorer's
-// `floors: { b: N }` ("read up to N") marks posts 1..N read; export never writes `floors`.
+// There is no floor in Read Tracker, only marked posts: `floors: { b: N }` ("read up to N")
+// marks posts 1..N read.
 
 export const BOARD_FILE_FORMAT = 'booru-explorer-reads';
 export const BOARD_FILE_VERSION = 1;
 
-/** Read history to export or import. */
+/** Read history to import (or, `sites` only, to export). */
 export interface BoardReads {
   /** Read post ids per board. */
   sites: Partial<Record<BoardKey, number[]>>;
@@ -339,34 +340,10 @@ export interface BoardReads {
   upTo?: Partial<Record<BoardKey, number>>;
 }
 
-export interface BoardFile {
-  format: typeof BOARD_FILE_FORMAT;
-  version: number;
-  exported: string;
-  sites: Partial<Record<BoardKey, number[]>>;
-  /** Booru explorer's "read up to N" (read on import only; never written). */
-  floors?: Partial<Record<BoardKey, number>>;
-}
-
 /** A parsed file, ready to import. */
 export interface ParsedBoardFile extends BoardReads {
   exported: string;
   upTo: Partial<Record<BoardKey, number>>;
-}
-
-/** The file to export: every read id listed (no `floors`). */
-export function buildBoardFile(reads: Pick<BoardReads, 'sites'>, exported = new Date()): BoardFile {
-  return {
-    format: BOARD_FILE_FORMAT,
-    version: BOARD_FILE_VERSION,
-    exported: exported.toISOString(),
-    sites: reads.sites,
-  };
-}
-
-/** One file per board (export: a folder of files, each a Booru explorer export of one board). */
-export function splitBoardReads(reads: Pick<BoardReads, 'sites'>): [BoardKey, BoardReads][] {
-  return BOARDS.filter((b) => reads.sites[b.key]?.length).map((b) => [b.key, { sites: { [b.key]: reads.sites[b.key]! } }]);
 }
 
 /** Several parsed files as one import: ids unioned and sorted, the highest "read up to" kept. */
@@ -395,6 +372,80 @@ export const boardPostCount = (reads: BoardReads) =>
 
 export const isEmptyBoardReads = (reads: BoardReads) =>
   boardPostCount(reads) === 0 && Object.keys(reads.upTo ?? {}).length === 0;
+
+// ---------------------------------------------------------------------------
+// Binary id files (backup booru/<board>.bin): the board is the file name.
+//   "RTBI" (4 bytes), version (1 byte), count (varint), first id (varint), then count - 1 gaps
+//   (varint, each > 0: id minus the previous id). A varint is 7 bits per byte, low bits first;
+//   the top bit says another byte follows. Mostly 1 byte a post (gaps under 128).
+
+const IDS_MAGIC = [0x52, 0x54, 0x42, 0x49]; // "RTBI"
+export const BOARD_IDS_VERSION = 1;
+export const BOARD_IDS_EXT = '.bin';
+
+function pushVarint(out: number[], v: number) {
+  // Arithmetic, not bit operators: ids may be above 2^31.
+  while (v >= 128) {
+    out.push((v % 128) + 128);
+    v = Math.floor(v / 128);
+  }
+  out.push(v);
+}
+
+/** Encode post ids (any order, duplicates dropped). */
+export function encodeBoardIds(ids: readonly number[]): Uint8Array<ArrayBuffer> {
+  const sorted = [...new Set(ids)].sort((a, b) => a - b);
+  const out: number[] = [...IDS_MAGIC, BOARD_IDS_VERSION];
+  pushVarint(out, sorted.length);
+  let prev = 0;
+  sorted.forEach((id, i) => {
+    if (!isPostId(id)) throw new Error(`Invalid post number: ${id}`);
+    pushVarint(out, i === 0 ? id : id - prev);
+    prev = id;
+  });
+  return Uint8Array.from(out);
+}
+
+/** Decode a file from encodeBoardIds. Throws a user-facing error on anything malformed. */
+export function decodeBoardIds(bytes: Uint8Array): number[] {
+  if (bytes.length < 5 || IDS_MAGIC.some((b, i) => bytes[i] !== b)) throw new Error('Not a board id file.');
+  if (bytes[4]! > BOARD_IDS_VERSION) throw new Error('The file is from a newer version. Update the extension first.');
+  let at = 5;
+  const varint = () => {
+    let v = 0;
+    let scale = 1;
+    for (;;) {
+      if (at >= bytes.length) throw new Error('The file is cut short.');
+      const byte = bytes[at++]!;
+      v += (byte % 128) * scale;
+      if (!Number.isSafeInteger(v)) throw new Error('The file has a number that is too large.');
+      if (byte < 128) return v;
+      scale *= 128;
+    }
+  };
+  const count = varint();
+  // Each id takes at least one byte: a count larger than what's left is corrupt.
+  if (count > bytes.length - at) throw new Error('The file is cut short.');
+  const ids = new Array<number>(count);
+  let prev = 0;
+  for (let i = 0; i < count; i++) {
+    const v = varint();
+    if (i > 0 && v === 0) throw new Error('The file repeats a post.');
+    prev = i === 0 ? v : prev + v;
+    if (!Number.isSafeInteger(prev)) throw new Error('The file has a number that is too large.');
+    ids[i] = prev;
+  }
+  if (at !== bytes.length) throw new Error('The file has extra data at the end.');
+  return ids;
+}
+
+/** A board id file's board, from its name ("konachan.bin" -> konachan). */
+export function boardOfIdsFile(name: string): BoardKey | undefined {
+  const base = name.slice(name.lastIndexOf('/') + 1);
+  if (!base.toLowerCase().endsWith(BOARD_IDS_EXT)) return undefined;
+  const key = base.slice(0, -BOARD_IDS_EXT.length);
+  return isBoardKey(key) ? key : undefined;
+}
 
 /**
  * Parse a Booru explorer export (or a booru/<board>.json from a backup). Throws a user-facing error

@@ -14,7 +14,9 @@ import {
   boardSitePostCount,
   BUCKET_SIZE,
   bucketsOf,
-  buildBoardFile,
+  boardOfIdsFile,
+  decodeBoardIds,
+  encodeBoardIds,
   groupByBucket,
   isBoardMark,
   isBoardPageRequest,
@@ -23,7 +25,6 @@ import {
   packRow,
   mergeBoardReads,
   parseBoardFile,
-  splitBoardReads,
   parseBoardPrefs,
   pinkish,
   postIdOn,
@@ -235,10 +236,7 @@ describe('Booru explorer files', () => {
     expect(() => parseBoardFile(file({ version: 2, sites: {} }))).toThrow(/newer/);
   });
 
-  it('round-trips what it writes, never writing floors', () => {
-    const written = buildBoardFile({ sites: { pixiv: [1, 2] } }, new Date(0));
-    expect(written).not.toHaveProperty('floors');
-    expect(parseBoardFile(JSON.stringify(written))).toEqual({ exported: written.exported, sites: written.sites, upTo: {} });
+  it('counts floors as posts 1..N', () => {
     const imported = parseBoardFile(file({ sites: { pixiv: [9000] }, floors: { pixiv: 2254 } }));
     expect(boardSitePostCount(imported, 'pixiv')).toBe(2255);
     expect(boardPostCount(imported)).toBe(2255);
@@ -247,15 +245,10 @@ describe('Booru explorer files', () => {
     expect(isEmptyBoardReads({ sites: {} })).toBe(true);
   });
 
-  it('splits into one file per board and merges files back', () => {
-    const reads = { sites: { pixiv: [3, 1], konachan: [7] } };
-    const split = splitBoardReads(reads);
-    expect(split.map(([k]) => k).sort()).toEqual(['konachan', 'pixiv']);
-    expect(split).toHaveLength(2);
-    for (const [key, one] of split) expect(Object.keys(one.sites)).toEqual([key]);
-    expect(splitBoardReads({ sites: { gelbooru: [] } })).toEqual([]);
+  it('merges several files into one import', () => {
     const merged = mergeBoardReads([
-      ...split.map(([, one]) => one),
+      { sites: { pixiv: [3, 1] } },
+      { sites: { konachan: [7] } },
       { sites: { pixiv: [2, 3] }, upTo: { konachan: 5 } },
       { sites: {}, upTo: { konachan: 9 } },
     ]);
@@ -263,11 +256,23 @@ describe('Booru explorer files', () => {
     expect(merged.upTo).toEqual({ konachan: 9 });
   });
 
-  it('finds board files in a backup: booru/<board>.json and layout 2 boards.json', () => {
-    expect(boardBackupPath('pixiv')).toBe('booru/pixiv.json');
+  it('finds board files in a backup: booru/<board>.bin, older booru/*.json and boards.json', () => {
+    expect(boardBackupPath('pixiv')).toBe('booru/pixiv.bin');
     expect(
-      boardBackupEntries(['manifest.json', 'boards.json', 'booru/pixiv.json', 'booru/x/y.json', 'booru/a.txt', 'images/booru.json']),
-    ).toEqual(['boards.json', 'booru/pixiv.json']);
+      boardBackupEntries([
+        'manifest.json',
+        'boards.json',
+        'booru/pixiv.bin',
+        'booru/konachan.json',
+        'booru/x/y.bin',
+        'booru/a.txt',
+        'images/booru.bin',
+      ]),
+    ).toEqual([
+      { name: 'boards.json', binary: false },
+      { name: 'booru/pixiv.bin', binary: true },
+      { name: 'booru/konachan.json', binary: false },
+    ]);
   });
 
   it('carries the board post count in the backup manifest', () => {
@@ -275,6 +280,56 @@ describe('Booru explorer files', () => {
     expect(parseManifest(JSON.stringify(m)).counts).toEqual({ records: 1, folders: 0, images: 0, boardPosts: 7 });
     const old = { ...buildManifest({ records: 1, images: 0 }, [], undefined, 1), layout: 1 };
     expect(parseManifest(JSON.stringify(old)).counts.boardPosts).toBeUndefined();
+  });
+});
+
+describe('binary id files (gaps as varints)', () => {
+  const bytes = (ids: number[]) => [...encodeBoardIds(ids)];
+
+  it('writes the header, the count, the first id and the gaps', () => {
+    // "RTBI", version 1, count 4, 410600 (3 bytes), gaps 5, 15, 8.
+    expect(bytes([410628, 410600, 410620, 410605])).toEqual([
+      0x52, 0x54, 0x42, 0x49, 1, 4, 0xe8, 0x87, 0x19, 5, 15, 8,
+    ]);
+    expect(bytes([])).toEqual([0x52, 0x54, 0x42, 0x49, 1, 0]);
+    // 1..2268 read: one byte a post.
+    const run = Array.from({ length: 2268 }, (_, i) => i + 1);
+    expect(encodeBoardIds(run).length).toBe(5 + 2 + 2268);
+  });
+
+  it('round-trips random sets, post 0 and very large ids', () => {
+    let seed = 11;
+    const rand = (n: number) => {
+      seed = (seed * 1103515245 + 12345) % 2 ** 31;
+      return seed % n;
+    };
+    for (let round = 0; round < 40; round++) {
+      const ids = new Set<number>();
+      for (let i = rand(500); i > 0; i--) ids.add(rand(round % 2 ? 300 : 2 ** 30));
+      const sorted = [...ids].sort((a, b) => a - b);
+      expect(decodeBoardIds(encodeBoardIds([...ids, ...ids]))).toEqual(sorted);
+    }
+    const edge = [0, 1, 127, 128, 16383, 16384, 2 ** 31, Number.MAX_SAFE_INTEGER];
+    expect(decodeBoardIds(encodeBoardIds(edge))).toEqual(edge);
+  });
+
+  it('rejects malformed files', () => {
+    const good = encodeBoardIds([5, 9, 300]);
+    expect(() => decodeBoardIds(new Uint8Array([1, 2, 3, 4, 5, 6]))).toThrow(/Not a board id file/);
+    expect(() => decodeBoardIds(Uint8Array.from([...good.slice(0, 4), 2, 0]))).toThrow(/newer/);
+    expect(() => decodeBoardIds(good.slice(0, -1))).toThrow(/cut short/);
+    expect(() => decodeBoardIds(Uint8Array.from([...good, 0]))).toThrow(/extra data/);
+    expect(() => decodeBoardIds(Uint8Array.from([0x52, 0x54, 0x42, 0x49, 1, 2, 5, 0]))).toThrow(/repeats/);
+    expect(() => decodeBoardIds(Uint8Array.from([0x52, 0x54, 0x42, 0x49, 1, 100, 1]))).toThrow(/cut short/);
+    expect(() => decodeBoardIds(encodeBoardIds([]).slice(0, 3))).toThrow(/Not a board id file/);
+    expect(() => encodeBoardIds([-1])).toThrow();
+  });
+
+  it('takes the board from the file name', () => {
+    expect(boardOfIdsFile('booru/konachan.bin')).toBe('konachan');
+    expect(boardOfIdsFile('pixiv.BIN')).toBe('pixiv');
+    expect(boardOfIdsFile('booru/yandere.bin')).toBeUndefined();
+    expect(boardOfIdsFile('konachan.json')).toBeUndefined();
   });
 });
 

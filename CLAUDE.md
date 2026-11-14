@@ -201,8 +201,8 @@ never appear in the list.
 - Import: the Boards page reads Booru explorer's export (`parseBoardFile`: `{ format: "booru-explorer-reads",
   version: 1, exported, sites: { board: [ids] }, floors? }`); merge only (ids unioned, `importBoardReads`, one
   transaction). A file's `floors` ("read up to N") is imported as posts 1..N marked read (`addRange`: whole buckets
-  become full bitmaps directly). Export (`booru/<board>.json` in the backup) lists every read id (`rowsToIds`) and never
-  writes `floors` (by request). Unknown boards are reported and skipped.
+  become full bitmaps directly). Export (`booru/<board>.bin` in the backup) has every read id (`rowsToIds`); nothing writes
+  the JSON format or `floors` any more (by request). Unknown boards are reported and skipped.
 
 ### Changing the schema
 
@@ -218,9 +218,9 @@ versions migrate on import; backups from newer versions (schema or `BACKUP_LAYOU
 
 ### Backup and images
 
-Backups are **ZIP files** (`lib/zip.ts`, own writer/reader, no dependency). Layout 3 (`BACKUP_LAYOUT`, separate
-from `SCHEMA_VERSION`; bump it when the files in the ZIP change; layouts 1 (no board history) and 2 (one `boards.json`)
-still import):
+Backups are **ZIP files** (`lib/zip.ts`, own writer/reader, no dependency). Layout 4 (`BACKUP_LAYOUT`, separate
+from `SCHEMA_VERSION`; bump it when the files in the ZIP change; layouts 1 (no board history), 2 (one `boards.json`)
+and 3 (`booru/<board>.json`) still import):
 - `manifest.json` (`BackupManifest`): format, `layout`, record schema `version`, `exportedAt`, `counts`, `folders`,
   `home`. Read first (`openBackup`), so the Backup page previews counts and rejects newer backups before reading
   records.
@@ -230,11 +230,14 @@ still import):
   ca, ua, ra, ou; `URL_KEYS` inside `ou`), and left out when absent, empty (tags, images), default (`mm` "exact") or
   derivable (`mk` equal to `computeMatchKey(url, mm)`; restored on import). Adding a record field without a key in
   `RECORD_KEYS` is a type error. Migrations run on the decoded (long-key) record.
-- `booru/<board>.json` (`boardBackupPath`; by request): board read history, one file per board with anything read
-  (`splitBoardReads`), each a Booru explorer export of that one board (`buildBoardFile` / `parseBoardFile`). On import,
-  every `booru/*.json` plus layout 2's `boards.json` (`boardBackupEntries`) is parsed, merged (`mergeBoardReads`) and
-  imported like the Booru page import; `counts.boardPosts` in the manifest for the preview. The Booru page import takes
-  several files at once (the files of a backup's `booru/` folder).
+- `booru/<board>.bin` (`boardBackupPath`; by request): board read history, one binary file per board with anything
+  read, named after the board (`boardOfIdsFile`). Format (`encodeBoardIds` / `decodeBoardIds` in boards.ts): `RTBI`,
+  a version byte, the count, the first id, then the gaps to the previous id, each a varint (7 bits a byte, low first,
+  top bit = more), so mostly 1 byte a post. Not Booru explorer compatible (not needed: its marking is being dropped).
+  On import, `booru/*.bin`, plus `booru/*.json` / `boards.json` from older layouts (Booru explorer's JSON,
+  `parseBoardFile`), are found by `boardBackupEntries`, merged (`mergeBoardReads`) and imported like the Booru page
+  import; `counts.boardPosts` in the manifest for the preview. The Booru page import takes several files at once
+  (`.bin` from a backup's `booru/` folder, or a Booru explorer `.json`).
 - `images/<id>.<ext>` (`imagePath`, `imageStem`): original files. There is no image list: on import each id in a
   record's `images` is looked up by file-name stem among the ZIP's entries (`imageIndex` + `imagesFromZip`; any
   extension, first record listing an id gets it).

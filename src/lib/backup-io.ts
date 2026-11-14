@@ -17,12 +17,14 @@ import {
 } from './backup';
 import { getBoardReads, importBoardReads } from './board-store';
 import {
+  boardOfIdsFile,
   boardPostCount,
-  buildBoardFile,
+  BOARDS,
+  decodeBoardIds,
+  encodeBoardIds,
   isEmptyBoardReads,
   mergeBoardReads,
   parseBoardFile,
-  splitBoardReads,
   type BoardReads,
 } from './boards';
 import { getImage, prepareImage, type StoredImage } from './images';
@@ -32,11 +34,11 @@ import type { BackupFile, ReadingRecord } from './types';
 import { createZip, looksLikeZip, readZip, readZipEntry, type ZipEntry, type ZipInput } from './zip';
 
 /**
- * Export everything to a .zip (layout 3):
+ * Export everything to a .zip (layout 4):
  *   manifest.json   format, versions, export time, counts, folders, Home settings
  *   records.jsonl   one record per line
  *   images/<id>.ext original image files (found by id on import: no separate list)
- *   booru/<board>.json   read posts of one board (Booru explorer's format); boards with none have no file
+ *   booru/<board>.bin    read posts of one board (binary, encodeBoardIds); boards with none have no file
  * Returns the number of records.
  */
 export async function exportToFile(): Promise<number> {
@@ -64,11 +66,9 @@ export async function exportToFile(): Promise<number> {
     home,
   );
   const json = (v: unknown) => new Blob([JSON.stringify(v, null, 2)], { type: 'application/json' });
-  // Compact: one sorted id list per board can be tens of thousands of numbers.
-  const exported = new Date();
-  const boardsFile = splitBoardReads(boards).map(([key, one]) => ({
-    name: boardBackupPath(key),
-    data: new Blob([JSON.stringify(buildBoardFile(one, exported))], { type: 'application/json' }),
+  const boardsFile = BOARDS.filter((b) => boards.sites[b.key]?.length).map((b) => ({
+    name: boardBackupPath(b.key),
+    data: new Blob([encodeBoardIds(boards.sites[b.key]!)], { type: 'application/octet-stream' }),
   }));
   // One Blob part per line: no single giant string.
   const recordsFile = new Blob(records.map(recordLine), { type: 'application/x-ndjson' });
@@ -140,9 +140,15 @@ export async function openBackup(file: File): Promise<OpenedBackup> {
       }
       // Board history is small and parsed up front: a bad board file stops the import too.
       const boardFiles: BoardReads[] = [];
-      for (const name of boardBackupEntries(entries.keys())) {
+      for (const { name, binary } of boardBackupEntries(entries.keys())) {
         try {
-          boardFiles.push(parseBoardFile(await (await readZipEntry(file, entries.get(name)!)).text(), issues));
+          const blob = await readZipEntry(file, entries.get(name)!);
+          if (!binary) boardFiles.push(parseBoardFile(await blob.text(), issues));
+          else {
+            const board = boardOfIdsFile(name);
+            if (board) boardFiles.push({ sites: { [board]: decodeBoardIds(new Uint8Array(await blob.arrayBuffer())) } });
+            else issues.push(`${name}: board isn't supported; its read posts were skipped.`);
+          }
         } catch (e) {
           throw new Error(`${name}: ${e instanceof Error ? e.message : String(e)}`);
         }
