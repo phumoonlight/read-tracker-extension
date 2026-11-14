@@ -17,6 +17,24 @@
   --status-unread: #0969da;
   --status-read: #1a7f37;
 
+  /* Place name colours (FOLDER_COLORS); "-on" is for the pressed chip, whose background is inverted */
+  --fc-red: #cf222e;
+  --fc-orange: #bc4c00;
+  --fc-yellow: #9a6700;
+  --fc-green: #1a7f37;
+  --fc-teal: #1b7c83;
+  --fc-blue: #0969da;
+  --fc-purple: #8250df;
+  --fc-pink: #bf3989;
+  --fc-red-on: #ff7b72;
+  --fc-orange-on: #f0883e;
+  --fc-yellow-on: #e3b341;
+  --fc-green-on: #56d364;
+  --fc-teal-on: #39c5cf;
+  --fc-blue-on: #79c0ff;
+  --fc-purple-on: #d2a8ff;
+  --fc-pink-on: #f778ba;
+
   /* Booru marking card in the popup (violet, apart from the reading list colours) */
   --booru: #8250df;
   --booru-text: #ffffff;
@@ -56,6 +74,23 @@
 
     --status-unread: #4493f8;
     --status-read: #3fb950;
+
+    --fc-red: #ff7b72;
+    --fc-orange: #f0883e;
+    --fc-yellow: #e3b341;
+    --fc-green: #56d364;
+    --fc-teal: #39c5cf;
+    --fc-blue: #79c0ff;
+    --fc-purple: #d2a8ff;
+    --fc-pink: #f778ba;
+    --fc-red-on: #cf222e;
+    --fc-orange-on: #bc4c00;
+    --fc-yellow-on: #9a6700;
+    --fc-green-on: #1a7f37;
+    --fc-teal-on: #1b7c83;
+    --fc-blue-on: #0969da;
+    --fc-purple-on: #8250df;
+    --fc-pink-on: #bf3989;
 
     --booru: #a371f7;
     --booru-text: #0d1117;
@@ -781,4 +816,80 @@ dialog.viewer {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+/* Place name colour: .place-c-<key> on the name; pressed chips use the inverted shade */
+.place-c-red {
+  --place-c: var(--fc-red);
+  --place-c-on: var(--fc-red-on);
+}
+.place-c-orange {
+  --place-c: var(--fc-orange);
+  --place-c-on: var(--fc-orange-on);
+}
+.place-c-yellow {
+  --place-c: var(--fc-yellow);
+  --place-c-on: var(--fc-yellow-on);
+}
+.place-c-green {
+  --place-c: var(--fc-green);
+  --place-c-on: var(--fc-green-on);
+}
+.place-c-teal {
+  --place-c: var(--fc-teal);
+  --place-c-on: var(--fc-teal-on);
+}
+.place-c-blue {
+  --place-c: var(--fc-blue);
+  --place-c-on: var(--fc-blue-on);
+}
+.place-c-purple {
+  --place-c: var(--fc-purple);
+  --place-c-on: var(--fc-purple-on);
+}
+.place-c-pink {
+  --place-c: var(--fc-pink);
+  --place-c-on: var(--fc-pink-on);
+}
+.place-name[class*='place-c-'] {
+  color: var(--place-c);
+}
+[aria-pressed='true'] > .place-name[class*='place-c-'] {
+  color: var(--place-c-on);
+}
+.place-emoji {
+  flex: none;
+  line-height: 1;
+}
+.place-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Colour swatches (Manage dialog): "none" plus one dot per palette colour */
+.color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.color-swatch {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--place-c, var(--surface));
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+}
+.color-swatch[aria-pressed='true'] {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+/* Folder options in a select take the folder colour where options can be styled */
+option[class*='place-c-'] {
+  color: var(--place-c);
 }

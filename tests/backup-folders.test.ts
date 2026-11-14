@@ -81,6 +81,22 @@ describe('folders in manifest.json', () => {
     expect(() => parseManifest(manifest({ folders: [{ ...folder('f', 'A'), updatedAt: 'x' }] }))).toThrow(/"updatedAt"/);
   });
 
+  it('carries folder emoji and colour, and Home colour; drops invalid ones', () => {
+    const f = { ...folder('f', 'Novels'), emoji: '📚', color: 'teal' as const };
+    const m = buildManifest({ records: 0, images: 0 }, [f], { color: 'pink', updatedAt: 5 });
+    const back = parseManifest(JSON.stringify(m));
+    expect(back.folders[0]).toEqual(f);
+    expect(back.home).toEqual({ color: 'pink', updatedAt: 5 });
+    const bad = parseManifest(
+      manifest({
+        folders: [{ ...folder('g', 'X'), emoji: 'abc', color: 'chartreuse' }],
+        home: { color: 1, emoji: '🐱', updatedAt: 1 },
+      }),
+    );
+    expect(bad.folders[0]).toEqual(folder('g', 'X'));
+    expect(bad.home).toEqual({ updatedAt: 1 });
+  });
+
   it('keeps a folder image size, drops the default, and ignores unknown values', () => {
     const parse = (imageSize: unknown) => parseManifest(manifest({ folders: [{ ...folder('f', 'A'), imageSize }] })).folders[0];
     expect(parse('xlarge')?.imageSize).toBe('xlarge');

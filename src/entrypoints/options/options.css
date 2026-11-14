@@ -245,6 +245,18 @@
   gap: 6px;
   align-items: center;
 }
+/* Manage dialog: emoji box (one emoji) and colour swatches side by side when there's room */
+.place-look {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+input.emoji-input {
+  width: 56px;
+  text-align: center;
+  font-size: 18px;
+}
+
 /* "+ New folder": a dashed chip after the folders */
 .folder-chip.folder-chip-new {
   border-style: dashed;

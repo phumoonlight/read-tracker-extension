@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cleanEmoji,
+  cleanFolderColor,
   cleanFolderName,
   decodeFolderFilter,
   encodeFolderFilter,
@@ -61,5 +63,28 @@ describe('folder filter encoding', () => {
     for (const s of [null, 'all', 'none', 'home', 'garbage', 'f:']) {
       expect(decodeFolderFilter(s)).toBeNull();
     }
+  });
+});
+
+describe('folder emoji and colour', () => {
+  it('keeps the first character only when it is an emoji', () => {
+    expect(cleanEmoji('📚')).toBe('📚');
+    expect(cleanEmoji(' 📚 books')).toBe('📚');
+    expect(cleanEmoji('👩‍💻x')).toBe('👩‍💻'); // ZWJ sequence: one character
+    expect(cleanEmoji('👍🏽')).toBe('👍🏽'); // skin tone
+    expect(cleanEmoji('🇯🇵')).toBe('🇯🇵'); // flag
+    expect(cleanEmoji('1️⃣')).toBe('1️⃣'); // keycap
+    expect(cleanEmoji('❤️')).toBe('❤️');
+    expect(cleanEmoji('a📚')).toBeUndefined();
+    expect(cleanEmoji('1')).toBeUndefined();
+    expect(cleanEmoji('')).toBeUndefined();
+    expect(cleanEmoji('   ')).toBeUndefined();
+    expect(cleanEmoji(5)).toBeUndefined();
+  });
+
+  it('knows the palette colours only', () => {
+    expect(cleanFolderColor('teal')).toBe('teal');
+    expect(cleanFolderColor('#ff0000')).toBeUndefined();
+    expect(cleanFolderColor(undefined)).toBeUndefined();
   });
 });

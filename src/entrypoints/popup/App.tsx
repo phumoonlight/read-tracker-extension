@@ -1,15 +1,16 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { browser, type Browser } from 'wxt/browser';
 import { HoldButton } from '@/components/HoldButton';
+import { PlaceLabel } from '@/components/PlaceLabel';
 import { boardForHost } from '@/lib/boards';
 import { folderForUrl } from '@/lib/domains';
 import { matchedEntry } from '@/lib/match';
 import { createRecord, formatAgo, formatDateTime, hasSeries } from '@/lib/records';
-import { findRecordForUrl, listFolders, markReadNow, putRecord, setFavorite, statusChange, updateRecord } from '@/lib/storage';
+import { findRecordForUrl, getHomeSettings, listFolders, markReadNow, putRecord, setFavorite, statusChange, updateRecord } from '@/lib/storage';
 import type { MarkingPrefs } from '@/lib/link-marks';
 import { getMarkingPrefs, onMarkingPrefsChanged, updateMarkingPrefs } from '@/lib/marking-prefs';
 import { getActiveTab } from '@/lib/tab';
-import type { Folder, ReadingRecord } from '@/lib/types';
+import { HOME_EMOJI, type Folder, type HomeSettings, type ReadingRecord } from '@/lib/types';
 import { displayUrl, normalizeUrl } from '@/lib/url';
 import { BoardPanel } from './BoardPanel';
 
@@ -363,9 +364,17 @@ function FolderSelect({
   const [active, setActive] = useState(0);
   const listId = useId();
   const button = useRef<HTMLButtonElement>(null);
+  /** Home's colour (its emoji is fixed). */
+  const [home, setHome] = useState<HomeSettings>();
+  useEffect(() => {
+    void getHomeSettings().then(setHome, () => {});
+  }, []);
   /** Closed by a pick or Esc (not by clicking elsewhere): focus goes back to the button. */
   const refocus = useRef(false);
-  const options = [{ id: '', name: 'Home' }, ...folders.map((f) => ({ id: f.id, name: f.name }))];
+  const options = [
+    { id: '', name: 'Home', emoji: HOME_EMOJI, color: home?.color },
+    ...folders.map((f) => ({ id: f.id, name: f.name, emoji: f.emoji, color: f.color })),
+  ];
   // A folder that no longer exists counts as Home.
   const current = options.find((o) => o.id === value) ?? options[0]!;
   const q = query.trim().toLowerCase();
@@ -401,7 +410,7 @@ function FolderSelect({
       <span className="popup-folder-label">Folder</span>
       {!open ? (
         <button ref={button} type="button" className="popup-folder-button" aria-haspopup="listbox" onClick={show}>
-          {current.name}
+          <PlaceLabel {...current} />
         </button>
       ) : (
         <div
@@ -454,7 +463,7 @@ function FolderSelect({
                 onMouseEnter={() => setActive(i)}
                 onClick={() => choose(o.id)}
               >
-                {o.name}
+                <PlaceLabel {...o} />
               </li>
             ))}
             {shown.length === 0 && <li className="popup-folder-empty">No folder matches.</li>}

@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import { matchTag } from '@/lib/match';
 import { computeMatchKey, normalizeTags, urlEntries } from '@/lib/records';
 import { normalizeUrl, suggestPrefix } from '@/lib/url';
-import { MAX_URLS, type Folder, type MatchMode, type ReadingRecord, type ReadStatus, type UrlEntry } from '@/lib/types';
+import { HOME_EMOJI, MAX_URLS, type Folder, type MatchMode, type ReadingRecord, type ReadStatus, type UrlEntry } from '@/lib/types';
 import { StatusPicker } from './StatusPicker';
 import { TagInput } from './TagInput';
 import { XIcon } from './XIcon';
@@ -312,10 +312,11 @@ export function FolderSelect({
     <label className="field">
       <span>{label}</span>
       <select value={current} onChange={(e) => onChange(e.target.value)}>
-        <option value="">Home</option>
+        <option value="">{HOME_EMOJI} Home</option>
+        {/* Emoji in the text; the colour shows where the select's list can be styled (Chrome 135+). */}
         {folders.map((f) => (
-          <option key={f.id} value={f.id}>
-            {f.name}
+          <option key={f.id} value={f.id} className={f.color ? `place-c-${f.color}` : undefined}>
+            {f.emoji ? `${f.emoji} ${f.name}` : f.name}
           </option>
         ))}
       </select>

@@ -7,7 +7,8 @@ import { HoldButton } from '@/components/HoldButton';
 import { TagInput } from '@/components/TagInput';
 import { ImagePicker } from '@/components/ImagePicker';
 import { ImageViewer } from '@/components/ImageViewer';
-import { decodeFolderFilter, encodeFolderFilter } from '@/lib/folders';
+import { FolderLabel, HomeLabel } from '@/components/PlaceLabel';
+import { cleanEmoji, decodeFolderFilter, encodeFolderFilter } from '@/lib/folders';
 import { addDomainText } from '@/lib/domains';
 import { createRecord, formatAgo, formatDateTime, hasSeries, urlEntries } from '@/lib/records';
 import {
@@ -38,7 +39,9 @@ import {
 } from '@/lib/storage';
 import { hasLinkMarkAccess, requestLinkMarkAccess } from '@/lib/tab';
 import {
+  FOLDER_COLORS,
   FOLDER_NAME_MAX,
+  HOME_EMOJI,
   IMAGE_SIZES,
   IMAGE_SIZE_LABEL,
   READ_MODES,
@@ -285,6 +288,7 @@ export function App() {
 
       <FolderBar
         folders={folders}
+        home={home}
         counts={counts}
         value={activeFolder}
         onChange={(f) => {
@@ -454,8 +458,9 @@ export function App() {
               void updateFolderSettings(openFolder.id, patch);
             } else {
               // Home has no read mode. Pass only the keys that are set (an undefined key would reset it).
-              const { readMode: _ignored, ...homePatch } = patch;
+              const { readMode: _ignored, emoji: _noEmoji, ...homePatch } = patch;
               void _ignored;
+              void _noEmoji;
               void updateHomeSettings(homePatch);
             }
           }}
@@ -819,12 +824,14 @@ function TagFilter({
 
 function FolderBar({
   folders,
+  home,
   counts,
   value,
   onChange,
   onNew,
 }: {
   folders: Folder[];
+  home: HomeSettings | undefined;
   counts: PlaceCounts | undefined;
   value: FolderFilter;
   onChange: (v: FolderFilter) => void;
@@ -832,7 +839,7 @@ function FolderBar({
 }) {
   const NONE: PlaceCount = { total: 0, unread: 0 };
   // Status places show "unread / read"; Revisit places (no statuses) show the record count.
-  const chip = (v: FolderFilter, label: string, count: PlaceCount | undefined, revisit: boolean) => (
+  const chip = (v: FolderFilter, label: React.ReactNode, count: PlaceCount | undefined, revisit: boolean) => (
     <button key={v === HOME ? 'home' : `f-${v}`} type="button" className="folder-chip" aria-pressed={value === v} onClick={() => onChange(v)}>
       {label}
       {count &&
@@ -850,9 +857,9 @@ function FolderBar({
   return (
     <nav className="folder-bar" aria-label="Folders">
       <div className="folder-chips">
-        {chip(HOME, 'Home', counts?.home, false)}
+        {chip(HOME, <HomeLabel home={home} />, counts?.home, false)}
         {folders.map((f) =>
-          chip(f.id, f.name, counts && (counts.folders.get(f.id) ?? NONE), f.readMode === 'revisit'),
+          chip(f.id, <FolderLabel folder={f} />, counts && (counts.folders.get(f.id) ?? NONE), f.readMode === 'revisit'),
         )}
         {/* Right after the last folder, as a dashed chip: where a new one will appear. */}
         <button type="button" className="folder-chip folder-chip-new" onClick={onNew}>
@@ -942,6 +949,8 @@ function PlaceDialog({
           Home holds every record that isn't in a folder. It can't be renamed or deleted.
         </p>
       )}
+
+      <PlaceLook folder={folder} home={home} onSettings={onSettings} />
 
       {folder && (
         <div className="field-group">
@@ -1051,8 +1060,8 @@ function PlaceDialog({
           <small className="muted">
             {settings?.markLinks
               ? folder?.readMode === 'revisit'
-                ? 'Links to records here are dimmed with a green glow on websites (Revisit: every record counts as read).'
-                : 'Links to records here are marked on websites: unread dimmed and slightly blurred with a blue glow, read dimmed and blurred more with a green glow.'
+                ? 'Links to records here are dimmed and blurred on websites (Revisit: every record counts as read).'
+                : 'Links to records here are marked on websites: unread dimmed and slightly blurred, read dimmed and blurred more.'
               : 'Off: websites are left as they are.'}{' '}
             Marking reads the links on every page you open, and a site's own scripts could see which of its links are marked.
           </small>
@@ -1072,6 +1081,95 @@ function PlaceDialog({
         </button>
       </div>
     </Dialog>
+  );
+}
+
+/**
+ * How a place looks in chips and pickers: an emoji before the name (folders; Home always
+ * shows HOME_EMOJI) and the name's colour. Both apply at once.
+ */
+function PlaceLook({
+  folder,
+  home,
+  onSettings,
+}: {
+  folder: Folder | undefined;
+  home: HomeSettings | undefined;
+  onSettings: (patch: PlaceSettings) => void;
+}) {
+  const [emojiText, setEmojiText] = useState(folder?.emoji ?? '');
+  const color = folder ? folder.color : home?.color;
+  const emojiInvalid = !!emojiText.trim() && !cleanEmoji(emojiText);
+  return (
+    <div className="place-look">
+      <div className="field">
+        <span>Emoji</span>
+        {folder ? (
+          <>
+            <div className="row" style={{ flexWrap: 'nowrap' }}>
+              <input
+                type="text"
+                className="emoji-input"
+                value={emojiText}
+                placeholder="📁"
+                aria-label="Folder emoji"
+                onChange={(e) => {
+                  const text = e.target.value;
+                  const emoji = cleanEmoji(text);
+                  // Typing or pasting keeps only the first emoji; clearing the box removes it.
+                  setEmojiText(emoji ?? text);
+                  if (emoji || !text.trim()) onSettings({ emoji: emoji ?? null });
+                }}
+              />
+              {folder.emoji && (
+                <button
+                  type="button"
+                  className="btn btn-small btn-ghost"
+                  onClick={() => {
+                    setEmojiText('');
+                    onSettings({ emoji: null });
+                  }}
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            {emojiInvalid ? (
+              <span className="error">That isn't an emoji.</span>
+            ) : (
+              <small className="muted">Shown before the name. Win + . (Windows) opens the emoji picker.</small>
+            )}
+          </>
+        ) : (
+          <small className="muted">{HOME_EMOJI} Home always shows this emoji.</small>
+        )}
+      </div>
+      <div className="field">
+        <span>Name colour</span>
+        <div className="color-swatches" role="group" aria-label="Name colour">
+          <button
+            type="button"
+            className="color-swatch"
+            aria-pressed={!color}
+            title="Default colour"
+            onClick={() => onSettings({ color: null })}
+          >
+            ∅
+          </button>
+          {FOLDER_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              className={`color-swatch place-c-${c}`}
+              aria-pressed={color === c}
+              title={c[0]!.toUpperCase() + c.slice(1)}
+              aria-label={c}
+              onClick={() => onSettings({ color: c })}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 

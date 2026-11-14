@@ -3,7 +3,7 @@ import { BOARDS_REVISION_KEY, REVISION_KEY } from './changes';
 import { BOARD_READS, FOLDERS, IDX, IMAGES, META, RECORDS, req, withTx } from './db';
 import { isPermutation, type NewImage, type StoredImage } from './images';
 import { domainConflictError } from './domains';
-import { cleanFolderName, folderNameError, newFolder, sortFolders } from './folders';
+import { cleanEmoji, cleanFolderColor, cleanFolderName, folderNameError, newFolder, sortFolders } from './folders';
 import { chooseMatch, lookupTags, recordMatchTags } from './match';
 import { urlEntries } from './records';
 import { migrateRecord } from './migrate';
@@ -11,6 +11,7 @@ import {
   MAX_IMAGES,
   SCHEMA_VERSION,
   type Folder,
+  type FolderColor,
   type HomeSettings,
   type ImageSize,
   type ReadMode,
@@ -479,19 +480,33 @@ function withoutReadMode<T extends object>(s: T): Omit<T, 'readMode'> {
 }
 
 /** Settings shared by Home and folders. Defaults are stored as absent. */
-export type PlaceSettings = { imageSize?: ImageSize; readMode?: ReadMode; markLinks?: boolean };
+/** Settings shared by Home and folders (emoji: folders only). `null` clears color / emoji. */
+export type PlaceSettings = {
+  imageSize?: ImageSize;
+  readMode?: ReadMode;
+  markLinks?: boolean;
+  color?: FolderColor | null;
+  emoji?: string | null;
+};
 
 /** Apply a settings change, dropping fields that are back at their default. */
-function withSettings<T extends PlaceSettings>(current: T, patch: PlaceSettings): T {
-  const next = { ...current, ...patch };
+function withSettings<T extends object>(current: T, patch: PlaceSettings): T {
+  const next = { ...current, ...patch } as T & PlaceSettings;
   if (next.imageSize === 'medium') delete next.imageSize;
   if (next.readMode === 'status') delete next.readMode;
   if (!next.markLinks) delete next.markLinks;
-  return next;
+  // Only known colours and a single emoji are kept; anything else (or null) clears it.
+  const color = cleanFolderColor(next.color);
+  if (color) next.color = color;
+  else delete next.color;
+  const emoji = cleanEmoji(next.emoji);
+  if (emoji) next.emoji = emoji;
+  else delete next.emoji;
+  return next as T;
 }
 
 /** Change Home's settings (merged with the stored ones). Home has no read mode setting. */
-export async function updateHomeSettings(patch: Omit<PlaceSettings, 'readMode'>): Promise<void> {
+export async function updateHomeSettings(patch: Omit<PlaceSettings, 'readMode' | 'emoji'>): Promise<void> {
   await ensureReady();
   await withTx(META, 'readwrite', async (tx) => {
     const store = tx.objectStore(META);

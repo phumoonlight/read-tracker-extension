@@ -1,5 +1,5 @@
 import { normalizeDomain } from './domains';
-import { cleanFolderName } from './folders';
+import { cleanEmoji, cleanFolderColor, cleanFolderName } from './folders';
 import { migrateRecord } from './migrate';
 import { computeMatchKey, isHttpUrl } from './records';
 import {
@@ -99,6 +99,7 @@ function parseHome(v: unknown): HomeSettings | undefined {
   return {
     ...(imageSize && imageSize !== 'medium' ? { imageSize } : {}),
     ...(v.markLinks === true ? { markLinks: true } : {}),
+    ...(cleanFolderColor(v.color) ? { color: cleanFolderColor(v.color) } : {}),
     // Home is always Status: a read mode from an older file is ignored.
     updatedAt: v.updatedAt,
   };
@@ -127,6 +128,9 @@ function parseFolder(f: unknown, i: number, issues?: string[]): Folder {
     ...parseReadMode(f.readMode),
     ...(domains.length ? { domains } : {}),
     ...(f.markLinks === true ? { markLinks: true } : {}),
+    // Unknown colours and anything that isn't one emoji are dropped (no colour / no emoji).
+    ...(cleanFolderColor(f.color) ? { color: cleanFolderColor(f.color) } : {}),
+    ...(cleanEmoji(f.emoji) ? { emoji: cleanEmoji(f.emoji) } : {}),
     createdAt: f.createdAt as number,
     updatedAt: f.updatedAt as number,
   };

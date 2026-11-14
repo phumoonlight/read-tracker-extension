@@ -1,4 +1,4 @@
-import { FOLDER_NAME_MAX, type Folder } from './types';
+import { FOLDER_COLORS, FOLDER_NAME_MAX, type Folder, type FolderColor } from './types';
 import { newId } from './ids';
 
 /** Collapse whitespace and trim. Names are compared case-insensitively. */
@@ -18,6 +18,24 @@ export function folderNameError(name: string, folders: readonly Folder[], except
   }
   return null;
 }
+
+/**
+ * A folder's emoji from what was typed or pasted: its first character if that is an emoji
+ * (including flags, keycaps, skin tones and ZWJ sequences such as 👩‍💻), else undefined.
+ */
+export function cleanEmoji(text: unknown): string | undefined {
+  if (typeof text !== 'string') return undefined;
+  const trimmed = text.trim();
+  if (!trimmed) return undefined;
+  const first = new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(trimmed)[Symbol.iterator]().next()
+    .value?.segment;
+  if (!first) return undefined;
+  return /\p{Extended_Pictographic}|\p{Regional_Indicator}|\u20e3/u.test(first) ? first : undefined;
+}
+
+/** A colour key from a file or an input; anything unknown is undefined (no colour). */
+export const cleanFolderColor = (v: unknown): FolderColor | undefined =>
+  FOLDER_COLORS.includes(v as FolderColor) ? (v as FolderColor) : undefined;
 
 export function newFolder(name: string): Folder {
   const now = Date.now();

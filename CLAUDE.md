@@ -46,11 +46,11 @@ src/
     boards/              Boards page, titled "Booru" in the UI (boards.html, linked as "Booru" from the list header and the popup): "Dimming is off" banner / Turn on (only when off), collapsed help,
                          per-board table (posts, size, clear), import of a Booru explorer .json
   components/            shared React UI (RecordForm, ImagePicker, ImageViewer, Thumbnail (cover), UrlLink, HoldButton,
-                         StatusPicker, Dialog)
+                         StatusPicker, Dialog, PlaceLabel (emoji + coloured name of Home / a folder))
   lib/                   framework-free logic (only db.ts / storage.ts / tab.ts / images.ts / board-store.ts /
                          marking-prefs.ts / changes.ts touch browser APIs)
     types.ts             ReadingRecord, Folder, SCHEMA_VERSION, BackupFile
-    folders.ts           folder name rules (folderNameError), newFolder, sortFolders
+    folders.ts           folder name rules (folderNameError), newFolder, sortFolders, cleanEmoji, cleanFolderColor
     url.ts               normalizeUrl, isTrackingParam, suggestPrefix
     match.ts             prefixMatches, candidateKeys, chooseMatch (index lookup), findMatch (reference)
     migrate.ts           migrateRecord + MIGRATIONS table
@@ -93,6 +93,14 @@ records come first), and the status/sort filters and the Manage dialog's status 
 column (`.card-center`; rows are a 3-column grid `body | center | actions` with images on a second row). Settings changes
 go through `updateFolderSettings` / `updateHomeSettings`, which merge and store defaults as absent.
 
+Place look (by request): `color?` on `Folder` and `HomeSettings` is a palette key (`FOLDER_COLORS`: red, orange, yellow,
+green, teal, blue, purple, pink; tokens `--fc-<key>` and `--fc-<key>-on` (for the inverted pressed chip) in base.css,
+applied with `.place-c-<key>`) for the name's colour. `emoji?` on `Folder` only: one emoji before the name
+(`cleanEmoji`: the first grapheme if it is an emoji, ZWJ / flags / keycaps included). Home can't have one: it always shows
+`HOME_EMOJI` (🏠). Set in the Manage dialog (`PlaceLook`; apply at once through `updateFolderSettings` /
+`updateHomeSettings`, `null` clears); shown by `<PlaceLabel>` in the folder chips and the popup's folder picker, and as
+text in RecordForm's folder select. Carried in backups; unknown colours / non-emoji are dropped on import.
+
 Preferred domains (`domains?` on `Folder`, `lib/domains.ts`): normalized hosts (`normalizeDomain`: no scheme / path /
 port / leading "www."). Matching is the **exact host** (subdomains don't count; "www." is ignored). A domain belongs to
 at most one folder: `createFolder` / `setFolderDomains` refuse a clash in the same transaction, and `planImport`
@@ -111,8 +119,8 @@ the page's link URLs in batches (`LINK_MARKS_MESSAGE`); the background answers w
 transaction, each index tag looked up once, same match as the badge). It rescans on DOM changes (throttled) and
 asks again for everything on the change signal. The dialog warns when marking is on without the permission (e.g. after an import).
 
-`Folder`: `id`, `name`, `imageSize?` (`small` | `medium` | `large` | `xlarge`; absent = medium), `readMode?`, `markLinks?`, `createdAt`,
-`updatedAt`. `imageSize` applies while that folder is open. Home has no Folder record: its size is `HomeSettings` in the `meta`
+`Folder`: `id`, `name`, `imageSize?` (`small` | `medium` | `large` | `xlarge`; absent = medium), `readMode?`, `markLinks?`,
+`color?`, `emoji?`, `createdAt`, `updatedAt`. `imageSize` applies while that folder is open. Home has no Folder record: its size is `HomeSettings` in the `meta`
 store (key `home`, `getHomeSettings` / `setHomeImageSize`), exported as `home` in backups and merged newer-wins.
 Home can't be renamed or deleted. In either place, the list's image tile height scales with it
 (60 / 120 / 240 / 320 px; width follows each image's aspect ratio while the images fit in the row), and at large/xlarge tiles show original files instead of previews

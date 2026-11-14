@@ -60,9 +60,19 @@ export interface Folder {
   domains?: string[];
   /** Dim links to this folder's records on websites (see lib/link-marks.ts). Absent = off. */
   markLinks?: boolean;
+  /** Colour of the folder's name (a palette key, see FOLDER_COLORS). Absent = the normal text colour. */
+  color?: FolderColor;
+  /** One emoji shown before the name (see cleanEmoji in folders.ts). Absent = none. */
+  emoji?: string;
   createdAt: number;
   updatedAt: number;
 }
+
+/** Name colours for places (Home and folders): palette keys, drawn from base.css tokens. */
+export type FolderColor = 'red' | 'orange' | 'yellow' | 'green' | 'teal' | 'blue' | 'purple' | 'pink';
+export const FOLDER_COLORS: readonly FolderColor[] = ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink'];
+/** Home's emoji: always shown, can't be changed. */
+export const HOME_EMOJI = '🏠';
 
 export type ImageSize = 'small' | 'medium' | 'large' | 'xlarge';
 export const IMAGE_SIZES: readonly ImageSize[] = ['small', 'medium', 'large', 'xlarge'];
@@ -91,6 +101,8 @@ export interface HomeSettings {
   imageSize?: ImageSize;
   /** Dim links to Home's records on websites. Absent = off. */
   markLinks?: boolean;
+  /** Colour of Home's name. Absent = the normal text colour. (Home's emoji is always HOME_EMOJI.) */
+  color?: FolderColor;
   updatedAt: number;
 }
 
