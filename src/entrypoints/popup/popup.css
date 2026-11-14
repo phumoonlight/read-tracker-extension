@@ -141,43 +141,154 @@ body {
   opacity: 1;
 }
 
-/* Board marking (on image boards), above the add / record view */
-.board-panel {
-  border-bottom: 1px solid var(--border);
+/*
+ * Booru marking (only on image boards), above the add / record view: a tinted card with its
+ * own accent, so it reads as a site-specific extra and not part of the reading list.
+ */
+.booru {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 10px 0;
+  padding: 12px;
+  border: 1px solid var(--booru-border);
+  border-radius: var(--radius);
+  background: var(--booru-bg);
 }
-.board-panel-head,
-.board-panel-foot {
+.booru-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.booru-tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--booru);
+  color: var(--booru-text);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.booru-site {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* On / Paused switch, at the right of the head */
+.booru-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+}
+.booru-switch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.booru-switch-track {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--border);
+  transition: background 0.15s;
+}
+.booru-switch-track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bg);
+  transition: transform 0.15s;
+}
+.booru-switch input:checked + .booru-switch-track {
+  background: var(--booru);
+}
+.booru-switch input:checked + .booru-switch-track::after {
+  transform: translateX(14px);
+}
+.booru-switch input:focus-visible + .booru-switch-track {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* The open post: its number and a read / not read pill */
+.booru-post {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
-.board-panel-foot .muted {
-  font-size: 16px;
-}
-.board-panel .link-button {
-  align-self: auto;
-  flex: none;
-}
-.board-post-state {
-  font-weight: 700;
+.booru-post-id {
   overflow-wrap: anywhere;
 }
-.board-post-state.is-unread {
+.booru-pill {
+  flex: none;
+  padding: 1px 10px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.booru-pill.is-unread {
   color: var(--status-unread);
 }
-.board-post-state.is-read {
+.booru-pill.is-read {
   color: var(--status-read);
 }
-.board-pause {
-  flex: none;
-}
-.board-pause[aria-pressed='false'] {
-  color: var(--text-muted);
-}
-/* Hold to mark the page | Start marking, side by side */
+
+/* Hold to mark the page | Click to mark, side by side */
 .board-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+.board-actions .btn {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+/* How much of this page is read: a bar and "2 / 17 read" */
+.booru-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.booru-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.booru-bar span {
+  display: block;
+  height: 100%;
+  background: var(--status-read);
+  transition: width 0.2s;
+}
+.booru-count,
+.booru-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.booru-count {
+  white-space: nowrap;
+}
+.booru .booru-open {
+  align-self: flex-end;
+  font-size: 14px;
 }

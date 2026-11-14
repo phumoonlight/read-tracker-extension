@@ -36,7 +36,9 @@ src/
     link-marks.content.ts  content script (registration: 'runtime', never in the manifest): dims marked links
     board-marks.content.ts content script (in the manifest, matches BOARD_ORIGINS): board marking (fade, marking mode)
     popup/               toolbar popup (short): add page (title + folder chips), or read state only; links to Manage.
-                         On a board page, board marking controls on top (BoardPanel.tsx)
+                         On a board page, board marking controls on top (BoardPanel.tsx): a violet card (`--booru*`
+                         tokens) with an On / Paused switch, the open post's Read / Not read pill, Mark page read
+                         (hold) | Click to mark, and a page progress bar
     options/             full list page (options_ui, open_in_tab): folder bar, record list, search, filters, Manage dialog (edit + delete)
     backup/              Backup page (backup.html, linked from the list header): export / import (.zip), erase all data
                          (`wipeAllData`, one transaction; a dialog with a 3 s `HoldButton`)

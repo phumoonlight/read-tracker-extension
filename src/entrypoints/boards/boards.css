@@ -10,9 +10,9 @@
   flex-wrap: wrap;
   gap: 8px 12px;
   padding: 10px 14px;
-  border: 1px solid var(--status-unread);
+  border: 1px solid var(--booru-border);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: var(--booru-bg);
   font-weight: 600;
 }
 

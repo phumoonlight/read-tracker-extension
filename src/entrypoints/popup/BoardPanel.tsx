@@ -71,86 +71,113 @@ export function BoardPanel({ board, tabId, url }: { board: Board; tabId: number;
   if (!prefs) return null;
 
   const paused = !!prefs.paused;
+  const share = page?.posts ? Math.round((page.read / page.posts) * 100) : 0;
 
   return (
-    <div className="popup-body board-panel">
-      <div className="board-panel-head">
-        <span className={`board-post-state${post ? (post.read ? ' is-read' : ' is-unread') : ''}`}>
-          {post ? `${board.label} post ${post.id}: ${post.read ? 'read' : 'not read'}` : board.label}
-        </span>
-        <button
-          type="button"
-          className="btn btn-small board-pause"
-          aria-pressed={!paused}
-          title={paused ? 'Read marking is off: nothing is faded or recorded' : 'Turn read marking off on boards'}
-          onClick={() => void updateBoardPrefs({ paused: !paused })}
-        >
-          Read marking: {paused ? 'off' : 'on'}
-        </button>
+    <section className="booru" aria-label={`Booru marking on ${board.label}`}>
+      <div className="booru-head">
+        <span className="booru-tag">Booru</span>
+        <span className="booru-site">{board.label}</span>
+        <label className="booru-switch" title={paused ? 'Turn read marking back on' : 'Pause read marking on boards'}>
+          <input
+            type="checkbox"
+            role="switch"
+            checked={!paused}
+            onChange={() => void updateBoardPrefs({ paused: !paused })}
+          />
+          <span className="booru-switch-track" aria-hidden="true" />
+          {paused ? 'Paused' : 'On'}
+        </label>
       </div>
 
-      {post && (
-        <button
-          type="button"
-          className={`btn popup-main-action${post.read ? '' : ' btn-primary'}`}
-          disabled={paused}
-          onClick={async () => {
-            await markBoardReads(board.key, [post.id], !post.read);
-            setPost({ ...post, read: !post.read });
-          }}
-        >
-          {post.read ? 'Mark this post unread' : 'Mark this post read'}
-        </button>
+      {paused ? (
+        <p className="booru-note">Marking is paused: nothing is faded or recorded.</p>
+      ) : (
+        <>
+          {post && (
+            <div className="booru-post">
+              <span className="booru-post-id">
+                Post <strong>{post.id}</strong>
+              </span>
+              <span className={`booru-pill ${post.read ? 'is-read' : 'is-unread'}`}>
+                {post.read ? 'Read' : 'Not read'}
+              </span>
+            </div>
+          )}
+          {post && (
+            <button
+              type="button"
+              className={`btn popup-main-action${post.read ? '' : ' btn-primary'}`}
+              onClick={async () => {
+                await markBoardReads(board.key, [post.id], !post.read);
+                setPost({ ...post, read: !post.read });
+              }}
+            >
+              {post.read ? 'Mark post unread' : 'Mark post read'}
+            </button>
+          )}
+
+          <div className="board-actions">
+            <HoldButton
+              className="btn"
+              holdMs={HOLD_PAGE_MS}
+              disabled={!page?.posts}
+              title={
+                page?.kept
+                  ? `Press and hold: mark every post on this page read (${page.kept} bookmarked left alone)`
+                  : 'Press and hold: mark every post on this page read'
+              }
+              hintLabel="Hold…"
+              doneLabel="Marked ✓"
+              onConfirm={async () => setPage(await askPage(tabId, { type: BOARD_PAGE_MESSAGE, action: 'mark-page' }))}
+            >
+              Mark page read
+            </HoldButton>
+            <button
+              type="button"
+              className={`btn${page?.marking ? ' btn-primary' : ''}`}
+              disabled={!page}
+              title="Clicking thumbnails marks or unmarks them instead of opening them (Esc stops)"
+              onClick={async () => {
+                const on = !page?.marking;
+                const next = await askPage(tabId, { type: BOARD_PAGE_MESSAGE, action: 'marking', on });
+                setPage(next);
+                // Marking happens on the page: get out of the way.
+                if (on && next?.marking) window.close();
+              }}
+            >
+              {page?.marking ? 'Stop marking' : 'Click to mark'}
+            </button>
+          </div>
+
+          {!page ? (
+            <p className="booru-note">Reload the page to mark its posts.</p>
+          ) : page.posts === 0 ? (
+            <p className="booru-note">No post thumbnails on this page.</p>
+          ) : (
+            <div className="booru-progress">
+              <div
+                className="booru-bar"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={page.posts}
+                aria-valuenow={page.read}
+                aria-label="Read on this page"
+              >
+                <span style={{ width: `${share}%` }} />
+              </div>
+              <span className="booru-count">
+                {page.read} / {page.posts} read
+                {board.bookmarks && page.kept ? ` · ${page.kept} bookmarked` : ''}
+              </span>
+            </div>
+          )}
+        </>
       )}
 
-      <div className="board-actions">
-        <HoldButton
-          className="btn"
-          holdMs={HOLD_PAGE_MS}
-          disabled={paused || !page?.posts}
-          title={
-            page?.kept
-              ? `Press and hold to mark every post on this page read (${page.kept} bookmarked left alone)`
-              : 'Press and hold to mark every post on this page read'
-          }
-          hintLabel="Hold to mark"
-          doneLabel="Marked ✓"
-          onConfirm={async () => setPage(await askPage(tabId, { type: BOARD_PAGE_MESSAGE, action: 'mark-page' }))}
-        >
-          Mark this page read
-        </HoldButton>
-        <button
-          type="button"
-          className={`btn${page?.marking ? ' btn-primary' : ''}`}
-          disabled={paused || !page}
-          title="Clicking thumbnails marks or unmarks them instead of opening them (Esc to stop)"
-          onClick={async () => {
-            const on = !page?.marking;
-            const next = await askPage(tabId, { type: BOARD_PAGE_MESSAGE, action: 'marking', on });
-            setPage(next);
-            // Marking happens on the page: get out of the way.
-            if (on && next?.marking) window.close();
-          }}
-        >
-          {page?.marking ? 'Stop marking' : 'Start marking'}
-        </button>
-      </div>
-
-      <div className="board-panel-foot">
-        <span className="muted">
-          {paused
-            ? 'Nothing is faded or recorded.'
-            : !page
-              ? 'Reload the page to mark its posts.'
-              : page.posts === 0
-                ? 'No post thumbnails on this page.'
-                : `${page.read} of ${page.posts} read here` +
-                  (board.bookmarks ? (page.kept ? `, ${page.kept} bookmarked (left alone).` : ', none bookmarked.') : '.')}
-        </span>
-        <button type="button" className="link-button" onClick={openBoards}>
-          Booru
-        </button>
-      </div>
-    </div>
+      <button type="button" className="link-button booru-open" onClick={openBoards}>
+        Read history ›
+      </button>
+    </section>
   );
 }

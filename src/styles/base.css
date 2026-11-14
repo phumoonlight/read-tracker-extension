@@ -17,6 +17,12 @@
   --status-unread: #0969da;
   --status-read: #1a7f37;
 
+  /* Booru marking card in the popup (violet, apart from the reading list colours) */
+  --booru: #8250df;
+  --booru-text: #ffffff;
+  --booru-bg: #f8f4ff;
+  --booru-border: #d8c4f7;
+
   /* Thumbnail placeholder: hsl(var(--hue) <sat> <lightness>), hue set per site. */
   --ph-sat: 55%;
   --ph-bg-l: 90%;
@@ -50,6 +56,11 @@
 
     --status-unread: #4493f8;
     --status-read: #3fb950;
+
+    --booru: #a371f7;
+    --booru-text: #0d1117;
+    --booru-bg: #19152a;
+    --booru-border: #4b3a78;
 
     --ph-sat: 35%;
     --ph-bg-l: 22%;
