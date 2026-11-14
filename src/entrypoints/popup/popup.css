@@ -321,7 +321,3 @@ body {
 .booru-count {
   white-space: nowrap;
 }
-.booru .booru-open {
-  align-self: flex-end;
-  font-size: 14px;
-}

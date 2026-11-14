@@ -38,7 +38,7 @@ src/
     popup/               toolbar popup (short): add page (title + folder chips), or read state only; links to Manage.
                          On a board page, board marking controls on top (BoardPanel.tsx): a violet card (`--booru*`
                          tokens): the open post's Read / Not read pill, Mark page read
-                         (hold) | Click to mark, and a page progress bar. Below it, "Add this page as record"
+                         (hold) | Click to mark, and a page progress bar (no link to the Booru page; it is in the list header). Below it, "Add this page as record"
                          starts folded on board sites (AddPage `collapsed`; a chevron row opens the form)
     options/             full list page (options_ui, open_in_tab): folder bar, record list, search, filters, Manage dialog (edit + delete)
     backup/              Backup page (backup.html, linked from the list header): export / import (.zip), erase all data

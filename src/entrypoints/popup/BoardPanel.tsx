@@ -7,11 +7,6 @@ import { BOARD_PAGE_MESSAGE, postIdOn, type Board, type BoardPageInfo, type Boar
 /** "Mark page read" / "Unmark page" are held, not clicked: one slip changes a whole page. */
 const HOLD_PAGE_MS = 600;
 
-const openBoards = () => {
-  void browser.tabs.create({ url: browser.runtime.getURL('/boards.html') });
-  window.close();
-};
-
 /** Ask the board script in the tab; undefined when it isn't running there (yet). */
 async function askPage(tabId: number, req: BoardPageRequest): Promise<BoardPageInfo | undefined> {
   try {
@@ -157,9 +152,6 @@ export function BoardPanel({ board, tabId, url }: { board: Board; tabId: number;
         )}
       </>
 
-      <button type="button" className="link-button booru-open" onClick={openBoards}>
-        Read history ›
-      </button>
     </section>
   );
 }
