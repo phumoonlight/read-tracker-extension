@@ -48,7 +48,7 @@ describe('isLinkMarksRequest', () => {
 describe('markCss', () => {
   it('dims and blurs, read the most, with no text colour', () => {
     expect(markCss('unread')).toBe('opacity:0.5!important;filter:blur(1px)!important');
-    expect(markCss('read')).toBe('opacity:0.2!important;filter:blur(2px)!important');
+    expect(markCss('read')).toBe('opacity:0.25!important;filter:blur(2px)!important');
     expect(markCss('read')).not.toMatch(/shadow|color/);
   });
 });

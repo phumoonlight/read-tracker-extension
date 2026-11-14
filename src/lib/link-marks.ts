@@ -14,7 +14,7 @@ export type LinkMark = 'unread' | 'read';
  */
 export const MARK_LOOK: Record<LinkMark, { opacity: number; blur: number }> = {
   unread: { opacity: 0.5, blur: 1 },
-  read: { opacity: 0.2, blur: 2 },
+  read: { opacity: 0.25, blur: 2 },
 };
 export const markCss = (mark: LinkMark) =>
   `opacity:${MARK_LOOK[mark].opacity}!important;filter:blur(${MARK_LOOK[mark].blur}px)!important`;

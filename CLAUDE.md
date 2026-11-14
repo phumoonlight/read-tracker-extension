@@ -98,7 +98,7 @@ else Home. Edited as chips (`TagInput` with `chipPrefix=""`, `addText=addDomainT
 
 Link marking (`markLinks?: true` on `Folder` and `HomeSettings`; absent = off, stored only when on; carried in
 backups): links on websites to records of a place with it on get `data-read-tracker="unread|read"` and are dimmed
-(opacity: unread .5, read .2) and blurred (`filter: blur`, 1px / 2px; both undone on hover / focus; on a link that wraps an `<img>` they go on the image, since opacity / filter on the link hid pixiv thumbnails). No text colour or glow
+(opacity: unread .5, read .25) and blurred (`filter: blur`, 1px / 2px; both undone on hover / focus; on a link that wraps an `<img>` they go on the image, since opacity / filter on the link hid pixiv thumbnails). No text colour or glow
 (removed by request). The look is `MARK_LOOK` / `markCss` in `lib/link-marks.ts`, shared with board marking: a board
 post marked read looks exactly like a read record. Revisit places mark every record `read` (`linkMark`). The content script
 (`entrypoints/link-marks.content.ts`) is registered by the background with `scripting.registerContentScripts` only
