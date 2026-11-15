@@ -98,7 +98,7 @@ export function App() {
       <details className="board-help">
         <summary>How to mark posts</summary>
         <ul>
-          <li>Open the toolbar popup on a board page: the Booru card is on top.</li>
+          <li>Open the toolbar popup on a board page: the Compacted card is on top.</li>
           <li>
             <strong>Mark post read</strong> on a post's page, or hold <strong>Mark page read</strong> for the whole
             listing (pixiv bookmarks are skipped). Once everything is read it becomes <strong>Unmark page</strong>.

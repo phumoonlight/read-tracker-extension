@@ -87,7 +87,7 @@ export function App() {
           <AddPage
             tab={state.tab}
             folders={state.folders}
-            // On a board the Booru card is the main thing: adding a record is folded away.
+            // On a board the Compacted card is the main thing: adding a record is folded away.
             collapsed={!!boardForHost(new URL(state.tab.url).hostname)}
             onAdded={(record) => setState({ ...state, record })}
           />

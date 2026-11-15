@@ -63,6 +63,16 @@ describe('board post ids', () => {
     expect(post('https://www.pixiv.net/users/5')).toBeNull();
   });
 
+  it('reads nhentai galleries and their reader pages', () => {
+    expect(post('https://nhentai.net/g/123456')).toBe('nhentai:123456');
+    expect(post('https://nhentai.net/g/123456/')).toBe('nhentai:123456');
+    expect(post('https://nhentai.net/g/123456/3/')).toBe('nhentai:123456');
+    expect(post('https://nhentai.net/g/12a/')).toBeNull();
+    expect(post('https://nhentai.net/g/123456abc')).toBeNull();
+    expect(post('https://nhentai.net/tag/x/')).toBeNull();
+    expect(postIdOn(boardByKey('nhentai')!, '/g/77/', 'https://nhentai.net/')).toBe(77);
+  });
+
   it('resolves relative links against the page, and ignores other hosts and schemes', () => {
     const pixiv = boardByKey('pixiv')!;
     expect(postIdOn(pixiv, '/en/artworks/55', 'https://www.pixiv.net/tags/x')).toBe(55);
@@ -72,7 +82,13 @@ describe('board post ids', () => {
   });
 
   it('has match patterns for every board host', () => {
-    expect(BOARD_ORIGINS).toEqual(['*://*.gelbooru.com/*', '*://*.konachan.com/*', '*://*.konachan.net/*', '*://*.pixiv.net/*']);
+    expect(BOARD_ORIGINS).toEqual([
+      '*://*.gelbooru.com/*',
+      '*://*.konachan.com/*',
+      '*://*.konachan.net/*',
+      '*://*.pixiv.net/*',
+      '*://*.nhentai.net/*',
+    ]);
   });
 });
 

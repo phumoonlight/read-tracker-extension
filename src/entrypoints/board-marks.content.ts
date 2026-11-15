@@ -21,7 +21,7 @@ import { onBoardsChanged } from '@/lib/changes';
 import { MARK_SHOWN_CSS, MARK_TRANSITION_CSS, markCss } from '@/lib/link-marks';
 
 /**
- * Board marking (merged from Booru explorer): on Gelbooru, Konachan and pixiv, post
+ * Board marking (merged from Booru explorer): on Gelbooru, Konachan, pixiv and nhentai, post
  * thumbnails you have marked read are faded. The controls are in the toolbar popup, which
  * asks this script about the page, to mark the whole page, or to start marking mode
  * (thumbnail clicks mark instead of navigating; a banner shows while it is on).

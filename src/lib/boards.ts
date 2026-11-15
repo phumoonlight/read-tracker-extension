@@ -7,7 +7,7 @@
  * and the page side in entrypoints/board-marks.content.ts.
  */
 
-export type BoardKey = 'gelbooru' | 'konachan' | 'pixiv';
+export type BoardKey = 'gelbooru' | 'konachan' | 'pixiv' | 'nhentai';
 
 export interface Board {
   key: BoardKey;
@@ -28,7 +28,8 @@ const digits = (v: string | null) => (v && /^\d+$/.test(v) ? Number(v) : null);
  * Boards whose posts can be marked. One id space each: the Gelbooru *engine* runs several
  * sites with unrelated numbers, so only gelbooru.com itself is here. Konachan's .com and
  * .net are one board (same posts, same numbers). pixiv's language prefix (/en/) is part of
- * the path, not another board.
+ * the path, not another board. nhentai's posts are galleries (/g/<number>/, its reader pages
+ * /g/<number>/<page>/ are the same gallery).
  */
 export const BOARDS: readonly Board[] = [
   {
@@ -65,6 +66,16 @@ export const BOARDS: readonly Board[] = [
       return null;
     },
     bookmarks: true,
+  },
+  {
+    key: 'nhentai',
+    label: 'nhentai',
+    host: /(^|\.)nhentai\.net$/i,
+    origins: ['*://*.nhentai.net/*'],
+    postId(url) {
+      const m = url.pathname.match(/^\/g\/(\d+)(?:\/|$)/);
+      return m ? Number(m[1]) : null;
+    },
   },
 ];
 

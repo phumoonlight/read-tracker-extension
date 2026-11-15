@@ -53,10 +53,10 @@ export function BoardPanel({ board, tabId, url }: { board: Board; tabId: number;
   const share = page?.posts ? Math.round((page.read / page.posts) * 100) : 0;
 
   return (
-    <section className="booru" aria-label={`Booru marking on ${board.label}`}>
+    <section className="booru" aria-label={`Compacted marking on ${board.label}`}>
       <div className="booru-head">
         <span className="booru-site">{board.label}</span>
-        <span className="booru-tag">Booru</span>
+        <span className="booru-tag">Compacted</span>
       </div>
 
       <>

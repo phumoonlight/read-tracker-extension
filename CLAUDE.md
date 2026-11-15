@@ -37,7 +37,7 @@ src/
     board-marks.content.ts content script (in the manifest, matches BOARD_ORIGINS): board marking (fade, marking mode)
     popup/               toolbar popup (short): add page (title + searchable folder dropdown, `FolderSelect`), or read state only; links to Manage.
                          On a board page, board marking controls on top (BoardPanel.tsx): a violet card (`--booru*`
-                         tokens): the open post's Read / Not read pill, Mark page read
+                         tokens, tagged "Compacted"): the open post's Read / Not read pill, Mark page read
                          (hold) | Click to mark, and a page progress bar (no link to the Compacted site posts page; it is in the list header). Below it, "Record this page"
                          starts folded on board sites (AddPage `collapsed`; a chevron row opens the form)
     options/             full list page (options_ui, open_in_tab): folder bar, record list, search, filters, Manage dialog (edit + delete)
@@ -190,7 +190,7 @@ Rules:
 ### Board marking
 
 Merged from the "Booru explorer" extension (only its read marking; not its hover preview or save button). On
-Gelbooru, Konachan (.com/.net = one board) and pixiv (`BOARDS` in `lib/boards.ts`: host, `postId(url)`), post
+Gelbooru, Konachan (.com/.net = one board), pixiv and nhentai (galleries `/g/<number>`, reader pages included) (`BOARDS` in `lib/boards.ts`: host, `postId(url)`), post
 thumbnails marked read look like a read record's link mark (`markCss('read')`: dimmed and blurred, sharp on hover). Board posts are **not records**: only post numbers are stored, per board, and they
 never appear in the list.
 - Storage (`board-store.ts`): ids grouped 65536 to a row (`[site, bucket]`), each row a sorted `Uint16Array` of
@@ -318,7 +318,7 @@ generic globe for sites it has no icon for).
 `optional_host_permissions: ["<all_urls>"]` is requested at runtime for a single origin, only when an og:image
 download is blocked by CORS, or as `http://*/*` + `https://*/*` when link marking is turned on. WXT adds a runtime
 content script's `matches` to `host_permissions`, so `link-marks.content.ts` must not declare `matches`. The one
-install-time site access is `board-marks.content.ts`'s manifest `matches` (`BOARD_ORIGINS`: gelbooru, konachan, pixiv;
+install-time site access is `board-marks.content.ts`'s manifest `matches` (`BOARD_ORIGINS`: gelbooru, konachan, pixiv, nhentai;
 always-on board marking, by request). An entrypoint name can't be shared: the Boards page is `boards`, its content
 script `board-marks`. Don't add install-time permissions without a strong reason.
 
