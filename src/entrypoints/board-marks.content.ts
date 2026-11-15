@@ -11,6 +11,7 @@ import {
   isBoardPageRequest,
   pinkish,
   postIdOn,
+  thumbnailIdOn,
   type Board,
   type BoardMarkRequest,
   type BoardPageInfo,
@@ -164,7 +165,7 @@ function startMarking(board: Board, initial: MarkingPrefs): { stop(): void } {
       const before = examined.get(a);
       // Skip what's done, unless a post link lost its tag (another copy stopping removes them).
       if (before?.href === href && (!before.post || a.hasAttribute(POST_ATTR))) continue;
-      const id = postIdOf(href);
+      const id = thumbnailIdOn(board, href, location.href);
       // A post link without a picture is a title or caption: not faded. Not remembered
       // either, since pixiv mounts a card's thumbnail over several renders.
       if (id !== null && !a.querySelector('img')) {

@@ -27,6 +27,7 @@ import {
   parseBoardFile,
   pinkish,
   postIdOn,
+  thumbnailIdOn,
   RANGE_START,
   rowsToIds,
   rowCount,
@@ -71,6 +72,15 @@ describe('board post ids', () => {
     expect(post('https://nhentai.net/g/123456abc')).toBeNull();
     expect(post('https://nhentai.net/tag/x/')).toBeNull();
     expect(postIdOn(boardByKey('nhentai')!, '/g/77/', 'https://nhentai.net/')).toBe(77);
+  });
+
+  it('fades nhentai gallery covers, not links to reader pages', () => {
+    const nh = boardByKey('nhentai')!;
+    expect(thumbnailIdOn(nh, '/g/77/', 'https://nhentai.net/')).toBe(77);
+    expect(thumbnailIdOn(nh, 'https://nhentai.net/g/77')).toBe(77);
+    expect(thumbnailIdOn(nh, '/g/77/2/', 'https://nhentai.net/g/77/1/')).toBeNull();
+    // Other boards: a thumbnail is any post link.
+    expect(thumbnailIdOn(boardByKey('pixiv')!, 'https://www.pixiv.net/artworks/5')).toBe(5);
   });
 
   it('resolves relative links against the page, and ignores other hosts and schemes', () => {

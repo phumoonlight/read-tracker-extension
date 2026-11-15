@@ -190,7 +190,8 @@ Rules:
 ### Board marking
 
 Merged from the "Booru explorer" extension (only its read marking; not its hover preview or save button). On
-Gelbooru, Konachan (.com/.net = one board), pixiv and nhentai (galleries `/g/<number>`, reader pages included) (`BOARDS` in `lib/boards.ts`: host, `postId(url)`), post
+Gelbooru, Konachan (.com/.net = one board), pixiv and nhentai (galleries `/g/<number>`; reader pages count as the gallery for the popup and badge, but links to them
+are never faded: `thumbnailId` / `thumbnailIdOn`) (`BOARDS` in `lib/boards.ts`: host, `postId(url)`), post
 thumbnails marked read look like a read record's link mark (`markCss('read')`: dimmed and blurred, sharp on hover). Board posts are **not records**: only post numbers are stored, per board, and they
 never appear in the list.
 - Storage (`board-store.ts`): ids grouped 65536 to a row (`[site, bucket]`), each row a sorted `Uint16Array` of

@@ -18,6 +18,12 @@ export interface Board {
   origins: string[];
   /** The post a URL on this board is, or null. */
   postId(url: URL): number | null;
+  /**
+   * The post a thumbnail link to `url` stands for (it gets faded when read), when narrower
+   * than `postId`: nhentai's reader pages are the gallery, but their links (the page image,
+   * the gallery's page grid) are pages of it, not covers.
+   */
+  thumbnailId?(url: URL): number | null;
   /** The board marks posts as kept (pixiv's bookmark heart); "Mark this page read" skips them. */
   bookmarks?: true;
 }
@@ -28,8 +34,8 @@ const digits = (v: string | null) => (v && /^\d+$/.test(v) ? Number(v) : null);
  * Boards whose posts can be marked. One id space each: the Gelbooru *engine* runs several
  * sites with unrelated numbers, so only gelbooru.com itself is here. Konachan's .com and
  * .net are one board (same posts, same numbers). pixiv's language prefix (/en/) is part of
- * the path, not another board. nhentai's posts are galleries (/g/<number>/, its reader pages
- * /g/<number>/<page>/ are the same gallery).
+ * the path, not another board. nhentai's posts are galleries (/g/<number>/); its reader pages
+ * /g/<number>/<page>/ are the same gallery, but links to them are never faded.
  */
 export const BOARDS: readonly Board[] = [
   {
@@ -76,6 +82,10 @@ export const BOARDS: readonly Board[] = [
       const m = url.pathname.match(/^\/g\/(\d+)(?:\/|$)/);
       return m ? Number(m[1]) : null;
     },
+    thumbnailId(url) {
+      const m = url.pathname.match(/^\/g\/(\d+)\/?$/);
+      return m ? Number(m[1]) : null;
+    },
   },
 ];
 
@@ -91,10 +101,20 @@ export function boardForHost(hostname: string): Board | undefined {
 
 /** The post `href` links to on `board`, or null (another site, or not a post page). */
 export function postIdOn(board: Board, href: string, base?: string): number | null {
+  const url = boardUrl(board, href, base);
+  return url ? board.postId(url) : null;
+}
+
+/** The post a thumbnail linking to `href` stands for (faded when read), or null. */
+export function thumbnailIdOn(board: Board, href: string, base?: string): number | null {
+  const url = boardUrl(board, href, base);
+  return url ? (board.thumbnailId ?? board.postId)(url) : null;
+}
+
+function boardUrl(board: Board, href: string, base?: string): URL | null {
   try {
     const url = new URL(href, base);
-    if (!/^https?:$/.test(url.protocol) || !board.host.test(url.hostname)) return null;
-    return board.postId(url);
+    return /^https?:$/.test(url.protocol) && board.host.test(url.hostname) ? url : null;
   } catch {
     return null;
   }
