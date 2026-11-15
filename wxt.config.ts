@@ -4,9 +4,9 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   srcDir: 'src',
   modules: ['@wxt-dev/module-react'],
-  // Build -> output/read-tracker (dev mode: output/read-tracker-dev, so it never overwrites the build);
-  // zip -> output/read-tracker.zip. (WXT defaults: .output/chrome-mv3, {{name}}-{{version}}-{{browser}}.zip.)
-  outDir: 'output',
+  // Build -> dist/read-tracker (dev mode: dist/read-tracker-dev, so it never overwrites the build);
+  // zip -> dist/read-tracker.zip. (WXT defaults: .output/chrome-mv3, {{name}}-{{version}}-{{browser}}.zip.)
+  outDir: 'dist',
   outDirTemplate: 'read-tracker{{modeSuffix}}',
   zip: { artifactTemplate: 'read-tracker.zip' },
   manifest: {

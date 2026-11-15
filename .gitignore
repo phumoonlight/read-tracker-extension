@@ -151,6 +151,5 @@ vite.config.ts.timestamp-*
 # WXT
 .wxt/
 .output/
-output/
 stats.html
 web-ext.config.ts

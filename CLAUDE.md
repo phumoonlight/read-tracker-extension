@@ -8,8 +8,8 @@ downloading an og:image the user asked for.
 ```sh
 npm install          # also runs `wxt prepare` (generates .wxt/ types)
 npm run dev          # WXT dev mode: opens a Chrome profile with the extension loaded and hot reload
-npm run build        # production build -> output/read-tracker/
-npm run zip          # zip for the Chrome Web Store -> output/read-tracker.zip
+npm run build        # production build -> dist/read-tracker/
+npm run zip          # zip for the Chrome Web Store -> dist/read-tracker.zip
 npm run compile      # tsc --noEmit
 npm test             # vitest run (tests/**/*.test.ts); on Windows run it from a `C:\` path with an upper-case drive
                      # letter: from `c:\...` vitest loads twice and every suite fails with "reading 'config'"
