@@ -4,8 +4,11 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   srcDir: 'src',
   modules: ['@wxt-dev/module-react'],
-  // Zip name without the version (default is {{name}}-{{version}}-{{browser}}.zip).
-  zip: { artifactTemplate: '{{name}}-{{browser}}.zip' },
+  // Build -> output/read-tracker (dev mode: output/read-tracker-dev, so it never overwrites the build);
+  // zip -> output/read-tracker.zip. (WXT defaults: .output/chrome-mv3, {{name}}-{{version}}-{{browser}}.zip.)
+  outDir: 'output',
+  outDirTemplate: 'read-tracker{{modeSuffix}}',
+  zip: { artifactTemplate: 'read-tracker.zip' },
   manifest: {
     name: 'Read Tracker',
     description: 'A local-only reading list. Shows the read state of the current page.',

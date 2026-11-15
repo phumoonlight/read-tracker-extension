@@ -25,7 +25,7 @@ Then load the build into Chrome:
 
 1. Open `chrome://extensions`.
 2. Turn on **Developer mode** (top right).
-3. Click **Load unpacked** and select the `.output/chrome-mv3` folder in this project.
+3. Click **Load unpacked** and select the `output/read-tracker` folder in this project.
 4. Optional: click the puzzle-piece icon in the toolbar and pin **Read Tracker**, so the badge is always visible.
 
 After you rebuild, press the reload icon on the extension's card in `chrome://extensions`.
