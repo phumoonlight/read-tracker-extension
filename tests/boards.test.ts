@@ -256,13 +256,15 @@ describe('Booru explorer files', () => {
     expect(merged.upTo).toEqual({ konachan: 9 });
   });
 
-  it('finds board files in a backup: booru/<board>.bin and layout 2 boards.json, not booru/*.json', () => {
-    expect(boardBackupPath('pixiv')).toBe('booru/pixiv.bin');
+  it('finds board files in a backup: compacted-site-posts/ and booru/ .bin files and layout 2 boards.json', () => {
+    expect(boardBackupPath('pixiv')).toBe('compacted-site-posts/pixiv.bin');
     expect(
       boardBackupEntries([
         'manifest.json',
         'boards.json',
-        'booru/pixiv.bin',
+        'compacted-site-posts/pixiv.bin',
+        'compacted-site-posts/x/y.bin',
+        'booru/gelbooru.bin',
         'booru/konachan.json',
         'booru/x/y.bin',
         'booru/a.txt',
@@ -270,19 +272,27 @@ describe('Booru explorer files', () => {
       ]),
     ).toEqual([
       { name: 'boards.json', binary: false },
-      { name: 'booru/pixiv.bin', binary: true },
+      { name: 'compacted-site-posts/pixiv.bin', binary: true },
+      { name: 'booru/gelbooru.bin', binary: true },
     ]);
   });
 
   it('carries the board post count in the backup manifest', () => {
-    const m = buildManifest({ records: 1, images: 0, booruPosts: 7 }, [], undefined, 1);
-    expect(parseManifest(JSON.stringify(m)).counts).toEqual({ records: 1, folders: 0, images: 0, booruPosts: 7 });
+    const m = buildManifest({ records: 1, images: 0, compactedSitePosts: 7 }, [], undefined, 1);
+    expect(parseManifest(JSON.stringify(m)).counts).toEqual({
+      records: 1,
+      folders: 0,
+      images: 0,
+      compactedSitePosts: 7,
+    });
     const old = { ...buildManifest({ records: 1, images: 0 }, [], undefined, 1), layout: 1 };
-    expect(parseManifest(JSON.stringify(old)).counts.booruPosts).toBeUndefined();
-    // Backups from 0.1.16 and earlier call it boardPosts.
-    const { booruPosts, ...rest } = m.counts;
-    const before = { ...m, counts: { ...rest, boardPosts: booruPosts } };
-    expect(parseManifest(JSON.stringify(before)).counts.booruPosts).toBe(7);
+    expect(parseManifest(JSON.stringify(old)).counts.compactedSitePosts).toBeUndefined();
+    // Layouts 2-4 call it booruPosts, backups from 0.1.16 and earlier boardPosts.
+    const { compactedSitePosts, ...rest } = m.counts;
+    for (const key of ['booruPosts', 'boardPosts']) {
+      const before = { ...m, layout: 4, counts: { ...rest, [key]: compactedSitePosts } };
+      expect(parseManifest(JSON.stringify(before)).counts.compactedSitePosts).toBe(7);
+    }
   });
 });
 

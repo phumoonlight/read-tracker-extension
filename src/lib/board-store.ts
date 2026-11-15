@@ -121,7 +121,7 @@ export async function boardStats(): Promise<Record<BoardKey, BoardStat>> {
   });
 }
 
-/** Everything, for export (booru/<board>.bin in the backup ZIP): every read id per board, listed. */
+/** Everything, for export (compacted-site-posts/<board>.bin in the backup ZIP): every read id per board, listed. */
 export async function getBoardReads(): Promise<BoardReads> {
   return withTx(BOARD_READS, 'readonly', async (tx) => {
     const reads: BoardReads = { sites: {} };
@@ -143,7 +143,7 @@ export async function clearBoard(site: BoardKey): Promise<void> {
 }
 
 /**
- * Merge read history (a Booru explorer export, or the booru/ files of a backup), in one
+ * Merge read history (a Booru explorer export, or the compacted-site-posts/ (booru/ before layout 5) files of a backup), in one
  * transaction. Read history only grows: ids are unioned, and a "read up to N" marks posts
  * 1..N. Returns how many posts were added.
  */

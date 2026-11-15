@@ -278,7 +278,7 @@ export function App() {
         <h1>Reading list</h1>
         <div className="row">
           <a className="btn" href="/boards.html">
-            Booru
+            Compacted site posts
           </a>
           <a className="btn" href="/backup.html">
             Backup

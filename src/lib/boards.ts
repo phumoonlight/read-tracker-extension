@@ -364,7 +364,7 @@ export const isEmptyBoardReads = (reads: BoardReads) =>
   boardPostCount(reads) === 0 && Object.keys(reads.upTo ?? {}).length === 0;
 
 // ---------------------------------------------------------------------------
-// Binary id files (backup booru/<board>.bin): the board is the file name.
+// Binary id files (backup compacted-site-posts/<board>.bin): the board is the file name.
 //   "RTBI" (4 bytes), version (1 byte), count (varint), first id (varint), then count - 1 gaps
 //   (varint, each > 0: id minus the previous id). A varint is 7 bits per byte, low bits first;
 //   the top bit says another byte follows. Mostly 1 byte a post (gaps under 128).

@@ -244,29 +244,36 @@ function parseRecordValue(raw: unknown, where: string, version: number): Reading
 }
 
 // ---------------------------------------------------------------------------
-// ZIP backup: manifest.json + records.jsonl + images/<id>.<ext> + booru/<board>.bin (layout 4)
+// ZIP backup: manifest.json + records.jsonl + images/<id>.<ext> + compacted-site-posts/<board>.bin (layout 5)
 
 /**
  * Version of the ZIP's file layout (separate from the record SCHEMA_VERSION). 2 added
  * boards.json; 3 split it into booru/<board>.json (never used for real data; those files are
- * ignored on import); 4 made them booru/<board>.bin (binary, boards.ts encodeBoardIds).
+ * ignored on import); 4 made them booru/<board>.bin (binary, boards.ts encodeBoardIds); 5 renamed
+ * the folder to compacted-site-posts/ and the manifest count to `compactedSitePosts`.
  */
-export const BACKUP_LAYOUT = 4;
+export const BACKUP_LAYOUT = 5;
 export const BACKUP_MANIFEST = 'manifest.json';
 export const BACKUP_RECORDS = 'records.jsonl';
 /** Layout 2's single board history file; read on import only. */
 export const BACKUP_BOARDS_V2 = 'boards.json';
 /** Board read history: one binary id file per board with anything read (name = board). */
-export const BACKUP_BOARDS_DIR = 'booru/';
+export const BACKUP_BOARDS_DIR = 'compacted-site-posts/';
+/** Layout 4's folder for the same files; read on import only. */
+export const BACKUP_BOARDS_DIR_V4 = 'booru/';
 export const boardBackupPath = (board: string) => `${BACKUP_BOARDS_DIR}${board}.bin`;
 
-/** The ZIP entries holding board history: booru/<board>.bin, and layout 2's boards.json (JSON). */
+/**
+ * The ZIP entries holding board history: compacted-site-posts/<board>.bin (booru/<board>.bin
+ * before layout 5), and layout 2's boards.json (JSON).
+ */
 export function boardBackupEntries(names: Iterable<string>): { name: string; binary: boolean }[] {
   const out: { name: string; binary: boolean }[] = [];
   for (const n of names) {
     if (n === BACKUP_BOARDS_V2) out.push({ name: n, binary: false });
-    else if (n.startsWith(BACKUP_BOARDS_DIR) && !n.slice(BACKUP_BOARDS_DIR.length).includes('/')) {
-      if (n.endsWith('.bin')) out.push({ name: n, binary: true });
+    else {
+      const dir = [BACKUP_BOARDS_DIR, BACKUP_BOARDS_DIR_V4].find((d) => n.startsWith(d));
+      if (dir && !n.slice(dir.length).includes('/') && n.endsWith('.bin')) out.push({ name: n, binary: true });
     }
   }
   return out;
@@ -276,8 +283,11 @@ export interface BackupCounts {
   records: number;
   folders: number;
   images: number;
-  /** Read board posts in the booru/ files. Absent in layout 1; named `boardPosts` before 0.1.17. */
-  booruPosts?: number;
+  /**
+   * Read board posts in the compacted-site-posts/ files. Absent in layout 1; named `booruPosts`
+   * in layouts 2–4 (`boardPosts` before 0.1.17).
+   */
+  compactedSitePosts?: number;
 }
 
 /** manifest.json: read first, so an import can be checked and previewed without reading the records. */
@@ -329,6 +339,7 @@ export function parseManifest(text: string, issues: string[] = []): BackupManife
   const count = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : 0);
   const folders = data.folders.map((f, i) => parseFolder(f, i, issues));
   const home = parseHome(data.home);
+  const sitePosts = count(c.compactedSitePosts ?? c.booruPosts ?? c.boardPosts);
   return {
     format: BACKUP_FORMAT,
     layout,
@@ -338,7 +349,7 @@ export function parseManifest(text: string, issues: string[] = []): BackupManife
       records: count(c.records),
       folders: folders.length,
       images: count(c.images),
-      ...(count(c.booruPosts ?? c.boardPosts) ? { booruPosts: count(c.booruPosts ?? c.boardPosts) } : {}),
+      ...(sitePosts ? { compactedSitePosts: sitePosts } : {}),
     },
     folders,
     ...(home ? { home } : {}),

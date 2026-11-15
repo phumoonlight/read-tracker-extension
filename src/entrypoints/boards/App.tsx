@@ -14,7 +14,7 @@ function bytes(n: number) {
 }
 
 /**
- * Boards page (boards.html, titled "Booru", opened from the list page header): whether dimming
+ * Boards page (boards.html, titled "Compacted site posts", opened from the list page header): whether dimming
  * is off, and what is stored per board (with Clear). Board history moves between browsers
  * with the ZIP backup.
  */
@@ -42,7 +42,7 @@ export function App() {
         <a className="back-link" href="/options.html">
           ← Reading list
         </a>
-        <h1>Booru</h1>
+        <h1>Compacted site posts</h1>
         <p className="muted">Read posts on {BOARDS.map((b) => b.label).join(', ')}. Read thumbnails are faded.</p>
       </header>
 

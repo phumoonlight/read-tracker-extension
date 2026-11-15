@@ -34,11 +34,11 @@ import type { BackupFile, ReadingRecord } from './types';
 import { createZip, looksLikeZip, readZip, readZipEntry, type ZipEntry, type ZipInput } from './zip';
 
 /**
- * Export everything to a .zip (layout 4):
+ * Export everything to a .zip (layout 5):
  *   manifest.json   format, versions, export time, counts, folders, Home settings
  *   records.jsonl   one record per line
  *   images/<id>.ext original image files (found by id on import: no separate list)
- *   booru/<board>.bin    read posts of one board (binary, encodeBoardIds); boards with none have no file
+ *   compacted-site-posts/<board>.bin  read posts of one board (binary, encodeBoardIds); boards with none have no file
  * Returns the number of records.
  */
 export async function exportToFile(): Promise<number> {
@@ -59,9 +59,9 @@ export async function exportToFile(): Promise<number> {
       files.push({ name: imagePath(id, img.blob.type), data: img.blob });
     }
   }
-  const booruPosts = boardPostCount(boards);
+  const compactedSitePosts = boardPostCount(boards);
   const manifest = buildManifest(
-    { records: records.length, images: files.length, ...(booruPosts ? { booruPosts } : {}) },
+    { records: records.length, images: files.length, ...(compactedSitePosts ? { compactedSitePosts } : {}) },
     folders,
     home,
   );
@@ -95,8 +95,8 @@ export interface ImportResult {
   added: number;
   updated: number;
   skipped: number;
-  /** Board posts newly marked read (from the booru/ files). */
-  booruPosts: number;
+  /** Board posts newly marked read (from the compacted-site-posts/ files). */
+  compactedSitePosts: number;
   /** What was dropped or changed, for the user. Empty when everything came in as is. */
   issues: string[];
 }
@@ -205,6 +205,6 @@ async function mergeBackup(
     : plan.write;
 
   await applyImport(plan.writeFolders, write, images, plan.deleteImages, plan.writeHome);
-  const booruPosts = boards && !isEmptyBoardReads(boards) ? await importBoardReads(boards) : 0;
-  return { added: plan.added, updated: plan.updated, skipped: plan.skipped, booruPosts, issues };
+  const compactedSitePosts = boards && !isEmptyBoardReads(boards) ? await importBoardReads(boards) : 0;
+  return { added: plan.added, updated: plan.updated, skipped: plan.skipped, compactedSitePosts, issues };
 }
