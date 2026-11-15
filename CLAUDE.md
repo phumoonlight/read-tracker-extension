@@ -79,9 +79,10 @@ public/icon/             extension icons
 
 ## Data model
 
-`ReadingRecord` (src/lib/types.ts): `id` (`newId()` in lib/ids.ts: a cuid2; records made earlier have UUIDs, which stay. Ids are opaque strings, never parse them), `title`, `url` (as entered), `matchKey`,
-`matchMode` ("exact" | "prefix"), `status` ("unread" | "read"), `lastReadUrl?`, `tags` (lowercase,
-unique), `folderId?`, `notes?`, `images` (ids, max `MAX_IMAGES` = 3, first = cover), `createdAt`, `updatedAt`,
+`ReadingRecord` (src/lib/types.ts): `id` (`newId()` in lib/ids.ts: a cuid2; records made earlier have UUIDs, which stay. Ids are opaque strings, never parse them), `title` (optional: may be `""`; show `recordLabel(r)`, which falls back to the URL, wherever a record is named in text), `url` (as entered), `matchKey`,
+`matchMode` ("exact" | "prefix"), `status` ("unread" | "read"), `lastReadUrl?`, `tags` (case kept as typed,
+unique ignoring case: `normalizeTags`, `tagKey`, `hasTag`; filters, search and counts ignore case, and `countTags` shows
+each tag in its most used spelling), `folderId?`, `notes?`, `images` (ids, max `MAX_IMAGES` = 3, first = cover), `createdAt`, `updatedAt`,
 `readAt?`, `otherUrls?`, `favorite?: true` (starred; absent = no, never stored as false; key `fav` in backups). Timestamps are epoch milliseconds. Current `SCHEMA_VERSION` is 1 (reset before the first
 release; there are no migrations yet).
 

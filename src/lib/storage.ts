@@ -5,7 +5,8 @@ import { isPermutation, type NewImage, type StoredImage } from './images';
 import { domainConflictError } from './domains';
 import { cleanEmoji, cleanFolderColor, cleanFolderName, folderNameError, newFolder, sortFolders } from './folders';
 import { chooseMatch, lookupTags, recordMatchTags } from './match';
-import { urlEntries } from './records';
+import { hasTag, tagKey, urlEntries } from './records';
+import { countTags } from './tags';
 import { migrateRecord } from './migrate';
 import {
   MAX_IMAGES,
@@ -188,19 +189,18 @@ export async function countRecords(): Promise<number> {
 export async function allTagCounts(): Promise<[string, number][]> {
   await ensureReady();
   return withTx(RECORDS, 'readonly', async (tx) => {
-    const counts = new Map<string, number>();
+    const keys: string[] = [];
     await new Promise<void>((resolve, reject) => {
       const r = tx.objectStore(RECORDS).index(IDX.tags).openKeyCursor();
       r.onsuccess = () => {
         const c = r.result;
         if (!c) return resolve();
-        const t = String(c.key);
-        counts.set(t, (counts.get(t) ?? 0) + 1);
+        keys.push(String(c.key));
         c.continue();
       };
       r.onerror = () => reject(r.error);
     });
-    return [...counts];
+    return countTags(keys);
   });
 }
 
@@ -225,15 +225,15 @@ export async function placeStats(place: string | null): Promise<PlaceStats> {
       place === null
         ? ((await req(store.getAll())) as Row[]).filter((r) => r.folderId === undefined)
         : ((await req(store.index(IDX.folderId).getAll(place))) as Row[]);
-    const tags = new Map<string, number>();
+    const tags: string[] = [];
     const status: Record<ReadStatus, number> = { unread: 0, read: 0 };
     const favorites: Record<ReadStatus, number> = { unread: 0, read: 0 };
     for (const r of rows) {
       status[r.status] = (status[r.status] ?? 0) + 1;
       if (r.favorite) favorites[r.status] = (favorites[r.status] ?? 0) + 1;
-      for (const t of r.tags) tags.set(t, (tags.get(t) ?? 0) + 1);
+      tags.push(...r.tags);
     }
-    return { tags: [...tags].sort(([a], [b]) => a.localeCompare(b)), status, favorites };
+    return { tags: countTags(tags).sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base' })), status, favorites };
   });
 }
 
@@ -272,10 +272,10 @@ export async function queryRecords(q: RecordQuery): Promise<{ records: ReadingRe
   const matches = (r: Row) =>
     (!q.status || r.status === q.status) &&
     (!q.favorite || r.favorite === true) &&
-    (!q.tags?.length || q.tags.every((t) => r.tags.includes(t))) &&
+    (!q.tags?.length || q.tags.every((t) => hasTag(r.tags, t))) &&
     (q.folder === undefined || (r.folderId ?? null) === q.folder) &&
     (!search ||
-      [r._title, ...urlEntries(r).map((e) => e.url.toLowerCase()), (r.notes ?? '').toLowerCase(), ...r.tags].some((s) =>
+      [r._title, ...urlEntries(r).map((e) => e.url.toLowerCase()), (r.notes ?? '').toLowerCase(), ...r.tags.map(tagKey)].some((s) =>
         s.includes(search),
       ));
 

@@ -35,6 +35,10 @@ describe('computeMatchKey', () => {
 });
 
 describe('createRecord', () => {
+  it('keeps an empty title (titles are optional)', () => {
+    const r = createRecord({ title: '  ', url: 'https://site.com/a', matchMode: 'exact' });
+    expect(r).toMatchObject({ title: '' });
+  });
   it('builds a record with defaults', () => {
     const r = createRecord({ title: '  T ', url: ' https://site.com/a ', matchMode: 'exact', tags: ['B', 'a', 'b', ' '] });
     expect(r).toMatchObject({
@@ -42,7 +46,7 @@ describe('createRecord', () => {
       url: 'https://site.com/a',
       matchKey: 'site.com/a',
       status: 'unread',
-      tags: ['b', 'a'],
+      tags: ['B', 'a'],
       images: [],
       readAt: undefined,
     });
@@ -67,7 +71,7 @@ describe('helpers', () => {
     expect(isHttpUrl(5)).toBe(false);
   });
   it('parseTags', () => {
-    expect(parseTags(' Fantasy, sci-fi ,,fantasy')).toEqual(['fantasy', 'sci-fi']);
+    expect(parseTags(' Fantasy, sci-fi ,,fantasy')).toEqual(['Fantasy', 'sci-fi']);
   });
 });
 

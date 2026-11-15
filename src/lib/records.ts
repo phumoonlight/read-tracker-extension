@@ -1,4 +1,4 @@
-import { normalizeUrl } from './url';
+import { displayUrl, normalizeUrl } from './url';
 import type { MatchMode, ReadingRecord, ReadStatus, UrlEntry } from './types';
 import { newId } from './ids';
 
@@ -43,7 +43,7 @@ export function createRecord(input: NewRecordInput): ReadingRecord | { error: st
   const status = input.status ?? 'unread';
   return {
     id: newId(),
-    title: input.title.trim() || input.url,
+    title: input.title.trim(),
     url: input.url.trim(),
     matchKey,
     matchMode: input.matchMode,
@@ -59,11 +59,26 @@ export function createRecord(input: NewRecordInput): ReadingRecord | { error: st
   };
 }
 
-export function normalizeTags(tags: string[]): string[] {
-  return [...new Set(tags.map((t) => t.trim().toLowerCase()).filter(Boolean))];
+/** A tag's case-insensitive identity: "Manga" and "manga" are the same tag. */
+export const tagKey = (t: string) => t.toLowerCase();
+
+/** True if `tags` has `tag`, ignoring case. */
+export const hasTag = (tags: readonly string[], tag: string) => tags.some((t) => tagKey(t) === tagKey(tag));
+
+/** Trimmed, no blanks, no duplicates ignoring case (the first spelling is kept). Case is kept as typed. */
+export function normalizeTags(tags: readonly string[]): string[] {
+  const seen = new Map<string, string>();
+  for (const raw of tags) {
+    const t = raw.trim().replace(/\s+/g, ' ');
+    if (t && !seen.has(tagKey(t))) seen.set(tagKey(t), t);
+  }
+  return [...seen.values()];
 }
 
 export const parseTags = (text: string) => normalizeTags(text.split(','));
+
+/** What to call a record in text: its title, or its main URL when it has none (the title is optional). */
+export const recordLabel = (r: Pick<ReadingRecord, 'title' | 'url'>) => r.title || displayUrl(r.url);
 
 /** Every URL of a record, main one first. */
 export function urlEntries(r: Pick<ReadingRecord, 'url' | 'matchMode' | 'matchKey' | 'otherUrls'>): UrlEntry[] {

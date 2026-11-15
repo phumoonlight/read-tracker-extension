@@ -5,7 +5,7 @@ import { PlaceLabel } from '@/components/PlaceLabel';
 import { boardForHost } from '@/lib/boards';
 import { folderForUrl } from '@/lib/domains';
 import { matchedEntry } from '@/lib/match';
-import { createRecord, formatAgo, formatDateTime, hasSeries } from '@/lib/records';
+import { createRecord, formatAgo, formatDateTime, hasSeries, recordLabel } from '@/lib/records';
 import { findRecordForUrl, getHomeSettings, listFolders, markReadNow, putRecord, setFavorite, statusChange, updateRecord } from '@/lib/storage';
 import type { MarkingPrefs } from '@/lib/link-marks';
 import { getMarkingPrefs, onMarkingPrefsChanged, updateMarkingPrefs } from '@/lib/marking-prefs';
@@ -203,7 +203,7 @@ function AddPage({
           autoFocus={collapsed}
           value={title}
           aria-label="Title"
-          placeholder="Title"
+          placeholder="Title (optional)"
           onChange={(e) => setTitle(e.target.value.replace(/\s*[\r\n]+\s*/g, ' '))}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -258,7 +258,7 @@ function CurrentRecord({
       <div className="popup-body">
         <div className="popup-record-info">
           <div className="current-title-row">
-            <div className="current-title">{record.title}</div>
+            <div className="current-title">{recordLabel(record)}</div>
             <button
               type="button"
               className="btn btn-small btn-ghost fav-toggle"

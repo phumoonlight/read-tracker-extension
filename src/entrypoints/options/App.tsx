@@ -10,7 +10,7 @@ import { ImageViewer } from '@/components/ImageViewer';
 import { FolderLabel, HomeLabel } from '@/components/PlaceLabel';
 import { cleanEmoji, decodeFolderFilter, encodeFolderFilter, isCustomColor } from '@/lib/folders';
 import { addDomainText } from '@/lib/domains';
-import { createRecord, formatAgo, formatDateTime, hasSeries, urlEntries } from '@/lib/records';
+import { createRecord, formatAgo, formatDateTime, hasSeries, recordLabel, tagKey, urlEntries } from '@/lib/records';
 import {
   createFolder,
   deleteFolder,
@@ -225,13 +225,16 @@ export function App() {
   }, [activeFolder, revision]);
 
   // A selected tag that isn't used here any more (record changed or moved) stops filtering.
-  const activeTags = selTags.filter((t) => placeTags.some(([pt]) => pt === t));
+  // selTags holds tag keys (case-insensitive); activeTags are the place's spellings of them.
+  const activeTags = placeTags.map(([pt]) => pt).filter((pt) => selTags.includes(tagKey(pt)));
   const toggleTag = (t: string) => {
-    setSelTags((cur) => (cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]));
+    const k = tagKey(t);
+    setSelTags((cur) => (cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k]));
     setLimit(PAGE);
   };
   const addTag = (t: string) => {
-    setSelTags((cur) => (cur.includes(t) ? cur : [...cur, t]));
+    const k = tagKey(t);
+    setSelTags((cur) => (cur.includes(k) ? cur : [...cur, k]));
     setLimit(PAGE);
   };
 
@@ -557,10 +560,13 @@ function Card({
   return (
     <article className="card card-list" data-status={record.status}>
       <div className="card-body">
-        {/* The title is plain text; the record's URLs below are the links (it can have several). */}
-        <div className="card-title" title={record.title}>
-          {record.title}
-        </div>
+        {/* The title is plain text; the record's URLs below are the links (it can have several).
+            The title is optional: without one the row starts with the time line. */}
+        {record.title && (
+          <div className="card-title" title={record.title}>
+            {record.title}
+          </div>
+        )}
         {/* The tab already shows Unread / Read, so this line is just the time: when it was read
             (or last read, in Revisit), or for unread records when it was added. */}
         <div className="card-meta">
@@ -617,7 +623,7 @@ function Card({
       {record.images.length > 0 && <ImageStrip record={record} onOpen={onView} original={originalImages} />}
       <div className="card-actions">
         <FavoriteButton record={record} />
-        <button type="button" className="btn btn-small" onClick={onEdit} aria-label={`Manage ${record.title}`}>
+        <button type="button" className="btn btn-small" onClick={onEdit} aria-label={`Manage ${recordLabel(record)}`}>
           Manage
         </button>
       </div>
@@ -633,7 +639,7 @@ function FavoriteButton({ record }: { record: ReadingRecord }) {
       type="button"
       className="btn btn-small btn-ghost fav-toggle"
       aria-pressed={on}
-      aria-label={on ? `Remove ${record.title} from favorites` : `Add ${record.title} to favorites`}
+      aria-label={on ? `Remove ${recordLabel(record)} from favorites` : `Add ${recordLabel(record)} to favorites`}
       title={on ? 'Remove from favorites' : 'Add to favorites'}
       onClick={() => void setFavorite(record.id, !on)}
     >
@@ -699,7 +705,7 @@ function EditDialog({
   return (
     <Dialog title="Manage record" onClose={onClose}>
       {viewing !== undefined && (
-        <ImageViewer title={record.title} imageIds={record.images} start={viewing} onClose={() => setViewing(undefined)} />
+        <ImageViewer title={recordLabel(record)} imageIds={record.images} start={viewing} onClose={() => setViewing(undefined)} />
       )}
       <RecordForm
         footerStart={
@@ -732,7 +738,7 @@ function EditDialog({
           title="Delete record?"
           message={
             <>
-              “{record.title}” and its images will be removed. This can't be undone (unless you have a backup).
+              “{recordLabel(record)}” and its images will be removed. This can't be undone (unless you have a backup).
             </>
           }
           confirmLabel="Delete"
@@ -1312,5 +1318,5 @@ function RecordViewer({ recordId, index, onClose }: { recordId: string; index: n
       </Dialog>
     );
   }
-  return <ImageViewer title={record.title} imageIds={record.images} start={index} onClose={onClose} />;
+  return <ImageViewer title={recordLabel(record)} imageIds={record.images} start={index} onClose={onClose} />;
 }

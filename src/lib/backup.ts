@@ -1,7 +1,7 @@
 import { normalizeDomain } from './domains';
 import { cleanEmoji, cleanFolderColor, cleanFolderName } from './folders';
 import { migrateRecord } from './migrate';
-import { computeMatchKey, isHttpUrl } from './records';
+import { computeMatchKey, isHttpUrl, recordLabel } from './records';
 import {
   BACKUP_FORMAT,
   FOLDER_NAME_MAX,
@@ -482,8 +482,8 @@ export function planImport(
       if (file?.recordId === r.id && !owner.has(id)) return true;
       plan.issues.push(
         file === undefined
-          ? `Record “${r.title}”: image ${id} is not in the backup, skipped.`
-          : `Record “${r.title}”: image ${id} belongs to another record, skipped.`,
+          ? `Record “${recordLabel(r)}”: image ${id} is not in the backup, skipped.`
+          : `Record “${recordLabel(r)}”: image ${id} belongs to another record, skipped.`,
       );
       return false;
     });
@@ -495,7 +495,7 @@ export function planImport(
 
     const { folderId, ...rest } = r;
     const resolved = resolveFolder(folderId);
-    if (folderId !== undefined && !resolved) plan.issues.push(`Record “${r.title}”: its folder isn't in the backup, added to Home.`);
+    if (folderId !== undefined && !resolved) plan.issues.push(`Record “${recordLabel(r)}”: its folder isn't in the backup, added to Home.`);
     plan.write.push({ ...rest, ...(resolved ? { folderId: resolved } : {}), images });
     if (current) plan.updated++;
     else plan.added++;

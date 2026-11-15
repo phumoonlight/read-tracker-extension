@@ -4,6 +4,7 @@ import { markBoardReads, onBoardsChanged, queryBoardReads } from '@/lib/board-st
 import { BOARD_ORIGINS, boardPostOf, isBoardMark, isBoardQuery } from '@/lib/boards';
 import { isLinkMarksRequest, LINK_MARK_ORIGINS, marksLinks } from '@/lib/link-marks';
 import { matchedEntry } from '@/lib/match';
+import { recordLabel } from '@/lib/records';
 import {
   findRecordForUrl,
   getHomeSettings,
@@ -44,7 +45,7 @@ export default defineBackground(() => {
       browser.action.setTitle({
         tabId,
         title: match
-          ? `Read Tracker: ${match.status} - ${match.title}`
+          ? `Read Tracker: ${match.status} - ${recordLabel(match)}`
           : post
             ? `Read Tracker: ${post.label} post ${post.id} - ${post.status}`
             : 'Read Tracker',

@@ -128,7 +128,7 @@ export function RecordForm({
     setSaving(true);
     try {
       await onSubmit({
-        title: v.title.trim() || main.url,
+        title: v.title.trim(),
         url: main.url,
         matchMode: main.matchMode,
         matchKey: main.matchKey,
@@ -150,7 +150,7 @@ export function RecordForm({
   return (
     <form onSubmit={submit} className="record-form">
       <label className="field">
-        <span>Title</span>
+        <span>Title (optional)</span>
         <input type="text" value={v.title} onChange={(e) => set('title', e.target.value)} />
       </label>
 

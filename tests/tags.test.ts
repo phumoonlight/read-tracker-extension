@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addTagText, suggestTags } from '@/lib/tags';
+import { addTagText, countTags, suggestTags } from '@/lib/tags';
 
 const all: [string, number][] = [
   ['animated', 2],
@@ -16,6 +16,9 @@ describe('suggestTags', () => {
   it('is case-insensitive and trims', () => {
     expect(suggestTags(all, '  CU ', [])).toEqual(['cute']);
   });
+  it('matches capitalized tags and leaves out chosen ones ignoring case', () => {
+    expect(suggestTags([['Manga', 2], ['mango', 1]], 'man', ['MANGO'])).toEqual(['Manga']);
+  });
   it('leaves out tags already chosen', () => {
     expect(suggestTags(all, 'an', ['anime', 'banana'])).toEqual(['animated', 'plant']);
   });
@@ -27,9 +30,18 @@ describe('suggestTags', () => {
 
 describe('addTagText', () => {
   it('adds comma-separated text, normalized and without duplicates', () => {
-    expect(addTagText(['cute'], ' Anime , CUTE,, later ')).toEqual(['cute', 'anime', 'later']);
+    expect(addTagText(['cute'], ' Anime , CUTE,, later ')).toEqual(['cute', 'Anime', 'later']);
   });
   it('ignores blank text', () => {
     expect(addTagText(['cute'], '  ')).toEqual(['cute']);
+  });
+});
+
+describe('countTags', () => {
+  it('groups spellings ignoring case, shown in the most used one', () => {
+    expect(countTags(['manga', 'Manga', 'Manga', 'cute'])).toEqual([
+      ['Manga', 3],
+      ['cute', 1],
+    ]);
   });
 });
