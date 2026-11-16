@@ -225,6 +225,41 @@
   }
 }
 
+/* Select mode: a checkbox column before each row. */
+.list.selecting .card-list {
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-areas:
+    'check body center actions'
+    'check images images images';
+}
+.card-check {
+  grid-area: check;
+  align-self: stretch;
+  display: flex;
+  align-items: flex-start;
+  /* A larger hit area than the box itself. */
+  margin: -10px 0 -10px -10px;
+  padding: 10px 4px 10px 10px;
+  cursor: pointer;
+}
+.card-check input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+@media (max-width: 600px) {
+  .list.selecting .card-list {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: 'check body' 'check center' 'check images' 'check actions';
+  }
+}
+.card-list.is-selected {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+
 .empty {
   padding: 40px 16px;
   text-align: center;
@@ -287,6 +322,56 @@ input.emoji-input {
 }
 .place-manage:hover:not(:disabled) {
   color: var(--text);
+}
+.place-actions {
+  display: flex;
+  flex: none;
+  gap: 4px;
+}
+.place-manage.is-on {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+/* Select mode's bar: check all, count, Move to. */
+.move-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.move-bar-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.move-bar-all input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.move-bar-hint {
+  font-size: 12px;
+}
+.move-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.move-bar-message {
+  flex-basis: 100%;
+  margin: 0;
 }
 
 

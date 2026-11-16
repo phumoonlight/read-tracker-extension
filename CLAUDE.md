@@ -66,6 +66,7 @@ src/
     tab.ts               active tab, captureVisibleTab, og:image lookup/download
     records.ts           createRecord, computeMatchKey, tag helpers
     ids.ts               newId(): cuid2 ids for records, folders and images
+    selection.ts         clickSelect: list row checkboxes, shift-click range (pure)
     backup.ts            parseManifest / parseRecordLine / imagesFromZip / planImport / buildManifest (pure, unit-tested)
     backup-io.ts         export download + import apply (side effects)
     zip.ts               minimal ZIP writer / reader (stored entries, ZIP64, deflate on read), CRC-32
@@ -176,6 +177,10 @@ How data is read:
 - Status places show **Unread / Read tabs** (`StatusTabs`, counts from `placeStats`; default Unread) instead of a
   status filter; the list queries one status. Revisit places have no tabs. The sort menu has no status sort.
 - `getAllRecords()` is for export/import only.
+- Select mode (list page, "☑ Select" beside Manage): rows get checkboxes (shift-click = range from the last row
+  clicked, `clickSelect` in `lib/selection.ts`), and a sticky `MoveBar` checks all / none of the loaded rows and moves
+  the checked ones to Home or another folder (`moveRecords`: one transaction, bumps `updatedAt` on each moved record).
+  Only rows on screen stay checked: a row that leaves the list is unchecked.
 
 Rules:
 - All writes go through storage.ts so the change signal fires. Each write is one transaction; inside `withTx`

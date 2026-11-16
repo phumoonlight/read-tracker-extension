@@ -663,6 +663,35 @@ export const setFavorite = (id: string, on: boolean) =>
   updateRecord(id, (r) => (!!r.favorite === on ? {} : { favorite: on ? (true as const) : undefined }));
 
 /**
+ * Move records to a folder (`folderId`), or to Home (undefined). One transaction; updatedAt is
+ * bumped on each record that actually moves. Ids that no longer exist or are already there are
+ * skipped. Throws if the folder no longer exists. Returns the number moved.
+ */
+export async function moveRecords(ids: readonly string[], folderId: string | undefined): Promise<number> {
+  if (!ids.length) return 0;
+  await ensureReady();
+  const moved = await withTx([FOLDERS, RECORDS], 'readwrite', async (tx) => {
+    if (folderId !== undefined && (await req(tx.objectStore(FOLDERS).getKey(folderId))) === undefined) {
+      throw new Error('That folder no longer exists.');
+    }
+    const store = tx.objectStore(RECORDS);
+    const now = Date.now();
+    let n = 0;
+    for (const id of ids) {
+      const row = (await req(store.get(id))) as Row | undefined;
+      if (!row) continue;
+      const r = fromRow(row);
+      if (r.folderId === folderId) continue;
+      store.put(toRow({ ...r, folderId, updatedAt: now }));
+      n++;
+    }
+    return n;
+  });
+  if (moved) await notifyChanged();
+  return moved;
+}
+
+/**
  * Delete a folder. Its records are kept and moved to Home (with updatedAt bumped,
  * so a later import of an older backup does not put them back). One transaction.
  */

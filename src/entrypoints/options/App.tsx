@@ -25,6 +25,7 @@ import {
   queryRecords,
   getHomeSettings,
   markReadNow,
+  moveRecords,
   renameFolder,
   setFavorite,
   setFolderDomains,
@@ -37,6 +38,7 @@ import {
   type PlaceSettings,
   type SortKey,
 } from '@/lib/storage';
+import { clickSelect, type Selection } from '@/lib/selection';
 import { hasLinkMarkAccess, requestLinkMarkAccess } from '@/lib/tab';
 import {
   FOLDER_COLORS,
@@ -103,6 +105,7 @@ function forgetOldViewChoice() {
 }
 
 const NO_FOLDERS: Folder[] = [];
+const NO_SELECTION: Selection = { selected: new Set() };
 const FOLDER_KEY = 'read-tracker:folder';
 
 /**
@@ -170,6 +173,9 @@ export function App() {
   const [folder, setFolder] = useStoredFolder();
   const [home, setHome] = useState<HomeSettings>();
   const [modal, setModal] = useState<Modal>();
+  /** Select mode: rows get checkboxes, and a bar moves the checked ones to another place. */
+  const [selecting, setSelecting] = useState(false);
+  const [selection, setSelection] = useState<Selection>(NO_SELECTION);
 
   useEffect(() => {
     forgetOldViewChoice();
@@ -272,6 +278,22 @@ export function App() {
 
   const loadMore = () => setLimit((l) => l + PAGE);
 
+  // Only rows on screen stay checked: a row that leaves the list (moved, filtered out, other
+  // tab or place) is unchecked, so a move never touches records the user can't see.
+  useEffect(() => {
+    if (!page) return;
+    setSelection((s) => {
+      const shown = new Set(page.records.map((r) => r.id));
+      if ([...s.selected].every((id) => shown.has(id))) return s;
+      return { selected: new Set([...s.selected].filter((id) => shown.has(id))), anchor: s.anchor };
+    });
+  }, [page]);
+  const order = page?.records.map((r) => r.id) ?? [];
+  const stopSelecting = () => {
+    setSelecting(false);
+    setSelection(NO_SELECTION);
+  };
+
   return (
     <div className="page">
       <header className="page-header">
@@ -306,11 +328,35 @@ export function App() {
           open place's settings sit at the right end of the same row. */}
       <div className="place-row">
         {!revisit ? <StatusTabs value={status} counts={statusCounts} onChange={resetting(setStatus)} /> : <span />}
-        <button type="button" className="btn btn-small btn-ghost place-manage" onClick={() => setModal({ kind: 'place' })}>
-          <span aria-hidden="true">⚙</span>
-          {openFolder ? 'Manage folder' : 'Manage Home'}
-        </button>
+        <div className="place-actions">
+          <button
+            type="button"
+            className={`btn btn-small btn-ghost place-manage${selecting ? ' is-on' : ''}`}
+            aria-pressed={selecting}
+            onClick={() => (selecting ? stopSelecting() : setSelecting(true))}
+            title={selecting ? 'Leave select mode' : 'Select records to move them to another folder'}
+          >
+            <span aria-hidden="true">☑</span>
+            {selecting ? 'Done' : 'Select'}
+          </button>
+          <button type="button" className="btn btn-small btn-ghost place-manage" onClick={() => setModal({ kind: 'place' })}>
+            <span aria-hidden="true">⚙</span>
+            {openFolder ? 'Manage folder' : 'Manage Home'}
+          </button>
+        </div>
       </div>
+
+      {selecting && (
+        <MoveBar
+          // Remount per place so the chosen target resets (folder ids can be any string, "home" too).
+          key={encodeFolderFilter(activeFolder)}
+          order={order}
+          selection={selection}
+          onSelection={setSelection}
+          place={activeFolder}
+          folders={folders}
+        />
+      )}
 
       <div className="toolbar">
         <input
@@ -365,12 +411,12 @@ export function App() {
                   ? 'Nothing unread here.'
                   : 'Nothing marked read here yet.'
               : isFolderId(activeFolder)
-                ? 'This folder is empty. Move records here from their Edit dialog or the popup.'
+                ? 'This folder is empty. Move records here with Select, from their Manage dialog or the popup.'
                 : 'Home is empty: every record is in a folder.'}
         </div>
       ) : (
         <>
-          <div className="list" data-size={imageSize}>
+          <div className={`list${selecting ? ' selecting' : ''}`} data-size={imageSize}>
             {page.records.map((r) => (
               <Card
                 key={r.id}
@@ -380,6 +426,14 @@ export function App() {
                 onEdit={() => setModal({ kind: 'edit', id: r.id })}
                 onView={(index) => setModal({ kind: 'view', recordId: r.id, index })}
                 onTag={addTag}
+                select={
+                  selecting
+                    ? {
+                        checked: selection.selected.has(r.id),
+                        onClick: (shift) => setSelection((s) => clickSelect(order, s, r.id, shift)),
+                      }
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -498,6 +552,98 @@ export function App() {
   );
 }
 
+/** Move target in MoveBar's select: "home", or "f:" + folder id (ids can be any string). */
+const HOME_TARGET = 'home';
+
+/**
+ * Select mode's bar: check all / none of the rows shown, the count, and "Move to" a place
+ * (Home or another folder; the open place isn't offered).
+ */
+function MoveBar({
+  order,
+  selection,
+  onSelection,
+  place,
+  folders,
+}: {
+  /** Ids of the rows shown, in list order. */
+  order: readonly string[];
+  selection: Selection;
+  onSelection: (s: Selection) => void;
+  place: FolderFilter;
+  folders: Folder[];
+}) {
+  const [target, setTarget] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string>();
+  const allRef = useRef<HTMLInputElement>(null);
+  const count = selection.selected.size;
+  const all = order.length > 0 && count === order.length;
+  useEffect(() => {
+    if (allRef.current) allRef.current.indeterminate = count > 0 && !all;
+  }, [count, all]);
+
+  const targets = folders.filter((f) => f.id !== place);
+  // A target folder deleted meanwhile (or the place now open) is no longer offered.
+  const validTarget =
+    target === HOME_TARGET ? place !== HOME : targets.some((f) => `f:${f.id}` === target);
+  const targetName = (t: string) =>
+    t === HOME_TARGET ? 'Home' : (folders.find((f) => `f:${f.id}` === t)?.name ?? 'folder');
+
+  const move = async () => {
+    const ids = order.filter((id) => selection.selected.has(id));
+    const t = target;
+    setBusy(true);
+    setMessage(undefined);
+    try {
+      const n = await moveRecords(ids, t === HOME_TARGET ? undefined : t.slice(2));
+      setMessage(`Moved ${n} record${n === 1 ? '' : 's'} to ${targetName(t)}.`);
+      onSelection(NO_SELECTION);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="move-bar" role="toolbar" aria-label="Selected records">
+      <label className="move-bar-all">
+        <input
+          ref={allRef}
+          type="checkbox"
+          checked={all}
+          disabled={order.length === 0}
+          onChange={(e) => onSelection(e.target.checked ? { selected: new Set(order) } : NO_SELECTION)}
+        />
+        <span>{count} selected</span>
+      </label>
+      <span className="muted move-bar-hint">Shift-click selects a range</span>
+      <div className="move-bar-actions">
+        <select value={validTarget ? target : ''} onChange={(e) => setTarget(e.target.value)} aria-label="Move to">
+          <option value="" disabled>
+            Move to…
+          </option>
+          {place !== HOME && <option value={HOME_TARGET}>{HOME_EMOJI} Home</option>}
+          {targets.map((f) => (
+            <option key={f.id} value={`f:${f.id}`}>
+              {f.emoji ? `${f.emoji} ${f.name}` : f.name}
+            </option>
+          ))}
+        </select>
+        <button type="button" className="btn btn-small btn-primary" disabled={busy || !count || !validTarget} onClick={() => void move()}>
+          Move
+        </button>
+      </div>
+      {message && (
+        <p className="move-bar-message muted" role="status">
+          {message}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
  * Loads the next page when it scrolls near the viewport. The observer is re-created
  * for each new page (`pageKey`); its initial observation fires again, so on a tall
@@ -537,7 +683,10 @@ function Card({
   onEdit,
   onView,
   onTag,
+  select,
 }: {
+  /** Select mode: the row's checkbox (`onClick` gets whether Shift was held, for range select). */
+  select?: { checked: boolean; onClick: (shift: boolean) => void };
   record: ReadingRecord;
   /** Revisit place: show last read time and an "Update read" button instead of the status. */
   revisit: boolean;
@@ -558,7 +707,27 @@ function Card({
     </HoldButton>
   );
   return (
-    <article className="card card-list" data-status={record.status}>
+    <article className={`card card-list${select?.checked ? ' is-selected' : ''}`} data-status={record.status}>
+      {select && (
+        // The click is handled here, not on a <label>: a label would send a second click to the
+        // input. Shift is read from the click itself; Shift + mousedown would select page text.
+        <div
+          className="card-check"
+          onClick={(e) => select.onClick(e.shiftKey)}
+          onMouseDown={(e) => {
+            if (e.shiftKey) e.preventDefault();
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={select.checked}
+            onChange={() => {
+              // Handled by the wrapper's click (it knows about Shift).
+            }}
+            aria-label={`Select ${recordLabel(record)}`}
+          />
+        </div>
+      )}
       <div className="card-body">
         {/* The title is plain text; the record's URLs below are the links (it can have several).
             The title is optional: without one the row starts with the time line. */}
