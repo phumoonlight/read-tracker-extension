@@ -278,7 +278,7 @@ function startMarking(board: Board, initial: MarkingPrefs): { stop(): void } {
   // Page styles: the read look (the same as a read record's link mark, MARK_LOOK) and the
   // marking-mode outline (colours that read on light and dark boards; base.css tokens don't
   // exist on web pages). The look is on the pictures, not
-  // the link: opacity on the link makes it a stacking context, and on pixiv that put the
+  // the link: opacity / filter on the link makes it a stacking context, and on pixiv that put the
   // thumbnail under the card's placeholder layer (gone, not faded) and faded the title too.
 
   // The read look is its own <style>: the popup's dimming switch turns only it off (media

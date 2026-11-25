@@ -37,12 +37,12 @@ export default defineContentScript({
     const style = document.createElement('style');
     {
       style.id = STYLE_ID;
-      // Dimmed and blurred (MARK_LOOK: read the most). A link that wraps a picture dims the picture, not the link: opacity / filter on the link
+      // Darkened and blurred (MARK_LOOK: read the most). A link that wraps a picture dims the picture, not the link: a filter on the link
       // make it a stacking context, and on sites like pixiv that put the thumbnail under the
       // card's placeholder layer (gone instead of dimmed).
       const dimmed = (a: string) => `${a}:not(:has(img)),${a} img`;
       // Hovering (or keyboard focus) shows the link as the site styles it: the rules don't match
-      // then (NOT_SHOWN), rather than forcing opacity / filter back on.
+      // then (NOT_SHOWN), rather than forcing filter back to none.
       const rule = (mark: LinkMark) =>
         `${dimmed(`a[${LINK_MARK_ATTR}="${mark}"]${NOT_SHOWN}`)}{${markCss(mark)};${MARK_TRANSITION_CSS}}`;
       style.textContent = rule('unread') + rule('read');

@@ -11,17 +11,18 @@ export type LinkMark = 'unread' | 'read';
  * How a mark looks on a web page: dimmed and blurred, read the most. Shared by link marking
  * and board marking (a board post marked read looks like a read record). Hover / focus
  * shows it sharp again: the rules match only `:not(:hover):not(:focus-visible)` (NOT_SHOWN), so
- * nothing of ours applies then and the site's own opacity / filter are left alone.
+ * nothing of ours applies then and the site's own filter is left alone. Only `filter` is set
+ * (darkened with brightness, not faded with opacity, by request).
  */
-export const MARK_LOOK: Record<LinkMark, { opacity: number; blur: number }> = {
-  unread: { opacity: 0.5, blur: 1 },
-  read: { opacity: 0.25, blur: 2 },
+export const MARK_LOOK: Record<LinkMark, { brightness: number; blur: number }> = {
+  unread: { brightness: 0.6, blur: 1 },
+  read: { brightness: 0.35, blur: 2 },
 };
 export const markCss = (mark: LinkMark) =>
-  `opacity:${MARK_LOOK[mark].opacity}!important;filter:blur(${MARK_LOOK[mark].blur}px)!important`;
+  `filter:brightness(${MARK_LOOK[mark].brightness}) blur(${MARK_LOOK[mark].blur}px)!important`;
 /** Appended to a marked link's selector: the look applies only while it isn't hovered / focused. */
 export const NOT_SHOWN = ':not(:hover):not(:focus-visible)';
-export const MARK_TRANSITION_CSS = 'transition:opacity .15s,filter .15s!important';
+export const MARK_TRANSITION_CSS = 'transition:filter .15s!important';
 
 /**
  * The global marking switch (popup header): paused = no link marks on websites and no board
