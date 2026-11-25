@@ -20,6 +20,7 @@ import {
 } from '@/lib/boards';
 import { onBoardsChanged } from '@/lib/changes';
 import { MARK_TRANSITION_CSS, NOT_SHOWN, markCss } from '@/lib/link-marks';
+import { pictureSelector, pictureTagger, picturesOf } from '@/lib/pictures';
 
 /**
  * Board marking (merged from Booru explorer): on Gelbooru, Konachan, pixiv and nhentai, post
@@ -74,6 +75,9 @@ export default defineContentScript({
 const POST_ATTR = 'data-read-tracker-post';
 const READ_ATTR = 'data-read-tracker-read';
 const MARKING_ATTR = 'data-read-tracker-marking';
+/** Not the link-marks script's names: both scripts can run on a board page. */
+const PICTURE_ATTR = 'data-read-tracker-post-pic';
+const SCOPE_ATTR = 'data-read-tracker-post-card';
 
 const idle = (fn: () => void) =>
   window.requestIdleCallback ? window.requestIdleCallback(fn, { timeout: 500 }) : setTimeout(fn, 200);
@@ -120,6 +124,7 @@ function startMarking(board: Board, initial: MarkingPrefs): { stop(): void } {
       a.removeAttribute(POST_ATTR);
       a.removeAttribute(READ_ATTR);
     }
+    pictures.clear();
   }
 
   async function send<T>(msg: unknown): Promise<T | undefined> {
@@ -166,9 +171,10 @@ function startMarking(board: Board, initial: MarkingPrefs): { stop(): void } {
       // Skip what's done, unless a post link lost its tag (another copy stopping removes them).
       if (before?.href === href && (!before.post || a.hasAttribute(POST_ATTR))) continue;
       const id = thumbnailIdOn(board, href, location.href);
-      // A post link without a picture is a title or caption: not faded. Not remembered
-      // either, since pixiv mounts a card's thumbnail over several renders.
-      if (id !== null && !a.querySelector('img')) {
+      // A post link without a picture (an <img>, or a background image: lib/pictures.ts) is a
+      // title or caption: not faded. Not remembered either, since pixiv mounts a card's
+      // thumbnail over several renders.
+      if (id !== null && !a.querySelector('img') && !picturesOf(a).pictures.length) {
         if (a.getAttribute(POST_ATTR) !== String(id)) {
           a.removeAttribute(POST_ATTR);
           a.removeAttribute(READ_ATTR);
@@ -192,12 +198,19 @@ function startMarking(board: Board, initial: MarkingPrefs): { stop(): void } {
     if (fresh.length) void ask(fresh);
   }
 
+  /** Background-image pictures of read posts (lib/pictures.ts). */
+  const pictures = pictureTagger(PICTURE_ATTR, SCOPE_ATTR);
+
   function paintRead() {
     if (stopped) return;
+    const read: [Element, string][] = [];
     for (const a of document.querySelectorAll(`[${POST_ATTR}]`)) {
-      if (readIds.has(Number(a.getAttribute(POST_ATTR)))) a.setAttribute(READ_ATTR, '');
-      else a.removeAttribute(READ_ATTR);
+      if (readIds.has(Number(a.getAttribute(POST_ATTR)))) {
+        a.setAttribute(READ_ATTR, '');
+        read.push([a, 'read']);
+      } else a.removeAttribute(READ_ATTR);
     }
+    pictures.apply(read);
   }
 
   /** Paint first, then tell the store: a click shouldn't wait on a round trip. */
@@ -285,7 +298,7 @@ function startMarking(board: Board, initial: MarkingPrefs): { stop(): void } {
   // "not all"); marking, recording and the marking-mode outline keep working.
   const fade = document.createElement('style');
   fade.textContent = `
-    [${READ_ATTR}]${NOT_SHOWN} img { ${markCss('read')}; ${MARK_TRANSITION_CSS} }
+    [${READ_ATTR}]${NOT_SHOWN} img, ${pictureSelector(PICTURE_ATTR, SCOPE_ATTR, 'read')} { ${markCss('read')}; ${MARK_TRANSITION_CSS} }
   `;
   const applyPrefs = () => (fade.media = prefs.paused ? 'not all' : '');
   applyPrefs();
@@ -425,7 +438,8 @@ function startMarking(board: Board, initial: MarkingPrefs): { stop(): void } {
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ['href'],
+    // style / class too: lazy loaders set a thumbnail's background image after it is added.
+    attributeFilter: ['href', 'style', 'class'],
   });
 
   // Read history changed (another tab, the Boards page, an import): ask again for everything seen.

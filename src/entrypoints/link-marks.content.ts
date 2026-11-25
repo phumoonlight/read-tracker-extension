@@ -12,13 +12,18 @@ import {
   type LinkMark,
   type LinkMarksRequest,
 } from '@/lib/link-marks';
+import { pictureSelector, pictureTagger } from '@/lib/pictures';
+
+const PICTURE_ATTR = 'data-read-tracker-pic';
+const SCOPE_ATTR = 'data-read-tracker-pic-card';
 
 /**
  * Dims links to records whose place has link marking on. Registered by the background
  * at runtime (never in the manifest) only while some place marks links and the host
  * permission is granted. The page is only read for link URLs; matching happens in the
  * background (one batched lookup per change), and the only change made to the page is the
- * LINK_MARK_ATTR attribute on <a> elements plus one <style>.
+ * LINK_MARK_ATTR attribute on <a> elements, PICTURE_ATTR / SCOPE_ATTR on the background
+ * pictures they show (lib/pictures.ts), plus one <style>.
  */
 export default defineContentScript({
   registration: 'runtime',
@@ -40,11 +45,14 @@ export default defineContentScript({
       // Darkened and blurred (MARK_LOOK: read the most). A link that wraps a picture dims the picture, not the link: a filter on the link
       // make it a stacking context, and on sites like pixiv that put the thumbnail under the
       // card's placeholder layer (gone instead of dimmed).
-      const dimmed = (a: string) => `${a}:not(:has(img)),${a} img`;
+      // Background-image pictures (in the link, or under an overlay link) are tagged by the
+      // script (lib/pictures.ts) and dimmed instead of the link.
+      const dimmed = (a: string) => `${a}:not(:has(img,[${PICTURE_ATTR}])),${a} img`;
       // Hovering (or keyboard focus) shows the link as the site styles it: the rules don't match
       // then (NOT_SHOWN), rather than forcing filter back to none.
       const rule = (mark: LinkMark) =>
-        `${dimmed(`a[${LINK_MARK_ATTR}="${mark}"]${NOT_SHOWN}`)}{${markCss(mark)};${MARK_TRANSITION_CSS}}`;
+        `${dimmed(`a[${LINK_MARK_ATTR}="${mark}"]${NOT_SHOWN}`)},${pictureSelector(PICTURE_ATTR, SCOPE_ATTR, mark)}` +
+        `{${markCss(mark)};${MARK_TRANSITION_CSS}}`;
       style.textContent = rule('unread') + rule('read');
       (document.head ?? document.documentElement).append(style);
     }
@@ -88,16 +96,23 @@ export default defineContentScript({
         if (u && !marks.has(u)) unknown.add(u);
       }
       if (unknown.size) await ask([...unknown]);
+      if (stopped) return;
+      const marked: [Element, LinkMark][] = [];
       for (const a of links) {
         const u = linkUrl(a);
         const mark = u ? marks.get(u) : null;
         if (mark) {
           if (a.getAttribute(LINK_MARK_ATTR) !== mark) a.setAttribute(LINK_MARK_ATTR, mark);
+          marked.push([a, mark]);
         } else if (a.hasAttribute(LINK_MARK_ATTR)) {
           a.removeAttribute(LINK_MARK_ATTR);
         }
       }
+      pictures.apply(marked);
     }
+
+    /** Background-image pictures of marked links (lib/pictures.ts). */
+    const pictures = pictureTagger(PICTURE_ATTR, SCOPE_ATTR);
 
     /** One scan at a time; a request during a scan runs one more after it. */
     function run() {
@@ -133,7 +148,8 @@ export default defineContentScript({
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['href'],
+      // style / class too: lazy loaders set a card's background image after it is added.
+      attributeFilter: ['href', 'style', 'class'],
     });
 
     // Records or settings changed (in any context): ask again for every link.
@@ -147,6 +163,7 @@ export default defineContentScript({
       stopped = true;
       clearTimeout(timer);
       observer.disconnect();
+      pictures.clear();
       try {
         unsubscribe();
         unsubscribePrefs();
