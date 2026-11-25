@@ -1,14 +1,10 @@
 /**
- * The picture a marked link shows, for sites that draw thumbnails as CSS background images
- * instead of <img> (an <img> is dimmed by `a img` in the content scripts' CSS). Used by both
- * content scripts; only the DOM-walking functions touch the page.
- *
- * - Inside: elements in the link (the link itself included) with a `url(...)` background, when
- *   the link has no <img>.
- * - Outside: a link with nothing of its own to show (an empty overlay stretched over a card)
- *   dims the background picture(s) it covers in the card around it. That card is the
- *   "scope": hovering it counts as hovering the link (the picture may be a sibling of the link,
- *   so it isn't hovered itself).
+ * Pictures a marked link shows outside itself. The content scripts' CSS filters the link as a
+ * whole (text, <img>s and background pictures inside it), so only one case is left here: a
+ * link with nothing of its own to show (an empty overlay stretched over a card) dims the
+ * background picture(s) it covers in the card around it. That card is the "scope": hovering it
+ * counts as hovering the link (the picture may be a sibling of the link, so it isn't hovered
+ * itself). Used by both content scripts; only the DOM-walking functions touch the page.
  */
 
 /** At most this many pictures per link (a card with a sprite-heavy layout stays cheap). */
@@ -48,16 +44,17 @@ export interface Pictures {
   scope?: Element;
 }
 
+/** The link draws a picture itself: an <img>, or a `url(...)` background on it or inside it. */
+export const drawsPictureInside = (a: Element) =>
+  !!a.querySelector('img') || [a, ...a.querySelectorAll('*')].some(drawsPicture);
+
 /**
- * The background pictures a link shows. None when it has an <img>: the CSS dims those, and a
- * filter on a background layer beside them (pixiv's placeholder) could paint it over the image.
+ * The background pictures an overlay link covers, outside the link. None for a link that draws
+ * a picture itself (filtering the link covers it) or shows text in the flow (not an overlay).
  */
 export function picturesOf(a: Element): Pictures {
-  if (a.querySelector('img')) return { pictures: [] };
-  const inside = [a, ...a.querySelectorAll('*')].filter(drawsPicture).slice(0, MAX_PICTURES);
-  if (inside.length) return { pictures: inside };
-
-  // An overlay: no picture, and no text (or taken out of the flow to sit on top of the card).
+  if (drawsPictureInside(a)) return { pictures: [] };
+  // An overlay: no text (or taken out of the flow to sit on top of the card).
   if (a.textContent?.trim() && getComputedStyle(a).position !== 'absolute') return { pictures: [] };
   const box = a.getBoundingClientRect();
   if (areaOf(box) < MIN_OVERLAY_AREA) return { pictures: [] };

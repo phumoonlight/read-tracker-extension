@@ -42,16 +42,14 @@ export default defineContentScript({
     const style = document.createElement('style');
     {
       style.id = STYLE_ID;
-      // Darkened and blurred (MARK_LOOK: read the most). A link that wraps a picture dims the picture, not the link: a filter on the link
-      // make it a stacking context, and on sites like pixiv that put the thumbnail under the
-      // card's placeholder layer (gone instead of dimmed).
-      // Background-image pictures (in the link, or under an overlay link) are tagged by the
-      // script (lib/pictures.ts) and dimmed instead of the link.
-      const dimmed = (a: string) => `${a}:not(:has(img,[${PICTURE_ATTR}])),${a} img`;
+      // Darkened and blurred (MARK_LOOK: read the most): the whole link, text and pictures (by
+      // request; the filter makes the link a stacking context, which once hid pixiv thumbnails
+      // under the card's placeholder layer). Background pictures under an empty overlay link are
+      // outside it: the script tags them (lib/pictures.ts).
       // Hovering (or keyboard focus) shows the link as the site styles it: the rules don't match
       // then (NOT_SHOWN), rather than forcing filter back to none.
       const rule = (mark: LinkMark) =>
-        `${dimmed(`a[${LINK_MARK_ATTR}="${mark}"]${NOT_SHOWN}`)},${pictureSelector(PICTURE_ATTR, SCOPE_ATTR, mark)}` +
+        `a[${LINK_MARK_ATTR}="${mark}"]${NOT_SHOWN},${pictureSelector(PICTURE_ATTR, SCOPE_ATTR, mark)}` +
         `{${markCss(mark)};${MARK_TRANSITION_CSS}}`;
       style.textContent = rule('unread') + rule('read');
       (document.head ?? document.documentElement).append(style);

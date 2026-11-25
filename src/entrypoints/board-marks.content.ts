@@ -20,7 +20,7 @@ import {
 } from '@/lib/boards';
 import { onBoardsChanged } from '@/lib/changes';
 import { MARK_TRANSITION_CSS, NOT_SHOWN, markCss } from '@/lib/link-marks';
-import { pictureSelector, pictureTagger, picturesOf } from '@/lib/pictures';
+import { drawsPictureInside, pictureSelector, pictureTagger, picturesOf } from '@/lib/pictures';
 
 /**
  * Board marking (merged from Booru explorer): on Gelbooru, Konachan, pixiv and nhentai, post
@@ -174,7 +174,7 @@ function startMarking(board: Board, initial: MarkingPrefs): { stop(): void } {
       // A post link without a picture (an <img>, or a background image: lib/pictures.ts) is a
       // title or caption: not faded. Not remembered either, since pixiv mounts a card's
       // thumbnail over several renders.
-      if (id !== null && !a.querySelector('img') && !picturesOf(a).pictures.length) {
+      if (id !== null && !drawsPictureInside(a) && !picturesOf(a).pictures.length) {
         if (a.getAttribute(POST_ATTR) !== String(id)) {
           a.removeAttribute(POST_ATTR);
           a.removeAttribute(READ_ATTR);
@@ -290,15 +290,16 @@ function startMarking(board: Board, initial: MarkingPrefs): { stop(): void } {
   // ---------------------------------------------------------------------------
   // Page styles: the read look (the same as a read record's link mark, MARK_LOOK) and the
   // marking-mode outline (colours that read on light and dark boards; base.css tokens don't
-  // exist on web pages). The look is on the pictures, not
-  // the link: opacity / filter on the link makes it a stacking context, and on pixiv that put the
-  // thumbnail under the card's placeholder layer (gone, not faded) and faded the title too.
+  // exist on web pages). The look is on the whole post link, text included (by request; the
+  // filter makes the link a stacking context, which once put pixiv's thumbnail under the card's
+  // placeholder layer). Background pictures under an empty overlay link are tagged
+  // (lib/pictures.ts).
 
   // The read look is its own <style>: the popup's dimming switch turns only it off (media
   // "not all"); marking, recording and the marking-mode outline keep working.
   const fade = document.createElement('style');
   fade.textContent = `
-    [${READ_ATTR}]${NOT_SHOWN} img, ${pictureSelector(PICTURE_ATTR, SCOPE_ATTR, 'read')} { ${markCss('read')}; ${MARK_TRANSITION_CSS} }
+    [${READ_ATTR}]${NOT_SHOWN}, ${pictureSelector(PICTURE_ATTR, SCOPE_ATTR, 'read')} { ${markCss('read')}; ${MARK_TRANSITION_CSS} }
   `;
   const applyPrefs = () => (fade.media = prefs.paused ? 'not all' : '');
   applyPrefs();

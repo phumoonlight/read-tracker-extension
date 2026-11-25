@@ -118,11 +118,11 @@ Link marking (`markLinks?: true` on `Folder` and `HomeSettings`; absent = off, s
 backups): links on websites to records of a place with it on get `data-read-tracker="unread|read"` and are dimmed
 (one `filter`: `brightness` unread .6, read .35, and `blur` 1px / 2px; no opacity, by request) (the rules match only
 `:not(:hover):not(:focus-visible)` (`NOT_SHOWN`), so on hover / focus nothing of ours applies and the site's own styles
-show; never force values back; on a link that wraps an `<img>` it goes on the image, since opacity / filter on the link hid pixiv thumbnails).
-Background-image thumbnails (`lib/pictures.ts`, both content scripts): for a marked link without an `<img>`, the script
-tags the elements that draw a `url(...)` background (inside the link, or, for an empty overlay link, in the card
-around it that the link covers; the card is tagged too so hovering it counts) and the CSS filters those
-(`pictureSelector`). Each script has its own attribute names. The observers also watch `style` / `class` (lazy
+show; never force values back). The filter is on the **whole link**, text and pictures included (by request; it
+used to go on the `<img>` only, because opacity / filter on the link once hid pixiv thumbnails under a placeholder
+layer). Overlay links (`lib/pictures.ts`, both content scripts): an empty link stretched over a card, drawing nothing
+itself (`drawsPictureInside`), makes the script tag the `url(...)` background pictures in the card around it that the
+link covers (the card is tagged too so hovering it counts) and the CSS filters those (`pictureSelector`). Each script has its own attribute names. The observers also watch `style` / `class` (lazy
 backgrounds). On board sites such a link counts as a post. No text colour or glow
 (removed by request). The look is `MARK_LOOK` / `markCss` in `lib/link-marks.ts`, shared with board marking: a board
 post marked read looks exactly like a read record. Revisit places mark every record `read` (`linkMark`). The content script
