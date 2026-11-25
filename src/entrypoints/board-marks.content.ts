@@ -19,7 +19,7 @@ import {
   type BoardQueryRequest,
 } from '@/lib/boards';
 import { onBoardsChanged } from '@/lib/changes';
-import { MARK_SHOWN_CSS, MARK_TRANSITION_CSS, markCss } from '@/lib/link-marks';
+import { MARK_TRANSITION_CSS, NOT_SHOWN, markCss } from '@/lib/link-marks';
 
 /**
  * Board marking (merged from Booru explorer): on Gelbooru, Konachan, pixiv and nhentai, post
@@ -285,8 +285,7 @@ function startMarking(board: Board, initial: MarkingPrefs): { stop(): void } {
   // "not all"); marking, recording and the marking-mode outline keep working.
   const fade = document.createElement('style');
   fade.textContent = `
-    [${READ_ATTR}] img { ${markCss('read')}; ${MARK_TRANSITION_CSS} }
-    [${READ_ATTR}]:hover img, [${READ_ATTR}]:focus-visible img { ${MARK_SHOWN_CSS} }
+    [${READ_ATTR}]${NOT_SHOWN} img { ${markCss('read')}; ${MARK_TRANSITION_CSS} }
   `;
   const applyPrefs = () => (fade.media = prefs.paused ? 'not all' : '');
   applyPrefs();

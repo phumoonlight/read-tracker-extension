@@ -10,7 +10,8 @@ export type LinkMark = 'unread' | 'read';
 /**
  * How a mark looks on a web page: dimmed and blurred, read the most. Shared by link marking
  * and board marking (a board post marked read looks like a read record). Hover / focus
- * shows it sharp again (MARK_SHOWN_CSS).
+ * shows it sharp again: the rules match only `:not(:hover):not(:focus-visible)` (NOT_SHOWN), so
+ * nothing of ours applies then and the site's own opacity / filter are left alone.
  */
 export const MARK_LOOK: Record<LinkMark, { opacity: number; blur: number }> = {
   unread: { opacity: 0.5, blur: 1 },
@@ -18,7 +19,8 @@ export const MARK_LOOK: Record<LinkMark, { opacity: number; blur: number }> = {
 };
 export const markCss = (mark: LinkMark) =>
   `opacity:${MARK_LOOK[mark].opacity}!important;filter:blur(${MARK_LOOK[mark].blur}px)!important`;
-export const MARK_SHOWN_CSS = 'opacity:1!important;filter:none!important';
+/** Appended to a marked link's selector: the look applies only while it isn't hovered / focused. */
+export const NOT_SHOWN = ':not(:hover):not(:focus-visible)';
 export const MARK_TRANSITION_CSS = 'transition:opacity .15s,filter .15s!important';
 
 /**

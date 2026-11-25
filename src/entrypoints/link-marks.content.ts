@@ -6,8 +6,8 @@ import {
   LINK_MARK_ATTR,
   LINK_MARKS_BATCH,
   LINK_MARKS_MESSAGE,
-  MARK_SHOWN_CSS,
   MARK_TRANSITION_CSS,
+  NOT_SHOWN,
   markCss,
   type LinkMark,
   type LinkMarksRequest,
@@ -41,15 +41,11 @@ export default defineContentScript({
       // make it a stacking context, and on sites like pixiv that put the thumbnail under the
       // card's placeholder layer (gone instead of dimmed).
       const dimmed = (a: string) => `${a}:not(:has(img)),${a} img`;
-      const rule = (mark: LinkMark) => `${dimmed(`a[${LINK_MARK_ATTR}="${mark}"]`)}{${markCss(mark)}}`;
-      // Hovering (or keyboard focus) shows the link sharp and fully visible again.
-      const marked = `a[${LINK_MARK_ATTR}]`;
-      const shown = [':hover', ':focus-visible'].flatMap((s) => [`${marked}${s}`, `${marked}${s} img`]).join(',');
-      style.textContent =
-        rule('unread') +
-        rule('read') +
-        `${dimmed(marked)}{${MARK_TRANSITION_CSS}}` +
-        `${shown}{${MARK_SHOWN_CSS}}`;
+      // Hovering (or keyboard focus) shows the link as the site styles it: the rules don't match
+      // then (NOT_SHOWN), rather than forcing opacity / filter back on.
+      const rule = (mark: LinkMark) =>
+        `${dimmed(`a[${LINK_MARK_ATTR}="${mark}"]${NOT_SHOWN}`)}{${markCss(mark)};${MARK_TRANSITION_CSS}}`;
+      style.textContent = rule('unread') + rule('read');
       (document.head ?? document.documentElement).append(style);
     }
 
