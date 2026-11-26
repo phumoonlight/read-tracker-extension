@@ -6,7 +6,8 @@ import { useImageUrl } from './Thumbnail';
 /**
  * Full-resolution viewer for a record's images. Shows the original file (never the
  * preview), scaled down only to fit the window; "Open original" opens it in a new
- * tab at 100%. Arrow keys / buttons step through the images.
+ * tab at 100%. A web image is loaded from its address (its site is shown instead of a
+ * file size). Arrow keys / buttons step through the images.
  */
 export function ImageViewer({
   title,
@@ -25,8 +26,10 @@ export function ImageViewer({
   const index = Math.min(Math.max(0, rawIndex), Math.max(0, count - 1));
   const id = imageIds[index];
   const url = useImageUrl(id, { original: true });
-  const [info, setInfo] = useState<{ width?: number; height?: number; size: number; type: string }>();
+  const [info, setInfo] = useState<{ width?: number; height?: number; size?: number; host?: string }>();
   const [missing, setMissing] = useState(false);
+  /** The web image address that failed to load. */
+  const [failed, setFailed] = useState<string>();
 
   useEffect(() => {
     let stale = false;
@@ -36,7 +39,8 @@ export function ImageViewer({
     void getImage(id).then((img) => {
       if (stale) return;
       if (!img) setMissing(true);
-      else setInfo({ width: img.width, height: img.height, size: img.blob.size, type: img.blob.type });
+      else if (img.url !== undefined) setInfo({ width: img.width, height: img.height, host: hostOf(img.url) });
+      else setInfo({ width: img.width, height: img.height, size: img.blob.size });
     });
     return () => {
       stale = true;
@@ -60,8 +64,19 @@ export function ImageViewer({
           <p className="muted">This record has no images.</p>
         ) : missing ? (
           <p className="muted">This image is missing.</p>
+        ) : url && failed === url ? (
+          <p className="muted">
+            This web image didn't load{info?.host ? ` from ${info.host}` : ''}. It may have been removed, or the site may
+            not allow showing it here.
+          </p>
         ) : url ? (
-          <img className="viewer-img" src={url} alt={`Image ${index + 1} of ${count}`} />
+          <img
+            className="viewer-img"
+            src={url}
+            alt={`Image ${index + 1} of ${count}`}
+            referrerPolicy="no-referrer"
+            onError={() => setFailed(url)}
+          />
         ) : (
           <p className="muted">Loading…</p>
         )}
@@ -83,15 +98,19 @@ export function ImageViewer({
           )}
           {info && (
             <span className="muted">
-              {info.width && info.height ? `${info.width} × ${info.height} · ` : ''}
-              {formatBytes(info.size)}
+              {[
+                info.width && info.height ? `${info.width} × ${info.height}` : '',
+                info.size !== undefined ? formatBytes(info.size) : `Web image${info.host ? ` · ${info.host}` : ''}`,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
             </span>
           )}
         </div>
         <div className="row">
           {url && (
             <a className="btn btn-small" href={url} target="_blank" rel="noreferrer">
-              Open original
+              {info?.size === undefined && info ? 'Open web image' : 'Open original'}
             </a>
           )}
           <button type="button" className="btn btn-small" onClick={onClose} autoFocus>
@@ -101,6 +120,14 @@ export function ImageViewer({
       </div>
     </Dialog>
   );
+}
+
+function hostOf(url: string) {
+  try {
+    return new URL(url).host;
+  } catch {
+    return undefined;
+  }
 }
 
 function formatBytes(n: number) {

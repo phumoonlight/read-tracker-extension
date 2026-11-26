@@ -7,7 +7,9 @@ import {
   imagePath,
   imageIndex,
   imagesFromZip,
+  isWebImagePath,
   parseManifest,
+  parseWebImageFile,
   parseRecordLine,
   planImport,
   RECORD_KEYS,
@@ -15,6 +17,8 @@ import {
   encodeRecord,
   recordLine,
   typeForImagePath,
+  webImageFile,
+  webImagePath,
 } from '@/lib/backup';
 import { MAX_IMAGES, MAX_URLS, SCHEMA_VERSION, type BackupImage, type ReadingRecord } from '@/lib/types';
 import { rec } from './fixtures';
@@ -197,6 +201,27 @@ describe('ZIP backup image paths', () => {
       'Record “R”: image missing is not in the backup, skipped.',
       'Record “S”: image i1 belongs to another record, skipped.',
     ]);
+  });
+});
+
+describe('web images in a ZIP backup', () => {
+  it('are images/<id>.url Internet Shortcuts, found by id like image files', () => {
+    expect(webImagePath('abc')).toBe('images/abc.url');
+    expect(isWebImagePath('images/abc.url')).toBe(true);
+    expect(isWebImagePath('images/abc.URL')).toBe(true);
+    expect(isWebImagePath('images/abc.png')).toBe(false);
+    expect([...imageIndex([webImagePath('abc')])]).toEqual([['abc', 'images/abc.url']]);
+  });
+  it('round-trip the address', () => {
+    const url = 'https://cdn.example.com/a b/pic.jpg?x=1&y=é';
+    const back = parseWebImageFile(webImageFile(url));
+    expect(back).toBe(new URL(url).href);
+    expect(parseWebImageFile('[InternetShortcut]\nIconIndex=0\nURL=https://x.com/p.png\n')).toBe('https://x.com/p.png');
+  });
+  it('reject a file without an http(s) address', () => {
+    expect(() => parseWebImageFile('[InternetShortcut]\n')).toThrow();
+    expect(() => parseWebImageFile('URL=javascript:alert(1)')).toThrow();
+    expect(() => parseWebImageFile('URL=file:///C:/x.png')).toThrow();
   });
 });
 

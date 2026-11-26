@@ -126,3 +126,21 @@ export function displayUrl(url: string): string {
     return url;
   }
 }
+
+/** Longest web image address accepted. */
+export const MAX_IMAGE_URL = 4096;
+
+/**
+ * A web image address as typed or pasted: trimmed, absolute http(s) only. Returns the URL
+ * (as parsed, so it is well formed) or undefined if it isn't one.
+ */
+export function webImageUrl(text: string): string | undefined {
+  const t = text.trim();
+  if (!t || t.length > MAX_IMAGE_URL) return undefined;
+  try {
+    const u = new URL(t);
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : undefined;
+  } catch {
+    return undefined;
+  }
+}

@@ -702,6 +702,30 @@ dialog.viewer {
   border-color: var(--text-muted);
   color: var(--text);
 }
+/* Web image (only its address is stored): a link badge in the corner of its tile. */
+.image-web-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg);
+  font-size: 13px;
+  pointer-events: none;
+}
+/* Image address: input + Add link + Save copy */
+.image-url-row {
+  margin-top: 8px;
+  flex-wrap: nowrap;
+}
+.image-url-input {
+  flex: 1;
+  min-width: 0;
+}
 
 /* Tag field: #chips + text input + suggestions */
 .tag-input {

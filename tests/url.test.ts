@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { displayUrl, faviconUrl, hueFor, isTrackingParam, normalizeUrl, siteLabel, suggestPrefix } from '@/lib/url';
+import { displayUrl, faviconUrl, hueFor, isTrackingParam, normalizeUrl, siteLabel, suggestPrefix, webImageUrl } from '@/lib/url';
 
 describe('normalizeUrl', () => {
   it.each([
@@ -133,5 +133,18 @@ describe('displayUrl', () => {
   });
   it('returns the input when it is not a URL', () => {
     expect(displayUrl('not a url')).toBe('not a url');
+  });
+});
+
+describe('webImageUrl', () => {
+  it('accepts absolute http(s) addresses, trimmed', () => {
+    expect(webImageUrl('  https://example.com/a.png ')).toBe('https://example.com/a.png');
+    expect(webImageUrl('http://Example.com/a b.jpg')).toBe('http://example.com/a%20b.jpg');
+  });
+  it('rejects anything else', () => {
+    for (const t of ['', '   ', 'example.com/a.png', '/a.png', 'data:image/png;base64,AAAA', 'javascript:alert(1)', 'ftp://x/a.png', 'blob:https://x/1']) {
+      expect(webImageUrl(t)).toBeUndefined();
+    }
+    expect(webImageUrl(`https://x.com/${'a'.repeat(5000)}`)).toBeUndefined();
   });
 });

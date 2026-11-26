@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
-import { moveItem, prepareImage } from '@/lib/images';
+import { moveItem, prepareImage, probeWebImage } from '@/lib/images';
 import { addImages, removeImage, reorderImages } from '@/lib/storage';
 import { captureVisible, downloadImage, findOgImage, NeedsPermissionError, requestOriginAccess } from '@/lib/tab';
 import { MAX_IMAGES, type ReadingRecord } from '@/lib/types';
+import { webImageUrl } from '@/lib/url';
 import { useImageUrl } from './Thumbnail';
 import { XIcon } from './XIcon';
 import { ConfirmDialog } from './Dialog';
@@ -20,14 +21,19 @@ interface Props {
  * Manage a record's images (up to MAX_IMAGES) in one compact row: click a tile to view it,
  * drag to reorder (the first is the cover; Alt+Left/Right moves a focused tile), × to
  * remove, and a "+" tile to upload. Ctrl+V anywhere adds a copied image (text paste into a
- * field is left alone). In the popup, Screenshot and og:image buttons are added. Images are
- * stored as the original file; only the tile uses a preview.
+ * field is left alone). An image address can be added as a link (a web image: only the
+ * address is stored and the picture loads from the web) or saved as a local copy. In the
+ * popup, Screenshot and og:image buttons are added. Local images are stored as the original
+ * file; only the tile uses a preview.
  */
 export function ImagePicker({ record, tab, onChange, onView }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const [needsOrigin, setNeedsOrigin] = useState<string>();
+  /** Origin to ask access to after a blocked download, and what to try again once granted. */
+  const [needsOrigin, setNeedsOrigin] = useState<{ origin: string; retry: () => void }>();
+  /** Image address typed or pasted in the address field. */
+  const [address, setAddress] = useState('');
   /** Order shown while a reorder is being saved, so tiles don't jump back. */
   const [pendingOrder, setPendingOrder] = useState<string[]>();
   const [dragFrom, setDragFrom] = useState<number>();
@@ -51,20 +57,23 @@ export function ImagePicker({ record, tab, onChange, onView }: Props) {
     setDragOver(undefined);
   };
 
-  async function run(task: () => Promise<Blob[] | null>) {
+  /** Store the files `task` gives; true once they are stored. */
+  async function run(task: () => Promise<Blob[] | null>, retry?: () => void): Promise<boolean> {
     setBusy(true);
     setError(undefined);
     setNeedsOrigin(undefined);
     try {
       const blobs = await task();
-      if (!blobs?.length) return;
+      if (!blobs?.length) return false;
       const prepared = [];
       for (const b of blobs) prepared.push(await prepareImage(b));
       const next = await addImages(record.id, prepared);
       if (next) onChange?.(next);
+      return true;
     } catch (e) {
-      if (e instanceof NeedsPermissionError) setNeedsOrigin(e.origin);
+      if (e instanceof NeedsPermissionError && retry) setNeedsOrigin({ origin: e.origin, retry });
       setError(e instanceof Error ? e.message : String(e));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -73,6 +82,7 @@ export function ImagePicker({ record, tab, onChange, onView }: Props) {
   async function change(task: () => Promise<ReadingRecord | undefined>) {
     setBusy(true);
     setError(undefined);
+    setNeedsOrigin(undefined);
     try {
       const next = await task();
       if (next) onChange?.(next);
@@ -83,12 +93,40 @@ export function ImagePicker({ record, tab, onChange, onView }: Props) {
     }
   }
 
-  const fromOgImage = (t: NonNullable<Props['tab']>) =>
-    run(async () => {
-      const src = await findOgImage(t.id);
-      if (!src) throw new Error('This page has no og:image.');
-      return [await downloadImage(src, t.id)];
+  const fromOgImage = (t: NonNullable<Props['tab']>): Promise<boolean> =>
+    run(
+      async () => {
+        const src = await findOgImage(t.id);
+        if (!src) throw new Error('This page has no og:image.');
+        return [await downloadImage(src, t.id)];
+      },
+      () => void fromOgImage(t),
+    );
+
+  /** The address field's URL, or undefined after showing why it isn't one. */
+  function addressUrl(): string | undefined {
+    const url = webImageUrl(address);
+    if (!url) setError('Enter an image address starting with http:// or https://.');
+    return url;
+  }
+
+  /** Add the address as a web image: only the address is stored. Checked to load here first. */
+  function addLink() {
+    const url = addressUrl();
+    if (!url) return;
+    void change(async () => {
+      const size = await probeWebImage(url);
+      const next = await addImages(record.id, [{ url, ...size }]);
+      setAddress('');
+      return next;
     });
+  }
+
+  /** Download the address and store the file locally, like an upload. */
+  async function saveCopy(url = addressUrl()) {
+    if (!url) return;
+    if (await run(async () => [await downloadImage(url, tab?.id)], () => void saveCopy(url))) setAddress('');
+  }
 
   // Paste an image anywhere (no dedicated paste box). Only image files are taken; a normal
   // text paste into a field is left alone.
@@ -168,6 +206,43 @@ export function ImagePicker({ record, tab, onChange, onView }: Props) {
         )}
       </div>
 
+      {room > 0 && (
+        <div className="row image-url-row">
+          <input
+            type="url"
+            className="image-url-input"
+            placeholder="Image address (https://…)"
+            value={address}
+            disabled={busy}
+            onChange={(e) => setAddress(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter') return;
+              e.preventDefault(); // don't submit the record form
+              addLink();
+            }}
+            aria-label="Image address"
+          />
+          <button
+            type="button"
+            className="btn btn-small"
+            disabled={busy || !address.trim()}
+            onClick={addLink}
+            title="Keep only the address: the image loads from the web and isn't stored here"
+          >
+            Add link
+          </button>
+          <button
+            type="button"
+            className="btn btn-small btn-ghost"
+            disabled={busy || !address.trim()}
+            onClick={() => void saveCopy()}
+            title="Download the image and store the file here, like an upload"
+          >
+            Save copy
+          </button>
+        </div>
+      )}
+
       {tab && room > 0 && (
         <div className="row">
           <button
@@ -216,15 +291,15 @@ export function ImagePicker({ record, tab, onChange, onView }: Props) {
           onConfirm={() => change(() => removeImage(record.id, confirmRemove))}
         />
       )}
-      {needsOrigin && tab && (
+      {needsOrigin && (
         <button
           type="button"
           className="btn btn-small"
           onClick={async () => {
-            if (await requestOriginAccess(needsOrigin)) void fromOgImage(tab);
+            if (await requestOriginAccess(needsOrigin.origin)) needsOrigin.retry();
           }}
         >
-          Grant access to {new URL(needsOrigin).host}
+          Grant access to {new URL(needsOrigin.origin).host}
         </button>
       )}
     </div>
@@ -265,6 +340,9 @@ function ImageTile({
   keepFocus: boolean;
 }) {
   const url = useImageUrl(imageId);
+  /** A web image (loaded from its address) rather than a stored file. */
+  const web = !!url && !url.startsWith('blob:');
+  const [failed, setFailed] = useState<string>();
   const buttonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (keepFocus) buttonRef.current?.focus();
@@ -291,13 +369,29 @@ function ImageTile({
             onMoveKey(e.key === 'ArrowLeft' ? -1 : 1);
           }
         }}
-        aria-label={`View image ${index + 1} of ${count}${index === 0 ? ' (cover)' : ''}`}
+        aria-label={`View ${web ? 'web ' : ''}image ${index + 1} of ${count}${index === 0 ? ' (cover)' : ''}`}
         title={count > 1 ? 'Click to view. Drag to reorder; the first image is the cover.' : 'Click to view'}
         style={canDrag ? { cursor: 'grab' } : undefined}
       >
         {/* draggable=false: drag the tile, not the image file itself. */}
-        {url ? <img className="thumb" src={url} alt="" draggable={false} /> : <div className="thumb" />}
+        {url && failed !== url ? (
+          <img
+            className="thumb"
+            src={url}
+            alt=""
+            draggable={false}
+            referrerPolicy="no-referrer"
+            onError={() => setFailed(url)}
+          />
+        ) : (
+          <div className="thumb" />
+        )}
       </button>
+      {web && (
+        <span className="image-web-badge" title={`Web image (not stored here): ${url}`} aria-hidden="true">
+          🔗
+        </span>
+      )}
       <button
         type="button"
         className="image-remove"
@@ -315,5 +409,5 @@ function ImageTile({
 /** Small preview of the image being removed, shown in the confirmation. */
 function RemovePreview({ imageId }: { imageId: string }) {
   const url = useImageUrl(imageId);
-  return url ? <img className="remove-preview" src={url} alt="" /> : null;
+  return url ? <img className="remove-preview" src={url} alt="" referrerPolicy="no-referrer" /> : null;
 }

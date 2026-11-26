@@ -45,37 +45,42 @@ export class NeedsPermissionError extends Error {
 
 /**
  * Download an image. Tries the extension context first (works for same-origin images
- * via activeTab, CORS-enabled CDNs, or origins already granted), then from inside the
- * page. If both fail, throws NeedsPermissionError so the UI can offer to request the
+ * via activeTab, CORS-enabled CDNs, or origins already granted), then, given a tab, from
+ * inside that page. If both fail, throws NeedsPermissionError so the UI can offer to request the
  * optional host permission for that origin.
  */
-export async function downloadImage(imageUrl: string, tabId: number): Promise<Blob> {
+export async function downloadImage(imageUrl: string, tabId?: number): Promise<Blob> {
   try {
     const r = await fetch(imageUrl, { credentials: 'omit' });
     if (r.ok) return await r.blob();
-  } catch {
-    // fall through
+    // The server answered (so access isn't the problem) but with an error.
+    if (tabId === undefined) throw new Error(`The image could not be downloaded (HTTP ${r.status}).`);
+  } catch (e) {
+    if (tabId === undefined && !(e instanceof TypeError)) throw e;
+    // fall through: a network or CORS failure (TypeError)
   }
-  try {
-    const [res] = await browser.scripting.executeScript({
-      target: { tabId },
-      args: [imageUrl],
-      func: async (url: string) => {
-        const r = await fetch(url);
-        if (!r.ok) return null;
-        const blob = await r.blob();
-        return await new Promise<string>((resolve, reject) => {
-          const fr = new FileReader();
-          fr.onload = () => resolve(fr.result as string);
-          fr.onerror = () => reject(fr.error);
-          fr.readAsDataURL(blob);
-        });
-      },
-    });
-    const dataUrl = res?.result as string | null | undefined;
-    if (dataUrl) return await (await fetch(dataUrl)).blob();
-  } catch {
-    // fall through
+  if (tabId !== undefined) {
+    try {
+      const [res] = await browser.scripting.executeScript({
+        target: { tabId },
+        args: [imageUrl],
+        func: async (url: string) => {
+          const r = await fetch(url);
+          if (!r.ok) return null;
+          const blob = await r.blob();
+          return await new Promise<string>((resolve, reject) => {
+            const fr = new FileReader();
+            fr.onload = () => resolve(fr.result as string);
+            fr.onerror = () => reject(fr.error);
+            fr.readAsDataURL(blob);
+          });
+        },
+      });
+      const dataUrl = res?.result as string | null | undefined;
+      if (dataUrl) return await (await fetch(dataUrl)).blob();
+    } catch {
+      // fall through
+    }
   }
   throw new NeedsPermissionError(new URL(imageUrl).origin);
 }

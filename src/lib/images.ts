@@ -1,28 +1,45 @@
 import { IMAGES, req, withTx } from './db';
 
 /**
- * Record images live in the "images" store of the extension's IndexedDB.
- * `blob` is the original file, never re-encoded or resized; the viewer shows it at
- * full resolution. `preview` is a small copy used only for card covers and tiles,
- * so a grid of cards never has to decode full-size files. Writes go through
- * storage.ts (addImages / removeImage / reorderImages), which keeps the record's
- * `images` list in the same transaction.
+ * Record images live in the "images" store of the extension's IndexedDB, as one of:
+ * - a local image (`LocalImage`): `blob` is the original file, never re-encoded or resized;
+ *   the viewer shows it at full resolution. `preview` is a small copy used only for card
+ *   covers and tiles, so a list of cards never has to decode full-size files.
+ * - a web image (`WebImage`): only its http(s) `url` is kept; the picture is loaded from the
+ *   web each time it is shown (nothing is stored locally, and it is gone if the site removes it).
+ * Writes go through storage.ts (addImages / removeImage / reorderImages), which keeps the
+ * record's `images` list in the same transaction.
  */
-export interface StoredImage {
+interface ImageBase {
   id: string;
   recordId: string;
-  /** Original file. */
-  blob: Blob;
-  /** Small copy for cards (may be the original itself if it could not be scaled, e.g. SVG). */
-  preview: Blob;
   width?: number;
   height?: number;
   /** Epoch ms; 0 for images converted from pre-v3 thumbnails. */
   addedAt: number;
 }
 
+export interface LocalImage extends ImageBase {
+  /** Original file. */
+  blob: Blob;
+  /** Small copy for cards (may be the original itself if it could not be scaled, e.g. SVG). */
+  preview: Blob;
+  url?: undefined;
+}
+
+export interface WebImage extends ImageBase {
+  /** http(s) address the image is loaded from. */
+  url: string;
+  blob?: undefined;
+  preview?: undefined;
+}
+
+export type StoredImage = LocalImage | WebImage;
+
 /** A prepared image, ready to store. */
-export type NewImage = Pick<StoredImage, 'blob' | 'preview' | 'width' | 'height'>;
+export type NewImage =
+  | Pick<LocalImage, 'blob' | 'preview' | 'width' | 'height'>
+  | Pick<WebImage, 'url' | 'width' | 'height'>;
 
 /** Largest accepted file. Generous, but stops someone saving a 500 MB file by mistake. */
 export const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
@@ -34,15 +51,46 @@ const PREVIEW_QUALITY = 0.82;
 export const getImage = (id: string) =>
   withTx(IMAGES, 'readonly', (tx) => req(tx.objectStore(IMAGES).get(id)) as Promise<StoredImage | undefined>);
 
-export async function getImagePreview(id: string): Promise<Blob | undefined> {
-  return (await getImage(id))?.preview;
+/**
+ * What to display for an image: a Blob for a local image (its preview, or the original file),
+ * the address for a web image (which has no preview), or undefined if it doesn't exist.
+ */
+export async function getImageSource(id: string, original = false): Promise<Blob | string | undefined> {
+  const img = await getImage(id);
+  if (!img) return undefined;
+  if (img.url !== undefined) return img.url;
+  return original ? img.blob : img.preview;
+}
+
+/**
+ * Check that a web image loads here (an extension page, sending no referrer, as the list
+ * will show it) and read its size. Rejects with a user-facing error if it doesn't load.
+ */
+export function probeWebImage(url: string, timeoutMs = 20_000): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.referrerPolicy = 'no-referrer';
+    const timer = setTimeout(() => {
+      img.src = '';
+      reject(new Error('The image took too long to load.'));
+    }, timeoutMs);
+    img.onload = () => {
+      clearTimeout(timer);
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    };
+    img.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error("That address didn't load as an image (it may not be an image, or the site may block showing it elsewhere)."));
+    };
+    img.src = url;
+  });
 }
 
 /**
  * Validate an image file and build its preview. The original blob is returned unchanged.
  * Throws a user-facing error for non-images and oversized files.
  */
-export async function prepareImage(blob: Blob): Promise<NewImage> {
+export async function prepareImage(blob: Blob): Promise<Pick<LocalImage, 'blob' | 'preview' | 'width' | 'height'>> {
   if (blob.size > MAX_IMAGE_BYTES) {
     throw new Error(`Image is too large (${(blob.size / 1024 / 1024).toFixed(1)} MB; the limit is 25 MB).`);
   }

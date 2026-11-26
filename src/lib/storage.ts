@@ -394,7 +394,7 @@ async function changeImages(
   return next;
 }
 
-/** Append images (prepared with prepareImage). Throws if the record would exceed MAX_IMAGES. */
+/** Append images (local ones prepared with prepareImage, or web image addresses). Throws if the record would exceed MAX_IMAGES. */
 export function addImages(recordId: string, added: NewImage[]): Promise<ReadingRecord | undefined> {
   return changeImages(recordId, (current, images) => {
     if (current.length + added.length > MAX_IMAGES) {

@@ -8,11 +8,15 @@ import {
   imagePath,
   imageStem,
   imagesFromZip,
+  isWebImagePath,
   parseManifest,
+  parseWebImageFile,
   parseRecordLine,
   planImport,
   recordLine,
   typeForImagePath,
+  webImageFile,
+  webImagePath,
   type BackupCounts,
 } from './backup';
 import { getBoardReads, importBoardReads } from './board-store';
@@ -34,10 +38,11 @@ import type { BackupFile, ReadingRecord } from './types';
 import { createZip, looksLikeZip, readZip, readZipEntry, type ZipEntry, type ZipInput } from './zip';
 
 /**
- * Export everything to a .zip (layout 5):
+ * Export everything to a .zip (layout 6):
  *   manifest.json   format, versions, export time, counts, folders, Home settings
  *   records.jsonl   one record per line
- *   images/<id>.ext original image files (found by id on import: no separate list)
+ *   images/<id>.ext original image files (found by id on import: no separate list); a web
+ *                   image is images/<id>.url, an Internet Shortcut holding its address
  *   compacted-site-posts/<board>.bin  read posts of one board (binary, encodeBoardIds); boards with none have no file
  * Returns the number of records.
  */
@@ -56,7 +61,11 @@ export async function exportToFile(): Promise<number> {
       // One file per id (stems are unique for real ids: cuid2s, or UUIDs from before).
       if (!img || stems.has(imageStem(id))) continue;
       stems.add(imageStem(id));
-      files.push({ name: imagePath(id, img.blob.type), data: img.blob });
+      files.push(
+        img.url !== undefined
+          ? { name: webImagePath(id), data: new Blob([webImageFile(img.url)], { type: 'text/plain' }) }
+          : { name: imagePath(id, img.blob.type), data: img.blob },
+      );
     }
   }
   const compactedSitePosts = boardPostCount(boards);
@@ -190,6 +199,11 @@ async function mergeBackup(
   const failed = new Set<string>();
   for (const img of plan.putImages) {
     try {
+      if (isWebImagePath(img.file)) {
+        const url = parseWebImageFile(await (await readZipEntry(file, entries.get(img.file)!)).text());
+        images.push({ url, id: img.id, recordId: img.recordId, addedAt: Date.now() });
+        continue;
+      }
       const blob = await readZipEntry(file, entries.get(img.file)!, typeForImagePath(img.file));
       const prepared = await prepareImage(blob);
       images.push({ ...prepared, id: img.id, recordId: img.recordId, addedAt: Date.now() });

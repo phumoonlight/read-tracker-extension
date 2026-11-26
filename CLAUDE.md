@@ -159,6 +159,13 @@ Storage: IndexedDB database `read-tracker` (layout in `src/lib/db.ts`, no third-
   same transaction); `deleteRecord` removes a record's images. Files over 25 MB are rejected (`prepareImage`).
   DB v4 converted the old `thumbnails` store (300px WebP per record) into images `legacy-<recordId>` and dropped it;
   those few stay 300px because the originals were never kept.
+  **Web images** (by request: not stored locally): a row may instead be a `WebImage` = only an http(s) `url` (plus
+  `width` / `height`), no Blob and no preview (`StoredImage = LocalImage | WebImage`; tell them apart by `url`). Added
+  in the Manage dialog's image address field (`ImagePicker`): **Add link** (`webImageUrl` in url.ts validates,
+  `probeWebImage` checks it loads in an extension page and reads its size) or **Save copy** (`downloadImage` without a
+  tab, then stored like an upload). They count toward `MAX_IMAGES`, order and cover like local ones. Shown by address
+  everywhere (`getImageSource` returns a Blob or the URL; `useImageUrl` revokes only `blob:` URLs), always with
+  `referrerPolicy="no-referrer"`; a failed load leaves an empty tile, and the viewer says so. Tiles show a 🔗 badge.
 - `meta`: `recordVersion` (record `SCHEMA_VERSION`; pre-release builds used `schemaVersion`, numbered up to 5, which
   is dropped on startup) and `home` (`HomeSettings`).
 - `boardReads` (keyPath `[site, bucket]`, DB v7): board read history, see "Board marking". (`boardFloors`, v7, was
@@ -255,9 +262,9 @@ versions migrate on import; backups from newer versions (schema or `BACKUP_LAYOU
 
 ### Backup and images
 
-Backups are **ZIP files** (`lib/zip.ts`, own writer/reader, no dependency). Layout 5 (`BACKUP_LAYOUT`, separate
-from `SCHEMA_VERSION`; bump it when the files in the ZIP change; layouts 1 (no board history), 2 (one `boards.json`) and
-4 (`booru/<board>.bin`, count `booruPosts`; renamed by request in 5) still import; layout 3's `booru/<board>.json` was never used for real data and is ignored):
+Backups are **ZIP files** (`lib/zip.ts`, own writer/reader, no dependency). Layout 6 (`BACKUP_LAYOUT`, separate
+from `SCHEMA_VERSION`; bump it when the files in the ZIP change; layouts 1 (no board history), 2 (one `boards.json`),
+4 (`booru/<board>.bin`, count `booruPosts`; renamed by request in 5) and 5 (no web images) still import; layout 3's `booru/<board>.json` was never used for real data and is ignored):
 - `manifest.json` (`BackupManifest`): format, `layout`, record schema `version`, `exportedAt`, `counts`, `folders`,
   `home`. Read first (`openBackup`), so the Backup page previews counts and rejects newer backups before reading
   records.
@@ -277,7 +284,9 @@ from `SCHEMA_VERSION`; bump it when the files in the ZIP change; layouts 1 (no b
   0.1.17).
 - `images/<id>.<ext>` (`imagePath`, `imageStem`): original files. There is no image list: on import each id in a
   record's `images` is looked up by file-name stem among the ZIP's entries (`imageIndex` + `imagesFromZip`; any
-  extension, first record listing an id gets it).
+  extension, first record listing an id gets it). A web image is `images/<id>.url` instead (`webImagePath`,
+  `webImageFile`: a Windows Internet Shortcut, `[InternetShortcut]` + `URL=…`; `parseWebImageFile` on import, an
+  invalid address is skipped like an unreadable image); counted in `counts.images`.
 
 Import reports what it skipped or changed as `issues` (strings; `planImport` adds folder renames skipped, domain
 clashes, images not in the file or owned by another record, records moved to Home; parsing adds invalid folder

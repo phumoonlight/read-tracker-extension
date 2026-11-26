@@ -2,6 +2,7 @@ import { normalizeDomain } from './domains';
 import { cleanEmoji, cleanFolderColor, cleanFolderName } from './folders';
 import { migrateRecord } from './migrate';
 import { computeMatchKey, isHttpUrl, recordLabel } from './records';
+import { webImageUrl } from './url';
 import {
   BACKUP_FORMAT,
   FOLDER_NAME_MAX,
@@ -244,15 +245,16 @@ function parseRecordValue(raw: unknown, where: string, version: number): Reading
 }
 
 // ---------------------------------------------------------------------------
-// ZIP backup: manifest.json + records.jsonl + images/<id>.<ext> + compacted-site-posts/<board>.bin (layout 5)
+// ZIP backup: manifest.json + records.jsonl + images/<id>.<ext> + compacted-site-posts/<board>.bin (layout 6)
 
 /**
  * Version of the ZIP's file layout (separate from the record SCHEMA_VERSION). 2 added
  * boards.json; 3 split it into booru/<board>.json (never used for real data; those files are
  * ignored on import); 4 made them booru/<board>.bin (binary, boards.ts encodeBoardIds); 5 renamed
- * the folder to compacted-site-posts/ and the manifest count to `compactedSitePosts`.
+ * the folder to compacted-site-posts/ and the manifest count to `compactedSitePosts`; 6 added
+ * web images as images/<id>.url (webImageFile).
  */
-export const BACKUP_LAYOUT = 5;
+export const BACKUP_LAYOUT = 6;
 export const BACKUP_MANIFEST = 'manifest.json';
 export const BACKUP_RECORDS = 'records.jsonl';
 /** Layout 2's single board history file; read on import only. */
@@ -584,6 +586,28 @@ export function imagesFromZip(records: readonly ReadingRecord[], index: Readonly
     }
   }
   return out;
+}
+
+/**
+ * A web image (stored as its address only) is saved as images/<id>.url, a Windows Internet
+ * Shortcut file (opens the image when double-clicked in an extracted backup), instead of
+ * the image file. Found by id like the image files (imageIndex).
+ */
+export const WEB_IMAGE_EXT = 'url';
+export const webImagePath = (id: string) => `images/${imageStem(id)}.${WEB_IMAGE_EXT}`;
+export const isWebImagePath = (path: string) => path.toLowerCase().endsWith(`.${WEB_IMAGE_EXT}`);
+
+/** Contents of a web image's .url file. */
+export function webImageFile(url: string): string {
+  return `[InternetShortcut]\r\nURL=${url}\r\n`;
+}
+
+/** The address in a web image's .url file; throws a user-facing error if it has no valid one. */
+export function parseWebImageFile(text: string): string {
+  const line = text.split(/\r?\n/).find((l) => /^\s*URL\s*=/i.test(l));
+  const url = line && webImageUrl(line.slice(line.indexOf('=') + 1));
+  if (!url) throw new Error('The web image address is missing or not an http(s) URL.');
+  return url;
 }
 
 /** MIME type for an image path's extension (files from a ZIP have none of their own). */

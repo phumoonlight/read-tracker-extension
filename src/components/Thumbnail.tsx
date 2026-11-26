@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { getImage, getImagePreview } from '@/lib/images';
+import { getImageSource } from '@/lib/images';
 import type { ReadingRecord } from '@/lib/types';
 import { hueFor, siteLabel } from '@/lib/url';
 
 /**
- * Object URL for an image (its small preview by default, or the original), revoked
- * once replaced or unmounted. Nothing is read from IndexedDB until `enabled` is true.
+ * URL to show an image: for a local image an object URL of its small preview by default,
+ * or of the original, revoked once replaced or unmounted; for a web image its address
+ * (always the full image: there is no preview). Nothing is read from IndexedDB until
+ * `enabled` is true.
  */
 export function useImageUrl(imageId: string | undefined, { enabled = true, original = false } = {}) {
   const [url, setUrl] = useState<string>();
@@ -17,9 +19,9 @@ export function useImageUrl(imageId: string | undefined, { enabled = true, origi
       return;
     }
     let cancelled = false;
-    (original ? getImage(imageId).then((img) => img?.blob) : getImagePreview(imageId))
-      .then((blob) => {
-        if (!cancelled) setUrl(blob ? URL.createObjectURL(blob) : undefined);
+    getImageSource(imageId, original)
+      .then((src) => {
+        if (!cancelled) setUrl(src instanceof Blob ? URL.createObjectURL(src) : src);
       })
       .catch(() => {
         if (!cancelled) setUrl(undefined);
@@ -33,7 +35,7 @@ export function useImageUrl(imageId: string | undefined, { enabled = true, origi
   // old image stays visible while the new one loads instead of flashing broken.
   useEffect(
     () => () => {
-      if (url) URL.revokeObjectURL(url);
+      if (url?.startsWith('blob:')) URL.revokeObjectURL(url);
     },
     [url],
   );
@@ -172,8 +174,13 @@ function MosaicCell({
   original?: boolean;
 }) {
   const url = useImageUrl(imageId, { enabled, original });
+  // A web image that fails to load (gone, or the site refuses) shows nothing, not a broken icon.
+  const [failed, setFailed] = useState<string>();
   // A missing image leaves an empty (tinted) cell rather than collapsing the layout.
-  const img = url ? <img src={url} alt="" decoding="async" /> : null;
+  const img =
+    url && failed !== url ? (
+      <img src={url} alt="" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(url)} />
+    ) : null;
   return onOpen && url ? (
     <button type="button" className={`mosaic-cell thumb-button ${className}`} onClick={onOpen} aria-label={label}>
       {img}

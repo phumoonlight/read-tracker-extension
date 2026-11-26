@@ -69,7 +69,8 @@ export function App() {
         <p className="muted">
           Saves every record, folder and setting, and the board read history, to one ZIP file, with the original
           image files in an{' '}
-          <code>images</code> folder that you can open or extract with any unzip tool.
+          <code>images</code> folder that you can open or extract with any unzip tool. Web images (added as a link)
+          are saved as their address, in a <code>.url</code> shortcut.
         </p>
         <div className="row">
           <button
